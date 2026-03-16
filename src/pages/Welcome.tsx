@@ -142,7 +142,7 @@ export default function Welcome() {
             justifyContent: 'center', 
             alignItems: 'center'
           }}>
-            <Table size={24} />
+            <img src="/Group 1597888803.svg" alt="Past Visits" width={24} height={16} style={{ opacity: 0.7 }} />
           </div>
         </div>
       </div>
@@ -163,7 +163,7 @@ export default function Welcome() {
           <p style={{ color: '#8b949e', margin: 0 }}>Your preferences are saved - booking takes seconds.</p>
         </div>
         <button 
-          onClick={() => navigate('/reserve')}
+          onClick={() => navigate('/user-reserve')}
           style={{
           backgroundColor: '#C99C63',
           color: '#ffffff',
@@ -219,8 +219,8 @@ export default function Welcome() {
             border: '1px solid #30363d'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-              <div style={{ padding: '12px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '12px' }}>
-                <Table size={24} />
+              <div style={{ width: '48px', height: '48px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '50%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                <img src="/Group 1597888803.svg" alt="Table" width={24} height={16} />
               </div>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
@@ -281,7 +281,7 @@ export default function Welcome() {
                 justifyContent: 'center', 
                 alignItems: 'center'
               }}>
-                <Table size={24} style={{ opacity: 0.6 }} />
+                <img src="/Group 1597888803.svg" alt="Table" width={24} height={16} style={{ opacity: 0.6 }} />
               </div>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>

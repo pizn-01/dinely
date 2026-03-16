@@ -13,6 +13,8 @@ import LoggedInTabRes from './pages/LoggedInTabRes'
 import Welcome from './pages/Welcome'
 import PremiumReservation from './pages/PremiumReservation'
 import PremiumBookingConfirmed from './pages/reservation/PremiumBookingConfirmed'
+import UserReservationWizard from './pages/user-reservation/UserReservationWizard'
+import UserBookingConfirmed from './pages/user-reservation/UserBookingConfirmed'
 
 function App() {
   return (
@@ -31,6 +33,8 @@ function App() {
       <Route path="/welcome" element={<Welcome />} />
       <Route path="/premium-reserve" element={<PremiumReservation />} />
       <Route path="/premium-booking-confirmed" element={<PremiumBookingConfirmed />} />
+      <Route path="/user-reserve" element={<UserReservationWizard />} />
+      <Route path="/user-booking-confirmed" element={<UserBookingConfirmed />} />
     </Routes>
   )
 }
