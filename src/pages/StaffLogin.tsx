@@ -15,7 +15,7 @@ export default function StaffLogin() {
   }
 
   return (
-    <div style={{
+    <div className="res-auth-container" style={{
       minHeight: '100vh',
       backgroundColor: '#F6F7F9', // Light gray background matching 23.png
       display: 'flex',
@@ -26,12 +26,12 @@ export default function StaffLogin() {
       fontFamily: 'Inter, system-ui, sans-serif'
     }}>
       {/* Top Left Logo */}
-      <div style={{ position: 'absolute', top: '40px', left: '40px' }}>
+      <div className="res-auth-logo" style={{ position: 'absolute', top: '40px', left: '40px' }}>
         <h1 style={{ color: '#111827', fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>Logo</h1>
       </div>
 
       {/* Login Box */}
-      <div style={{
+      <div className="res-auth-box" style={{
         width: '100%',
         maxWidth: '480px', // slightly less wide
         backgroundColor: '#ffffff', // White login box
@@ -160,7 +160,7 @@ export default function StaffLogin() {
       </div>
 
       {/* Bottom Left Copyright (Matching previous pages) */}
-      <div style={{ position: 'absolute', bottom: '24px', left: '40px' }}>
+      <div className="res-auth-copy" style={{ position: 'absolute', bottom: '24px', left: '40px' }}>
         <p style={{ color: '#9ca3af', fontSize: '0.875rem', margin: 0 }}>
           Copyright @lemonvolt 2025 | Privacy Policy
         </p>

@@ -68,7 +68,7 @@ export default function Welcome() {
   const [activeTab, setActiveTab] = useState<'upcoming' | 'history'>('upcoming')
 
   return (
-    <div style={{
+    <div className="res-welcome-container" style={{
       minHeight: '100vh',
       backgroundColor: '#0B1517',
       color: '#ffffff',
@@ -76,7 +76,7 @@ export default function Welcome() {
       padding: '40px'
     }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
+      <div className="res-welcome-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
         <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>Logo</h1>
         <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
           <Settings size={20} style={{ cursor: 'pointer', color: '#8b949e' }} />
@@ -85,14 +85,14 @@ export default function Welcome() {
       </div>
 
       {/* Greeting */}
-      <div style={{ marginBottom: '40px' }}>
-        <h2 style={{ fontSize: '2.5rem', fontWeight: 700, margin: '0 0 8px 0' }}>Welcome back, John</h2>
+      <div className="res-welcome-greeting" style={{ marginBottom: '40px' }}>
+        <h2 className="res-welcome-title" style={{ fontSize: '2.5rem', fontWeight: 700, margin: '0 0 8px 0' }}>Welcome back, John</h2>
         <p style={{ fontSize: '1.125rem', color: '#8b949e', margin: 0 }}>Manage your reservations and book your next visit</p>
       </div>
 
       {/* Stats Cards */}
-      <div style={{ display: 'flex', gap: '20px', marginBottom: '40px' }}>
-        <div style={{
+      <div className="res-welcome-stats-wrap" style={{ display: 'flex', gap: '20px', marginBottom: '40px' }}>
+        <div className="res-welcome-stat-card" style={{
           width: '300px',
           backgroundColor: '#101A1C',
           borderRadius: '16px',
@@ -119,7 +119,7 @@ export default function Welcome() {
             <Calendar size={24} />
           </div>
         </div>
-        <div style={{
+        <div className="res-welcome-stat-card" style={{
           width: '300px',
           backgroundColor: '#101A1C',
           borderRadius: '16px',
@@ -148,7 +148,7 @@ export default function Welcome() {
       </div>
 
       {/* CTA Banner */}
-      <div style={{
+      <div className="res-welcome-cta" style={{
         backgroundColor: '#162325',
         borderRadius: '16px',
         padding: '32px',
@@ -163,6 +163,7 @@ export default function Welcome() {
           <p style={{ color: '#8b949e', margin: 0 }}>Your preferences are saved - booking takes seconds.</p>
         </div>
         <button 
+          className="res-welcome-cta-btn"
           onClick={() => navigate('/user-reserve')}
           style={{
           backgroundColor: '#C99C63',
@@ -179,7 +180,7 @@ export default function Welcome() {
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: '32px', borderBottom: '1px solid #30363d', marginBottom: '24px' }}>
+      <div className="res-welcome-tabs" style={{ display: 'flex', gap: '32px', borderBottom: '1px solid #30363d', marginBottom: '24px' }}>
         <div 
           onClick={() => setActiveTab('upcoming')}
           style={{ 
@@ -209,7 +210,7 @@ export default function Welcome() {
       {/* Reservation Cards */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
         {activeTab === 'upcoming' && reservations.map(res => (
-          <div key={res.id} style={{
+          <div key={res.id} className="res-welcome-res-card" style={{
             backgroundColor: '#101A1C',
             borderRadius: '12px',
             padding: '20px',
@@ -218,7 +219,7 @@ export default function Welcome() {
             alignItems: 'center',
             border: '1px solid #30363d'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+            <div className="res-welcome-res-details" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
               <div style={{ width: '48px', height: '48px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '50%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                 <img src="/Group 1597888803.svg" alt="Table" width={24} height={16} />
               </div>
@@ -239,7 +240,7 @@ export default function Welcome() {
                     {res.status}
                   </div>
                 </div>
-                <div style={{ fontSize: '0.875rem', color: '#8b949e', display: 'flex', gap: '16px' }}>
+                <div className="res-welcome-res-meta" style={{ fontSize: '0.875rem', color: '#8b949e', display: 'flex', gap: '16px' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Users size={14} /> Capacity: {res.capacity}</span>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><MapPin size={14} /> {res.location}</span>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Calendar size={14} /> {res.date}</span>
@@ -262,7 +263,7 @@ export default function Welcome() {
         ))}
 
         {activeTab === 'history' && visitHistory.map(res => (
-          <div key={res.id} style={{
+          <div key={res.id} className="res-welcome-res-card" style={{
             backgroundColor: '#101A1C',
             borderRadius: '12px',
             padding: '20px',
@@ -271,7 +272,7 @@ export default function Welcome() {
             alignItems: 'center',
             border: '1px solid #30363d'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+            <div className="res-welcome-res-details" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
               <div style={{ 
                 width: '48px', 
                 height: '48px', 
@@ -299,7 +300,7 @@ export default function Welcome() {
                     {res.status}
                   </div>
                 </div>
-                <div style={{ fontSize: '0.875rem', color: '#8b949e', display: 'flex', gap: '16px' }}>
+                <div className="res-welcome-res-meta" style={{ fontSize: '0.875rem', color: '#8b949e', display: 'flex', gap: '16px' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Users size={14} /> Capacity: {res.capacity}</span>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><MapPin size={14} /> {res.location}</span>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Calendar size={14} /> {res.date}</span>

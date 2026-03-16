@@ -64,3 +64,99 @@
     padding: 20px !important;
   }
 }
+
+/* ========================================= */
+/* Section 2: Public Auth & Welcome Pages    */
+/* ========================================= */
+
+@media (max-width: 768px) {
+  /* Auth Pages (Login, SignUp, StaffLogin) */
+  .res-auth-container {
+    padding: 16px !important;
+  }
+  .res-auth-logo {
+    top: 24px !important;
+    left: 24px !important;
+  }
+  .res-auth-box {
+    padding: 32px 24px !important;
+  }
+  .res-auth-copy {
+    bottom: 16px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: 100% !important;
+    text-align: center !important;
+  }
+  .res-grid-1-to-2 {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Welcome Page */
+  .res-welcome-container {
+    padding: 24px 16px !important;
+  }
+  .res-welcome-header {
+    margin-bottom: 24px !important;
+  }
+  .res-welcome-greeting {
+    margin-bottom: 24px !important;
+  }
+  .res-welcome-title {
+    font-size: 2rem !important;
+  }
+  .res-welcome-stats-wrap {
+    flex-direction: column !important;
+    gap: 16px !important;
+  }
+  .res-welcome-stat-card {
+    width: 100% !important;
+    padding: 20px !important;
+  }
+  .res-welcome-cta {
+    flex-direction: column !important;
+    text-align: center !important;
+    gap: 24px !important;
+    padding: 24px 16px !important;
+  }
+  .res-welcome-cta-btn {
+    width: 100% !important;
+  }
+  .res-welcome-tabs {
+    gap: 16px !important;
+    overflow-x: auto !important;
+    white-space: nowrap !important;
+    padding-bottom: 8px !important;
+    scrollbar-width: none !important;
+  }
+  .res-welcome-tabs::-webkit-scrollbar {
+    display: none !important;
+  }
+  .res-welcome-res-card {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 16px !important;
+  }
+  .res-welcome-res-details {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+  .res-welcome-res-meta {
+    flex-wrap: wrap !important;
+    gap: 12px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .res-auth-logo {
+    top: 16px !important;
+    left: 16px !important;
+  }
+  .res-auth-box {
+    padding: 24px 16px !important;
+  }
+  .res-welcome-title {
+    font-size: 1.75rem !important;
+  }
+}

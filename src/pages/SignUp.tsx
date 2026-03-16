@@ -24,7 +24,7 @@ export default function SignUp() {
   }
 
   return (
-    <div style={{
+    <div className="res-auth-container" style={{
       minHeight: '100vh',
       backgroundColor: '#EFF3F8',
       fontFamily: 'var(--font-sans)',
@@ -35,7 +35,7 @@ export default function SignUp() {
       padding: '24px'
     }}>
       {/* Top Left Logo */}
-      <div style={{
+      <div className="res-auth-logo" style={{
         position: 'absolute',
         top: '32px',
         left: '48px'
@@ -52,7 +52,7 @@ export default function SignUp() {
       </div>
 
       {/* Main Card */}
-      <div style={{
+      <div className="res-auth-box" style={{
         backgroundColor: '#ffffff',
         borderRadius: '16px',
         padding: '40px',
@@ -189,7 +189,7 @@ export default function SignUp() {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="res-grid-1-to-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>
               <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: '#111827', marginBottom: '6px' }}>
                 Country
