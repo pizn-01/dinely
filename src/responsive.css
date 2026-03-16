@@ -250,6 +250,18 @@
   .res-prem-table-header {
     flex-wrap: wrap !important;
   }
+  /* Fix overflow on step 4 cards */
+  .res-prem-review-grid > div {
+    padding: 16px !important;
+  }
+  .res-prem-review-grid h3 {
+    font-size: 0.875rem !important;
+  }
+  .res-prem-review-grid span,
+  .res-prem-review-grid p {
+    font-size: 0.75rem !important;
+    word-break: break-word !important;
+  }
 }
 
 @media (max-width: 480px) {
