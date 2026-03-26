@@ -212,8 +212,8 @@ export default function Welcome() {
                 <div className="res-welcome-res-meta" style={{ fontSize: '0.875rem', color: '#8b949e', display: 'flex', gap: '16px' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Users size={14} /> Capacity: {res.partySize} seats</span>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><MapPin size={14} /> {res.table?.table_type || 'Main Dining'}</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Calendar size={14} /> {new Date(res.startTime).toLocaleDateString()}</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Clock size={14} /> {new Date(res.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Calendar size={14} /> {new Date(res.startTime).toLocaleDateString('en-GB')}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Clock size={14} /> {new Date(res.startTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
                 </div>
               </div>
             </div>
@@ -278,8 +278,8 @@ export default function Welcome() {
                 <div className="res-welcome-res-meta" style={{ fontSize: '0.875rem', color: '#8b949e', display: 'flex', gap: '16px' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Users size={14} /> Capacity: {res.partySize} seats</span>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><MapPin size={14} /> {res.table?.table_type || 'Main Dining'}</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Calendar size={14} /> {new Date(res.startTime).toLocaleDateString()}</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Clock size={14} /> {new Date(res.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Calendar size={14} /> {new Date(res.startTime).toLocaleDateString('en-GB')}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Clock size={14} /> {new Date(res.startTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
                 </div>
               </div>
             </div>

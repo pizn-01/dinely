@@ -107,12 +107,12 @@ export default function CustomerDashboard() {
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 text-sm text-white">
                     <Calendar size={14} className="text-gold" />
-                    {new Date(res.startTime).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                    {new Date(res.startTime).toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                   </div>
                   <div className="flex items-center gap-4 text-sm text-dark-text-secondary res-cust-res-meta">
                     <span className="flex items-center gap-1.5">
                       <Clock size={13} />
-                      {new Date(res.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {new Date(res.startTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
                     </span>
                     <span className="flex items-center gap-1.5">
                       <Users size={13} />

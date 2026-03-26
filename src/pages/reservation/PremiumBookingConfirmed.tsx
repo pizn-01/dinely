@@ -6,12 +6,16 @@ export default function PremiumBookingConfirmed() {
   const location = useLocation()
   const data = location.state || {}
 
+  const formattedDate = data.selectedDate 
+    ? new Date(data.selectedDate).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+    : 'Tue, 17 Feb 2026';
+
   const details = [
     { label: 'Guest Name', value: `${data.firstName || 'John'} ${data.lastName || 'Doe'}` },
     { label: 'Party Size', value: `${data.guests || 2} Guests` },
-    { label: 'Date', value: 'Tue, Feb 17, 2026' },
+    { label: 'Date', value: formattedDate },
     { label: 'Time', value: data.selectedTime || '17:30' },
-    { label: 'Table', value: data.tableName || 'Table 2 (VIP)' },
+    { label: 'Table', value: data.tableName ? `${data.tableName}` : 'Table 2' },
     { label: 'Contact', value: data.email || 'johndoe@example.com' },
   ]
 

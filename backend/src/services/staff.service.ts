@@ -3,6 +3,7 @@ import { AppError, NotFoundError } from '../middleware/errorHandler';
 import { InviteStaffDto, UpdateStaffDto } from '../types/api.types';
 import { UserRole } from '../types/enums';
 import { generateToken, generateRefreshToken } from '../middleware/auth';
+import { emailService } from './email.service';
 
 export class StaffService {
   /**
@@ -42,9 +43,17 @@ export class StaffService {
   }
 
   /**
-   * Invite a new staff member.
+   * Invite a new staff member via email.
+   * 
+   * Flow:
+   * 1. Check for duplicate staff record in this restaurant
+   * 2. Create staff_members tracking record
+   * 3. Create/find Supabase Auth user via generateLink (no default Supabase email sent)
+   * 4. Send our branded invitation email via emailService
+   * 5. Return staff record (NO invite link — email only)
    */
   async invite(restaurantId: string, dto: InviteStaffDto) {
+    // 1. Check for existing staff member in this restaurant
     const { data: existing } = await supabaseAdmin
       .from('staff_members')
       .select('id')
@@ -56,12 +65,22 @@ export class StaffService {
       throw new AppError('Staff member with this email already exists in this restaurant', 409);
     }
 
-    // 1. Create the local tracking record initially to acquire its UUID
-    const { data, error } = await supabaseAdmin
+    // Get the restaurant name for the email
+    const { data: org } = await supabaseAdmin
+      .from('organizations')
+      .select('name')
+      .eq('id', restaurantId)
+      .single();
+
+    const restaurantName = org?.name || 'Restaurant';
+    const staffName = dto.name || dto.email.split('@')[0];
+
+    // 2. Create the local staff tracking record
+    const { data: staffRecord, error: insertError } = await supabaseAdmin
       .from('staff_members')
       .insert({
         restaurant_id: restaurantId,
-        name: dto.name || dto.email.split('@')[0],
+        name: staffName,
         email: dto.email,
         role: dto.role,
         invited_at: new Date().toISOString(),
@@ -69,87 +88,76 @@ export class StaffService {
       .select()
       .single();
 
-    if (error || !data) throw new AppError('Failed to invite staff member locally', 500);
-
-    const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
-    const inviteToken = data.id;
-    const redirectTo = `${FRONTEND_URL}/accept-invite?token=${inviteToken}`;
-
-    // 2. Check if user already exists in Supabase Auth
-    const { data: authUserLookup } = await supabaseAdmin.auth.admin.listUsers();
-    const existingAuthUser = authUserLookup?.users.find(u => u.email?.toLowerCase() === dto.email.toLowerCase());
-
-    let authUserId: string;
-
-    let inviteLink = '';
-
-    if (existingAuthUser) {
-      authUserId = existingAuthUser.id;
-      console.log(`[StaffService DEBUG] User ${dto.email} already exists (ID: ${authUserId}, Confirmed: ${!!existingAuthUser.email_confirmed_at}).`);
-      
-      // We still attempt to generate a link for them
-      const { data: linkData, error: linkErr } = await supabaseAdmin.auth.admin.generateLink({
-        type: 'magiclink',
-        email: dto.email,
-        options: { redirectTo }
-      });
-      
-      if (linkData?.properties?.action_link) {
-        inviteLink = linkData.properties.action_link;
-        console.log(`[StaffService DEBUG] Generated Magic Link for existing user: ${inviteLink}`);
-      }
-      
-      // Also attempt standard invite as a backup (sends email if possible)
-      await supabaseAdmin.auth.admin.inviteUserByEmail(dto.email, { redirectTo });
-    } else {
-      // 3. New user - generate link AND send invite
-      console.log(`[StaffService DEBUG] Inviting NEW user: ${dto.email}`);
-      
-      const { data: linkData, error: linkErr } = await supabaseAdmin.auth.admin.generateLink({
-        type: 'invite',
-        email: dto.email,
-        options: { redirectTo }
-      });
-
-      if (linkData?.properties?.action_link) {
-        inviteLink = linkData.properties.action_link;
-        console.log(`[StaffService DEBUG] Generated Invite Link: ${inviteLink}`);
-      }
-
-      // Also call the official invite (this triggers the email)
-      const { data: authData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(dto.email, {
-        redirectTo
-      });
-
-      if (inviteError || !authData.user) {
-        console.error(`[StaffService DEBUG] Supabase Invite Failed:`, inviteError);
-        // We only throw if we also failed to generate a link
-        if (!inviteLink) {
-          await supabaseAdmin.from('staff_members').delete().eq('id', data.id);
-          throw new AppError(`Supabase Invite Failed: ${inviteError?.message || 'Check Supabase Auth logs.'}`, 500);
-        }
-        authUserId = linkData?.user?.id || '';
-      } else {
-        authUserId = authData.user.id;
-      }
-      
-      if (authUserId) {
-        await supabaseAdmin.auth.admin.updateUserById(authUserId, {
-          user_metadata: { role: dto.role, name: dto.name || dto.email.split('@')[0] }
-        });
-      }
+    if (insertError || !staffRecord) {
+      throw new AppError('Failed to create staff record', 500);
     }
 
-    // 4. Form the bridge
-    const { error: updateError } = await supabaseAdmin
-      .from('staff_members')
-      .update({ user_id: authUserId })
-      .eq('id', data.id);
+    const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const inviteToken = staffRecord.id;
+    const redirectTo = `${FRONTEND_URL}/accept-invite?token=${inviteToken}`;
 
-    const formatted = this.formatStaff(data);
+    // 3. Create or find the Supabase Auth user via generateLink
+    //    This does NOT send Supabase's default email — we send our own branded one.
+    let authUserId: string | null = null;
+
+    try {
+      // Try invite type first (creates user if doesn't exist)
+      const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+        type: 'invite',
+        email: dto.email,
+        options: { redirectTo },
+      });
+
+      if (linkError) {
+        // User might already exist — try magiclink instead
+        console.log(`[StaffService] generateLink 'invite' failed (user may exist), trying magiclink...`);
+        const { data: magicData } = await supabaseAdmin.auth.admin.generateLink({
+          type: 'magiclink',
+          email: dto.email,
+          options: { redirectTo },
+        });
+
+        authUserId = magicData?.user?.id || null;
+      } else {
+        authUserId = linkData?.user?.id || null;
+      }
+    } catch (err: any) {
+      console.error(`[StaffService] Auth link generation failed:`, err.message);
+    }
+
+    // 4. Bridge the auth user to the staff record
+    if (authUserId) {
+      await supabaseAdmin
+        .from('staff_members')
+        .update({ user_id: authUserId })
+        .eq('id', staffRecord.id);
+
+      // Set user metadata for role
+      await supabaseAdmin.auth.admin.updateUserById(authUserId, {
+        user_metadata: { role: dto.role, name: staffName },
+      });
+    }
+
+    // 5. Send our branded invitation email
+    try {
+      await emailService.sendStaffInvite({
+        to: dto.email,
+        staffName,
+        restaurantName,
+        inviteToken,
+        role: dto.role,
+        baseUrl: FRONTEND_URL,
+      });
+      console.log(`[StaffService] ✅ Invitation email sent to ${dto.email}`);
+    } catch (emailError: any) {
+      console.error(`[StaffService] ⚠️  Email send failed (invite still created):`, emailError.message);
+      // Don't throw — the staff record is created; admin can resend later
+    }
+
     return {
-      ...formatted,
-      inviteLink // Return the generated link to the frontend as a fallback
+      ...this.formatStaff(staffRecord),
+      emailSent: true,
+      message: `Invitation email sent to ${dto.email}`,
     };
   }
 

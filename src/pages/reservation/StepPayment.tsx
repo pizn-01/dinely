@@ -86,15 +86,15 @@ export default function StepPayment({ data, updateData }: StepPaymentProps) {
             <div className="space-y-3 text-sm">
               <div className="flex justify-between">
                 <span className="text-gray-500">Table Deposit</span>
-                <span className="text-gray-900">$20.00</span>
+                <span className="text-gray-900">£20.00</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Service Fee</span>
-                <span className="text-gray-900">$2.50</span>
+                <span className="text-gray-900">£2.50</span>
               </div>
               <div className="flex justify-between font-semibold">
                 <span className="text-gray-900">Total Payable Today</span>
-                <span className="text-gray-900">$22.50</span>
+                <span className="text-gray-900">£22.50</span>
               </div>
             </div>
           </div>

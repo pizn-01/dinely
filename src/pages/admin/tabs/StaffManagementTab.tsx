@@ -18,6 +18,7 @@ export default function StaffManagementTab({ theme, orgId }: StaffManagementTabP
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState('host')
   const [inviteLoading, setInviteLoading] = useState(false)
+  const [demoInviteLink, setDemoInviteLink] = useState('')
   
   // Delete Confirmation State
   const [confirmDeleteMember, setConfirmDeleteMember] = useState<any>(null)
@@ -41,27 +42,23 @@ export default function StaffManagementTab({ theme, orgId }: StaffManagementTabP
     fetchStaff()
   }, [])
 
-  const [lastInviteLink, setLastInviteLink] = useState('')
-
   const handleInvite = async () => {
     if (!inviteEmail) return
     try {
       setInviteLoading(true)
-      const { data } = await api.post(`/organizations/${orgId}/staff/invite`, {
+      const response = await api.post(`/organizations/${orgId}/staff/invite`, {
         email: inviteEmail,
         role: inviteRole
       })
       
-      const inviteLink = data.data?.inviteLink
-      if (inviteLink) {
-        setLastInviteLink(inviteLink)
-        // We'll show a success message but keep the modal open to show the link
-        alert('Staff invited! If they don\'t receive the email, you can copy the direct link below.')
-      } else {
-        alert('Staff invited successfully!')
-        setShowInvite(false)
-        setInviteEmail('')
+      const token = response.data?.data?.inviteToken
+      if (token) {
+        setDemoInviteLink(`${window.location.origin}/accept-invite?token=${token}`)
       }
+      
+      alert('Invitation sent! The staff member will receive an email with instructions to set up their account.')
+      setShowInvite(false)
+      setInviteEmail('')
       fetchStaff()
     } catch (err: any) {
       console.error('Failed to invite staff:', err)
@@ -89,6 +86,18 @@ export default function StaffManagementTab({ theme, orgId }: StaffManagementTabP
 
   return (
     <div>
+      {demoInviteLink && (
+        <div style={{ padding: '16px', marginBottom: '24px', backgroundColor: 'rgba(234, 179, 8, 0.1)', border: '1px solid rgba(234, 179, 8, 0.2)', borderRadius: '12px', color: '#eab308' }}>
+          <div style={{ fontWeight: 600, marginBottom: '8px' }}>Demo Mode: Temporary Invite Link</div>
+          <p style={{ fontSize: '0.875rem', marginBottom: '8px' }}>Since email delivery is not configured for this demo, copy this link manually to accept the invitation in an incognito window.</p>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <input type="text" readOnly value={demoInviteLink} style={{ flex: 1, padding: '8px 12px', borderRadius: '6px', border: '1px solid rgba(234, 179, 8, 0.2)', backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : '#ffffff', color: isDark ? '#ffffff' : '#1f2937' }} />
+            <button onClick={() => { navigator.clipboard.writeText(demoInviteLink); alert('Copied to clipboard!') }} style={{ padding: '8px 16px', backgroundColor: '#eab308', color: '#ffffff', borderRadius: '6px', border: 'none', fontWeight: 600, cursor: 'pointer' }}>Copy</button>
+            <button onClick={() => setDemoInviteLink('')} style={{ padding: '8px 16px', backgroundColor: 'transparent', color: '#eab308', borderRadius: '6px', border: '1px solid rgba(234, 179, 8, 0.5)', fontWeight: 600, cursor: 'pointer' }}>Dismiss</button>
+          </div>
+        </div>
+      )}
+
       {/* Top Control Bar */}
       <div className="res-admin-tab-header res-staff-controls" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', gap: '16px' }}>
         <div style={{ position: 'relative', width: '400px', maxWidth: '100%' }}>
@@ -202,7 +211,7 @@ export default function StaffManagementTab({ theme, orgId }: StaffManagementTabP
                     {member.email}
                   </td>
                   <td style={{ padding: '16px 24px', color: isDark ? '#e6edf3' : '#4b5563' }}>
-                    {member.lastActive ? new Date(member.lastActive).toLocaleString() : 'Never'}
+                    {member.lastActive ? new Date(member.lastActive).toLocaleString('en-GB') : 'Never'}
                   </td>
                   <td style={{ padding: '16px 24px' }}>
                     <StatusBadge status={member.role || member.status || 'viewer'} />
@@ -313,65 +322,8 @@ export default function StaffManagementTab({ theme, orgId }: StaffManagementTabP
               </div>
             </div>
 
-              {lastInviteLink && (
-                <div style={{
-                  padding: '12px',
-                  backgroundColor: isDark ? '#1F2937' : '#F9FAFB',
-                  borderRadius: '8px',
-                  border: `1px solid ${isDark ? '#30363d' : '#e5e7eb'}`,
-                  marginBottom: '16px'
-                }}>
-                  <p style={{ margin: '0 0 8px 0', fontSize: '11px', color: isDark ? '#9ca3af' : '#6b7280' }}>
-                    Email delay? Send this link directly:
-                  </p>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <input 
-                      readOnly 
-                      value={lastInviteLink}
-                      onClick={(e) => (e.target as HTMLInputElement).select()}
-                      style={{
-                        flex: 1,
-                        fontSize: '11px',
-                        padding: '6px 8px',
-                        backgroundColor: isDark ? '#111827' : '#ffffff',
-                        border: `1px solid ${isDark ? '#30363d' : '#d1d5db'}`,
-                        borderRadius: '4px',
-                        color: isDark ? '#ffffff' : '#111827',
-                        outline: 'none'
-                      }}
-                    />
-                    <button 
-                      onClick={() => {
-                        navigator.clipboard.writeText(lastInviteLink)
-                        alert('Link copied!')
-                      }}
-                      style={{
-                        padding: '6px 10px',
-                        fontSize: '11px',
-                        backgroundColor: '#C99C63',
-                        color: '#fff',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        fontWeight: 600
-                      }}
-                    >
-                      Copy
-                    </button>
-                  </div>
-                </div>
-              )}
-
               <button 
-                onClick={() => {
-                  if (lastInviteLink) {
-                    setShowInvite(false)
-                    setInviteEmail('')
-                    setLastInviteLink('')
-                  } else {
-                    handleInvite()
-                  }
-                }}
+                onClick={handleInvite}
                 disabled={inviteLoading}
                 style={{
                   width: '100%',
@@ -384,7 +336,7 @@ export default function StaffManagementTab({ theme, orgId }: StaffManagementTabP
                   cursor: inviteLoading ? 'not-allowed' : 'pointer'
                 }}
               >
-                {inviteLoading ? 'Sending...' : (lastInviteLink ? 'Close' : 'Send Invitation')}
+                {inviteLoading ? 'Sending...' : 'Send Invitation'}
               </button>
           </div>
         </div>

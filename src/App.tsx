@@ -41,7 +41,7 @@ function App() {
       <Route path="/accept-invite" element={<AcceptInvite />} />
       <Route path="/logged-in-tab-res" element={<LoggedInTabRes />} />
       <Route path="/welcome" element={<Welcome />} />
-      <Route path="/premium-reserve" element={<PremiumReservation />} />
+      <Route path="/premium-reserve/:slug" element={<PremiumReservation />} />
       <Route path="/premium-booking-confirmed" element={<PremiumBookingConfirmed />} />
       <Route path="/user-reserve" element={<UserReservationWizard />} />
       <Route path="/user-booking-confirmed" element={<UserBookingConfirmed />} />

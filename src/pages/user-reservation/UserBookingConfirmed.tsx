@@ -7,12 +7,16 @@ export default function UserBookingConfirmed() {
   const location = useLocation()
   const data = (location.state as ReservationData) || {}
 
+  const formattedDate = data.date 
+    ? new Date(data.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+    : 'Tue, 17 Feb 2026';
+
   const details = [
     { label: 'Guest Name', value: `${data.firstName || 'John'} ${data.lastName || 'Doe'}` },
     { label: 'Party Size', value: `${data.guests || 2} Guests` },
-    { label: 'Date', value: 'Tue, Feb 17, 2026' },
+    { label: 'Date', value: formattedDate },
     { label: 'Time', value: data.time || '17:00' },
-    { label: 'Table', value: `${data.tableName || 'Table 8'} (Main hall)` },
+    { label: 'Table', value: data.tableName ? `${data.tableName}` : 'Table 8' },
     { label: 'Contact', value: data.email || 'johndoe@example.com' },
   ]
 

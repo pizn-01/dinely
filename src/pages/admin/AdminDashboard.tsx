@@ -55,6 +55,9 @@ export default function AdminDashboard() {
       }
     }
     fetchStats()
+    // Auto-poll every 30 seconds for real-time sync
+    const interval = setInterval(fetchStats, 30_000)
+    return () => clearInterval(interval)
   }, [orgId])
 
   const toggleTheme = () => {

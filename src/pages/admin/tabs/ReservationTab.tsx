@@ -113,8 +113,8 @@ export default function ReservationTab({ theme, orgId, serverToday }: Reservatio
   }
 
   const todayDateObj = new Date(serverToday || new Date().toISOString())
-  const dateStr = todayDateObj.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
-  const timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+  const dateStr = todayDateObj.toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+  const timeStr = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
 
   // Calculations for cards
   const tableStatuses = tablesList.map(t => getTableStatus(t.id))

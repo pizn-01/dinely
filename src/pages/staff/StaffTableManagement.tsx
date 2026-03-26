@@ -49,10 +49,15 @@ export default function StaffTableManagement() {
     partySize: 2,
     guestEmail: '',
     guestFirstName: '',
-    guestLastName: ''
+    guestLastName: '',
+    guestPhone: '',
+    specialRequests: '',
+    tableId: ''
   })
 
   const restaurantId = user?.restaurantId
+
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null)
 
   const fetchData = async (date: string) => {
     if (!restaurantId) {
@@ -70,6 +75,7 @@ export default function StaffTableManagement() {
       setDbTables(tablesRes.data.data || [])
       setDbReservations(resvRes.data.data || [])
       setRestaurantName(orgRes.data.data?.name || 'Staff Dashboard')
+      setLastRefreshed(new Date())
     } catch (err) {
       console.error('Failed to fetch dashboard data:', err)
     } finally {
@@ -79,6 +85,15 @@ export default function StaffTableManagement() {
 
   useEffect(() => {
     fetchData(selectedDate)
+  }, [restaurantId, selectedDate])
+
+  // Auto-poll every 30 seconds for real-time sync
+  useEffect(() => {
+    if (!restaurantId) return
+    const interval = setInterval(() => {
+      fetchData(selectedDate)
+    }, 30_000)
+    return () => clearInterval(interval)
   }, [restaurantId, selectedDate])
 
   // Redirect if not logged in
@@ -166,6 +181,9 @@ export default function StaffTableManagement() {
         guestEmail: newRes.guestEmail,
         guestFirstName: newRes.guestFirstName,
         guestLastName: newRes.guestLastName,
+        guestPhone: newRes.guestPhone,
+        specialRequests: newRes.specialRequests,
+        tableId: newRes.tableId || null,
         source: 'pos'
       })
       setShowCreateModal(false)
@@ -203,7 +221,14 @@ export default function StaffTableManagement() {
           </div>
           <div>
             <h1 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0 }}>{restaurantName}</h1>
-            <p style={{ fontSize: '0.875rem', color: '#6B7280', margin: 0 }}>Staff Console</p>
+            <p style={{ fontSize: '0.875rem', color: '#6B7280', margin: 0 }}>
+              Staff Console
+              {lastRefreshed && (
+                <span style={{ marginLeft: '12px', fontSize: '0.75rem', color: '#9CA3AF' }}>
+                  • Last synced: {lastRefreshed.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                </span>
+              )}
+            </p>
           </div>
         </div>
 
@@ -381,6 +406,27 @@ export default function StaffTableManagement() {
                     </div>
                   )
                 })}
+                {/* Unassigned Reservations in Table View */}
+                {dbReservations.filter(r => !r.tableId).length > 0 && (
+                  <div style={{ width: '100%', marginTop: '40px', paddingTop: '40px', borderTop: '2px dashed #F3F4F6', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#6B7280', margin: '0 0 24px 0' }}>Unassigned Reservations</h3>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '24px', justifyContent: 'center' }}>
+                      {dbReservations.filter(r => !r.tableId).map(res => (
+                         <div 
+                           key={res.id} 
+                           onClick={() => setSelectedBooking(res)} 
+                           style={{ backgroundColor: '#F9FAFB', border: '1px dashed #E5E7EB', padding: '16px 32px', borderRadius: '16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', transition: 'all 0.2s' }}
+                           onMouseEnter={e => e.currentTarget.style.borderColor = '#9CA3AF'}
+                           onMouseLeave={e => e.currentTarget.style.borderColor = '#E5E7EB'}
+                         >
+                           <span style={{ fontSize: '1rem', fontWeight: 700, color: '#111827' }}>{res.guestFirstName} {res.guestLastName}</span>
+                           <span style={{ fontSize: '0.875rem', color: '#6B7280', marginTop: '4px' }}>{res.partySize} Guests • {res.startTime?.slice(0, 5)}</span>
+                           <span style={{ marginTop: '12px', fontSize: '0.625rem', fontWeight: 800, color: '#C2410C', backgroundColor: '#FFF7ED', padding: '4px 10px', borderRadius: '100px', letterSpacing: '0.05em' }}>NEEDS TABLE</span>
+                         </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -499,6 +545,52 @@ export default function StaffTableManagement() {
                       </div>
                     </div>
                   ))}
+                  {/* Unassigned Row in Calendar View */}
+                  {dbReservations.filter(r => !r.tableId).length > 0 && (
+                    <div style={{ display: 'flex', borderBottom: '1px solid #F3F4F6', minHeight: '64px', backgroundColor: '#F9FAFB' }}>
+                      <div style={{ width: '120px', borderRight: '1px solid #F3F4F6', padding: '0 16px', display: 'flex', alignItems: 'center', fontSize: '0.875rem', fontWeight: 700, color: '#6B7280' }}>Unassigned</div>
+                      <div style={{ flex: 1, position: 'relative', display: 'flex' }}>
+                        {dbReservations.filter(r => !r.tableId).map(r => {
+                          const startTime = r.startTime || '12:00'
+                          const [h, m] = startTime.split(':').map(Number)
+                          const startPos = Math.max(0, (((h - 12) * 60 + m) / (10 * 60)) * 100)
+                          
+                          return (
+                            <div 
+                              key={r.id}
+                              onClick={() => setSelectedBooking(r)}
+                              style={{ 
+                                position: 'absolute', 
+                                left: `${startPos}%`,
+                                width: '18%', 
+                                top: '10px',
+                                bottom: '10px',
+                                backgroundColor: '#ffffff',
+                                color: '#111827',
+                                padding: '0 12px',
+                                borderRadius: '10px',
+                                fontSize: '0.75rem',
+                                fontWeight: 700,
+                                display: 'flex',
+                                alignItems: 'center',
+                                cursor: 'pointer',
+                                border: `1px dashed #E5E7EB`,
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
+                                zIndex: 10,
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis'
+                              }}>
+                              {r.guestFirstName} {r.guestLastName}
+                            </div>
+                          )
+                        })}
+                        {Array(11).fill(0).map((_, i) => (
+                           <div key={`unassigned-${i}`} style={{ flex: 1, borderRight: '1px solid #F3F4F6', opacity: 0.3 }} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -571,13 +663,30 @@ export default function StaffTableManagement() {
                 <label style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: '#9CA3AF' }}>Last Name</label>
                 <input type="text" placeholder="Doe" value={newRes.guestLastName} onChange={e => setNewRes({...newRes, guestLastName: e.target.value})} style={{ padding: '14px', borderRadius: '12px', border: '1px solid #F3F4F6', fontSize: '1rem', fontWeight: 500 }} />
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', gridColumn: 'span 2' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: '#9CA3AF' }}>Email Address</label>
                 <input type="email" placeholder="john.doe@example.com" value={newRes.guestEmail} onChange={e => setNewRes({...newRes, guestEmail: e.target.value})} style={{ padding: '14px', borderRadius: '12px', border: '1px solid #F3F4F6', fontSize: '1rem', fontWeight: 500 }} />
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', gridColumn: 'span 2' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: '#9CA3AF' }}>Phone Number</label>
+                <input type="tel" placeholder="+44 20 7123 4567" value={newRes.guestPhone} onChange={e => setNewRes({...newRes, guestPhone: e.target.value})} style={{ padding: '14px', borderRadius: '12px', border: '1px solid #F3F4F6', fontSize: '1rem', fontWeight: 500 }} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: '#9CA3AF' }}>Party Size</label>
-                <input type="number" value={newRes.partySize} onChange={e => setNewRes({...newRes, partySize: parseInt(e.target.value)})} style={{ padding: '14px', borderRadius: '12px', border: '1px solid #F3F4F6', fontSize: '1rem', fontWeight: 500 }} />
+                <input type="number" min="1" value={newRes.partySize} onChange={e => setNewRes({...newRes, partySize: parseInt(e.target.value) || 1})} style={{ padding: '14px', borderRadius: '12px', border: '1px solid #F3F4F6', fontSize: '1rem', fontWeight: 500 }} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: '#9CA3AF' }}>Assign Table</label>
+                <select value={newRes.tableId} onChange={e => setNewRes({...newRes, tableId: e.target.value})} style={{ padding: '14px', borderRadius: '12px', border: '1px solid #F3F4F6', fontSize: '1rem', fontWeight: 500, WebkitAppearance: 'none', backgroundColor: '#fff', cursor: 'pointer' }}>
+                  <option value="">No table assigned</option>
+                  {dbTables.map(t => (
+                    <option key={t.id} value={t.id}>Table {t.tableNumber} (Seats: {t.capacity})</option>
+                  ))}
+                </select>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', gridColumn: 'span 2' }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: '#9CA3AF' }}>Special Requests</label>
+                <input type="text" placeholder="Birthday, allergies, high chair, etc." value={newRes.specialRequests} onChange={e => setNewRes({...newRes, specialRequests: e.target.value})} style={{ padding: '14px', borderRadius: '12px', border: '1px solid #F3F4F6', fontSize: '1rem', fontWeight: 500 }} />
               </div>
             </div>
 

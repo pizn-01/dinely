@@ -4,6 +4,7 @@ import { CreateReservationDto, UpdateReservationDto, ReservationFilterQuery } fr
 import { ReservationStatus } from '../types/enums';
 import { addMinutesToTime, timeRangesOverlap, getTodayDate } from '../utils/time';
 import { parsePagination, buildPaginationMeta } from '../utils/pagination';
+import { emailService } from './email.service';
 
 // Valid status transitions
 const VALID_TRANSITIONS: Record<string, string[]> = {
@@ -90,10 +91,10 @@ export class ReservationService {
    * Create a new reservation.
    */
   async create(restaurantId: string, dto: CreateReservationDto, createdBy?: string) {
-    // Get restaurant settings for default duration
+    // Get restaurant settings for default duration and booking window
     const { data: org } = await supabaseAdmin
       .from('organizations')
-      .select('default_reservation_duration_min, max_party_size')
+      .select('default_reservation_duration_min, max_party_size, min_advance_booking_hours, max_advance_booking_days')
       .eq('id', restaurantId)
       .single();
 
@@ -102,6 +103,28 @@ export class ReservationService {
 
     if (dto.partySize > maxParty) {
       throw new AppError(`Party size cannot exceed ${maxParty}`, 400);
+    }
+
+    // Enforce booking window
+    const minAdvanceHours = org?.min_advance_booking_hours || 0;
+    const maxAdvanceDays = org?.max_advance_booking_days || 365;
+    const now = new Date();
+    const reservationDateTime = new Date(`${dto.reservationDate}T${dto.startTime}:00`);
+    const hoursUntilReservation = (reservationDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+    if (hoursUntilReservation < minAdvanceHours) {
+      throw new AppError(
+        `Reservations must be made at least ${minAdvanceHours} hour(s) in advance`,
+        400
+      );
+    }
+
+    const daysUntilReservation = hoursUntilReservation / 24;
+    if (daysUntilReservation > maxAdvanceDays) {
+      throw new AppError(
+        `Reservations cannot be made more than ${maxAdvanceDays} day(s) in advance`,
+        400
+      );
     }
 
     const endTime = dto.endTime || addMinutesToTime(dto.startTime, duration);
@@ -182,13 +205,87 @@ export class ReservationService {
       );
     }
 
+    // Send confirmation email (fire-and-forget)
+    const guestEmail = dto.guestEmail || createdRes.guest_email;
+    if (guestEmail) {
+      try {
+        // Get restaurant name for the email
+        const { data: orgData } = await supabaseAdmin
+          .from('organizations')
+          .select('name')
+          .eq('id', restaurantId)
+          .single();
+
+        await emailService.sendReservationConfirmation({
+          to: guestEmail,
+          guestName: `${dto.guestFirstName || ''} ${dto.guestLastName || ''}`.trim() || 'Guest',
+          restaurantName: orgData?.name || 'Restaurant',
+          date: dto.reservationDate,
+          time: dto.startTime,
+          partySize: dto.partySize,
+          confirmationId: rpcData.id,
+          tableName: createdRes.tables?.name || createdRes.tables?.table_number || undefined,
+        });
+      } catch (emailErr: any) {
+        console.error('[ReservationService] Confirmation email failed:', emailErr.message);
+      }
+    }
+
     return this.formatReservation(createdRes);
   }
 
   /**
-   * Update a reservation.
+   * Update a reservation with conflict detection.
+   * If table_id, date, or time is being changed, we check for conflicts first.
    */
   async update(reservationId: string, restaurantId: string, dto: UpdateReservationDto) {
+    // If table/date/time is changing, we need to check for conflicts
+    const isSlotChanging = dto.tableId !== undefined || dto.reservationDate !== undefined ||
+                           dto.startTime !== undefined || dto.endTime !== undefined;
+
+    if (isSlotChanging) {
+      // Fetch current reservation to fill in defaults for unchanged fields
+      const { data: current, error: fetchErr } = await supabaseAdmin
+        .from('reservations')
+        .select('table_id, reservation_date, start_time, end_time, status')
+        .eq('id', reservationId)
+        .eq('restaurant_id', restaurantId)
+        .single();
+
+      if (fetchErr || !current) throw new NotFoundError('Reservation');
+
+      // Only check conflicts for active reservations
+      const activeStatuses = [ReservationStatus.CONFIRMED, ReservationStatus.SEATED, ReservationStatus.PENDING];
+      if (activeStatuses.includes(current.status as ReservationStatus)) {
+        const targetTableId = dto.tableId ?? current.table_id;
+        const targetDate = dto.reservationDate ?? current.reservation_date;
+        const targetStart = dto.startTime ?? current.start_time;
+        const targetEnd = dto.endTime ?? current.end_time;
+
+        if (targetTableId) {
+          // Check for overlapping reservations on the target table, excluding this reservation
+          const { data: conflicts } = await supabaseAdmin
+            .from('reservations')
+            .select('id, start_time, end_time')
+            .eq('table_id', targetTableId)
+            .eq('reservation_date', targetDate)
+            .neq('id', reservationId)
+            .not('status', 'in', `(${ReservationStatus.CANCELLED},${ReservationStatus.NO_SHOW})`);
+
+          if (conflicts && conflicts.length > 0) {
+            for (const conflict of conflicts) {
+              if (timeRangesOverlap(targetStart, targetEnd, conflict.start_time, conflict.end_time)) {
+                throw new AppError(
+                  'Table is already booked for the selected time slot. Please choose a different time or table.',
+                  409
+                );
+              }
+            }
+          }
+        }
+      }
+    }
+
     const updateData: Record<string, any> = { updated_at: new Date().toISOString() };
 
     if (dto.tableId !== undefined) updateData.table_id = dto.tableId;
@@ -270,6 +367,28 @@ export class ReservationService {
         p_customer_id: data.customer_id,
         p_restaurant_id: restaurantId,
       });
+    }
+
+    // Send cancellation email when status changes to cancelled
+    if (newStatus === ReservationStatus.CANCELLED && data.guest_email) {
+      try {
+        const { data: orgData } = await supabaseAdmin
+          .from('organizations')
+          .select('name')
+          .eq('id', restaurantId)
+          .single();
+
+        await emailService.sendReservationCancellation({
+          to: data.guest_email,
+          guestName: `${data.guest_first_name || ''} ${data.guest_last_name || ''}`.trim() || 'Guest',
+          restaurantName: orgData?.name || 'Restaurant',
+          date: data.reservation_date,
+          time: data.start_time,
+          reason: reason || undefined,
+        });
+      } catch (emailErr: any) {
+        console.error('[ReservationService] Cancellation email failed:', emailErr.message);
+      }
     }
 
     return this.formatReservation(data);
@@ -428,9 +547,47 @@ export class ReservationService {
       current.setUTCMinutes(current.getUTCMinutes() + 30);
     }
 
+    // Batch optimization: fetch ALL active reservations for this date in one query
+    // instead of N+1 individual queries per time slot
+    const { data: allTables } = await supabaseAdmin
+      .from('tables')
+      .select('id, capacity')
+      .eq('restaurant_id', restaurantId)
+      .eq('is_active', true)
+      .gte('capacity', partySize);
+
+    if (!allTables || allTables.length === 0) {
+      return { allSlots, availableSlots };
+    }
+
+    // Get org duration for end-time calculation
+    const { data: orgDuration } = await supabaseAdmin
+      .from('organizations')
+      .select('default_reservation_duration_min')
+      .eq('id', restaurantId)
+      .single();
+    const duration = orgDuration?.default_reservation_duration_min || 90;
+
+    // Fetch all reservations for this date in a single query
+    const { data: dayReservations } = await supabaseAdmin
+      .from('reservations')
+      .select('table_id, start_time, end_time')
+      .eq('restaurant_id', restaurantId)
+      .eq('reservation_date', date)
+      .not('status', 'in', `(${ReservationStatus.CANCELLED},${ReservationStatus.NO_SHOW})`);
+
+    const reservations = dayReservations || [];
+
+    // Check each slot in-memory
     for (const slot of allSlots) {
-      const available = await this.getAvailableTables(restaurantId, date, slot, partySize);
-      if (available.length > 0) availableSlots.push(slot);
+      const slotEnd = addMinutesToTime(slot, duration);
+      // Check if at least one table has no conflicting reservation
+      const hasAvailable = allTables.some(table => {
+        return !reservations.some(
+          r => r.table_id === table.id && timeRangesOverlap(slot, slotEnd, r.start_time, r.end_time)
+        );
+      });
+      if (hasAvailable) availableSlots.push(slot);
     }
 
     return { allSlots, availableSlots };
