@@ -1,5 +1,10 @@
-app = "table-reservation-system"
-primary_region = "lhr"  # London Heathrow - closest to UK restaurants
+# fly.toml app configuration file generated for dinely on 2026-03-27T16:29:05Z
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'dinely'
+primary_region = 'lhr'
 
 [build]
 
