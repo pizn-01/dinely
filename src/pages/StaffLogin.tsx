@@ -38,7 +38,9 @@ export default function StaffLogin() {
 
     try {
       const { data } = await api.post('/auth/staff-login', { email, password })
-      const { token, user, restaurant } = data.data
+      const { token, refreshToken: rToken, user, restaurant } = data.data
+      
+      if (rToken) localStorage.setItem('refreshToken', rToken)
       
       login(token, {
         ...user,

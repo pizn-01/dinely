@@ -19,7 +19,10 @@ export default function Login() {
     setLoading(true)
 
     const handleSuccess = (response: any) => {
-      const { token, user, restaurant } = response.data.data
+      const { token, refreshToken: rToken, user, restaurant } = response.data.data
+      
+      // Store refresh token for auto-renewal
+      if (rToken) localStorage.setItem('refreshToken', rToken)
       
       // Store in auth context. Add restaurantId for staff/admins
       login(token, {

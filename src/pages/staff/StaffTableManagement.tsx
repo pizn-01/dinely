@@ -173,8 +173,9 @@ export default function StaffTableManagement() {
       await api.patch(`/organizations/${restaurantId}/reservations/${resId}/status`, { status })
       setSelectedBooking(null); setSelectedTable(null);
       if (restaurantId) fetchData(selectedDate, restaurantId)
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to update status:', error)
+      alert(error.response?.data?.error || 'Failed to update reservation status.')
     }
   }
 
@@ -685,7 +686,7 @@ export default function StaffTableManagement() {
                 <div style={{ marginTop: '16px', display: 'flex', gap: '8px' }}>
                    {selectedBooking.status === 'confirmed' && <button onClick={() => handleStatusUpdate(selectedBooking.id, 'arriving')} style={{ flex: 1, padding: '12px', borderRadius: '12px', backgroundColor: '#111827', color: '#fff', border: 'none', fontWeight: 600, cursor: 'pointer' }}>Mark Arriving</button>}
                    {selectedBooking.status === 'arriving' && <button onClick={() => handleStatusUpdate(selectedBooking.id, 'seated')} style={{ flex: 1, padding: '12px', borderRadius: '12px', backgroundColor: '#6B9E78', color: '#fff', border: 'none', fontWeight: 600, cursor: 'pointer' }}>Mark Seated</button>}
-                   <button onClick={() => handleStatusUpdate(selectedBooking.id, 'noshow')} style={{ flex: 1, padding: '12px', borderRadius: '12px', backgroundColor: 'transparent', color: '#E05D5D', border: '1px solid #E05D5D', fontWeight: 600, cursor: 'pointer' }}>No-Show</button>
+                   <button onClick={() => handleStatusUpdate(selectedBooking.id, 'no_show')} style={{ flex: 1, padding: '12px', borderRadius: '12px', backgroundColor: 'transparent', color: '#E05D5D', border: '1px solid #E05D5D', fontWeight: 600, cursor: 'pointer' }}>No-Show</button>
                 </div>
               </div>
             )}
