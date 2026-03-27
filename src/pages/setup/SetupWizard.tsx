@@ -54,6 +54,7 @@ export default function SetupWizard() {
           closingTime: details.closingTime,
           allowMergeableTables: rules.mergeable,
           allowWalkIns: rules.walkIns,
+          setupCompleted: true,
         })
 
         if (invitedMembers.length > 0) {

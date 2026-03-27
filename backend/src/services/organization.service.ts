@@ -64,6 +64,7 @@ export class OrganizationService {
     if (dto.maxPartySize !== undefined) updateData.max_party_size = dto.maxPartySize;
     if (dto.requirePayment !== undefined) updateData.require_payment = dto.requirePayment;
     if (dto.cancellationPolicy !== undefined) updateData.cancellation_policy = dto.cancellationPolicy;
+    if ((dto as any).setupCompleted !== undefined) updateData.setup_completed = (dto as any).setupCompleted;
 
     const { data, error } = await supabaseAdmin
       .from('organizations')
