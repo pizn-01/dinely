@@ -1,5 +1,4 @@
-import { Routes, Route } from 'react-router-dom'
-import Landing from './pages/Landing'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import Login from './pages/Login'
 import SignUp from './pages/SignUp'
 import ReservationWizard from './pages/reservation/ReservationWizard'
@@ -25,7 +24,7 @@ import AcceptInvite from './pages/AcceptInvite'
 function App() {
   return (
     <Routes>
-      <Route path="/" element={<Landing />} />
+      <Route path="/" element={<Navigate to="/signup" replace />} />
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<SignUp />} />
       <Route path="/customer-signup" element={<CustomerSignUp />} />
