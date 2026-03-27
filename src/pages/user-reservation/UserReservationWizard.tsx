@@ -107,7 +107,7 @@ export default function UserReservationWizard() {
       case 1:
         return <UserStepDateTime data={data} updateData={updateData} restaurantSlug={restaurantSlug} />
       case 2:
-        return <UserStepTableSelect data={data} updateData={updateData} />
+        return <UserStepTableSelect data={data} updateData={updateData} restaurantSlug={restaurantSlug} />
       case 3:
         return <UserStepContactInfo data={data} updateData={updateData} />
       case 4:

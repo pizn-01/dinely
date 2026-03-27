@@ -22,9 +22,23 @@ export default function UserStepTableSelect({ data, updateData, restaurantSlug }
 
   useEffect(() => {
     const fetchTables = async () => {
+      // Need date + time to check availability
+      if (!data.date || !data.time) return
+      
       try {
         setLoading(true)
-        const res = await api.get(`/public/${restaurantSlug}/tables`)
+        // Format date to YYYY-MM-DD if needed
+        const formattedDate = data.date.includes('/')
+          ? data.date.split('/').reverse().join('-')
+          : data.date
+        
+        const res = await api.get(`/public/${restaurantSlug}/availability`, {
+          params: {
+            date: formattedDate,
+            time: data.time,
+            partySize: data.guests
+          }
+        })
         if (res.data?.success) {
           const rawTables: Table[] = res.data.data
           const groups: Record<string, Table[]> = {}
@@ -38,13 +52,13 @@ export default function UserStepTableSelect({ data, updateData, restaurantSlug }
           setGroupedTables(groups)
         }
       } catch (error) {
-        console.error('Failed to fetch tables:', error)
+        console.error('Failed to fetch available tables:', error)
       } finally {
         setLoading(false)
       }
     }
     fetchTables()
-  }, [restaurantSlug])
+  }, [restaurantSlug, data.date, data.time, data.guests])
 
   const handleSelect = (table: Table) => {
     updateData({

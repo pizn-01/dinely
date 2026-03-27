@@ -3,6 +3,7 @@ import { Calendar, Table, Settings, LogOut, CheckCircle2, Users, MapPin, Clock }
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { api } from '../services/api'
+import PoweredByFooter from '../components/PoweredByFooter'
 
 export default function Welcome() {
   const navigate = useNavigate()
@@ -291,6 +292,7 @@ export default function Welcome() {
           </p>
         )}
       </div>
+      <PoweredByFooter theme="dark" />
     </div>
   )
 }

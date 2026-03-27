@@ -6,6 +6,7 @@ import StepTableSelect from './StepTableSelect'
 import StepContactInfo from './StepContactInfo'
 import StepPayment from './StepPayment'
 import StepConfirmReview from './StepConfirmReview'
+import PoweredByFooter from '../../components/PoweredByFooter'
 
 export interface ReservationData {
   date: string
@@ -185,6 +186,7 @@ export default function ReservationWizard() {
           </div>
         </div>
       </div>
+      <PoweredByFooter theme="light" />
     </div>
   )
 }

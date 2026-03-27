@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import PoweredByFooter from '../../components/PoweredByFooter'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { api } from '../../services/api'
 import DarkProgressBar from '../../components/DarkProgressBar'
@@ -236,6 +237,7 @@ export default function BookATableWizard() {
           </div>
         </div>
       </div>
+      <PoweredByFooter theme="dark" />
     </div>
   )
 }

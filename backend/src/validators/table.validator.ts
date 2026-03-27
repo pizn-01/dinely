@@ -6,7 +6,7 @@ export const createTableSchema = z.object({
   capacity: z.number().int().min(1).max(50),
   minCapacity: z.number().int().min(1).optional(),
   areaId: z.string().uuid().optional(),
-  shape: z.enum(['rectangle', 'round', 'square']).optional(),
+  shape: z.enum(['rectangle', 'round', 'square', 'oval']).optional(),
   type: z.string().max(50).optional(),
   isMergeable: z.boolean().optional(),
   positionX: z.number().optional(),

@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { Users, MapPin, Coffee, Settings, LogOut, ChevronLeft, ChevronRight, Upload, Plus, Calendar, Clock, Layout } from 'lucide-react'
 import { api } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
+import PoweredByFooter from '../../components/PoweredByFooter'
+import StaffReservationWizard from './StaffReservationWizard'
 
 interface TableData {
   id: string
@@ -59,42 +61,46 @@ export default function StaffTableManagement() {
 
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null)
 
-  const fetchData = async (date: string) => {
-    if (!restaurantId) {
+  const fetchData = async (date: string, currentRestaurantId: string) => {
+    if (!currentRestaurantId) {
       setLoading(false)
       return
     }
     try {
       setLoading(true)
       const [tablesRes, resvRes, orgRes] = await Promise.all([
-        api.get(`/organizations/${restaurantId}/tables`),
-        api.get(`/organizations/${restaurantId}/reservations?date=${date}`),
-        api.get(`/organizations/${restaurantId}`)
+        api.get(`/organizations/${currentRestaurantId}/tables`),
+        api.get(`/organizations/${currentRestaurantId}/reservations?date=${date}`),
+        api.get(`/organizations/${currentRestaurantId}`)
       ])
 
       setDbTables(tablesRes.data.data || [])
-      setDbReservations(resvRes.data.data || [])
+      setDbReservations(resvRes.data.reservations || []) 
       setRestaurantName(orgRes.data.data?.name || 'Staff Dashboard')
       setLastRefreshed(new Date())
-    } catch (err) {
-      console.error('Failed to fetch dashboard data:', err)
+    } catch (error) {
+      console.error('Failed to fetch dashboard data:', error)
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    fetchData(selectedDate)
-  }, [restaurantId, selectedDate])
+    if (restaurantId) {
+      fetchData(selectedDate, restaurantId)
+    } else if (user === null) {
+      setLoading(false)
+    }
+  }, [user, selectedDate, restaurantId])
 
   // Auto-poll every 30 seconds for real-time sync
   useEffect(() => {
     if (!restaurantId) return
     const interval = setInterval(() => {
-      fetchData(selectedDate)
+      fetchData(selectedDate, restaurantId)
     }, 30_000)
     return () => clearInterval(interval)
-  }, [restaurantId, selectedDate])
+  }, [selectedDate, restaurantId])
 
   // Redirect if not logged in
   const navigate = useNavigate()
@@ -153,7 +159,7 @@ export default function StaffTableManagement() {
       })
 
       alert('Floor plan CSV uploaded successfully!')
-      fetchData(selectedDate)
+      if (restaurantId) fetchData(selectedDate, restaurantId)
     } catch (error) {
       console.error('Failed to upload CSV:', error)
       alert('Failed to upload floor plan CSV.')
@@ -166,7 +172,7 @@ export default function StaffTableManagement() {
     try {
       await api.patch(`/organizations/${restaurantId}/reservations/${resId}/status`, { status })
       setSelectedBooking(null); setSelectedTable(null);
-      fetchData(selectedDate)
+      if (restaurantId) fetchData(selectedDate, restaurantId)
     } catch (error) {
       console.error('Failed to update status:', error)
     }
@@ -187,7 +193,7 @@ export default function StaffTableManagement() {
         source: 'pos'
       })
       setShowCreateModal(false)
-      fetchData(selectedDate)
+      if (restaurantId) fetchData(selectedDate, restaurantId)
     } catch (error) {
       console.error('Failed to create reservation:', error)
     }
@@ -345,73 +351,90 @@ export default function StaffTableManagement() {
           {/* View Content */}
           <div style={{ minHeight: '500px' }}>
             {activeTab === 'Table View' && (
-              <div style={{ padding: '60px', display: 'flex', flexWrap: 'wrap', gap: '100px', justifyContent: 'center', backgroundColor: '#ffffff' }}>
-                {dbTables.map(table => {
-                  const reservation = dbReservations.find(r => r.tableId === table.id)
-                  const status = reservation?.status || 'available'
-                  const style = getStatusStyle(status)
-                  const capacity = table.capacity || 4
-                  
-                  return (
-                    <div 
-                      key={table.id}
-                      onClick={() => reservation ? setSelectedBooking(reservation) : setSelectedTable(table)}
-                      style={{ position: 'relative', width: '120px', height: '120px', cursor: 'pointer' }}>
-                      
-                      {/* Plus Chair Layout - Rendered based on capacity */}
-                      {capacity >= 1 && <div style={{ position: 'absolute', top: '-12px', left: '50%', transform: 'translateX(-50%)', width: '28px', height: '28px', backgroundColor: '#F3F4F6', borderRadius: '6px', border: '1px solid #E5E7EB' }} />} {/* Top */}
-                      {capacity >= 2 && <div style={{ position: 'absolute', bottom: '-12px', left: '50%', transform: 'translateX(-50%)', width: '28px', height: '28px', backgroundColor: '#F3F4F6', borderRadius: '6px', border: '1px solid #E5E7EB' }} />} {/* Bottom */}
-                      {capacity >= 3 && <div style={{ position: 'absolute', left: '-12px', top: '50%', transform: 'translateY(-50%)', width: '28px', height: '28px', backgroundColor: '#F3F4F6', borderRadius: '6px', border: '1px solid #E5E7EB' }} />} {/* Left */}
-                      {capacity >= 4 && <div style={{ position: 'absolute', right: '-12px', top: '50%', transform: 'translateY(-50%)', width: '28px', height: '28px', backgroundColor: '#F3F4F6', borderRadius: '6px', border: '1px solid #E5E7EB' }} />} {/* Right */}
-
-                      {/* The Table */}
-                      <div style={{ 
-                        width: '100%', 
-                        height: '100%', 
-                        backgroundColor: '#ffffff', 
-                        borderRadius: '50%', 
-                        border: `2.5px solid ${status === 'available' ? '#F3F4F6' : style.color}`,
-                        display: 'flex', 
-                        flexDirection: 'column', 
-                        alignItems: 'center', 
-                        justifyContent: 'center',
-                        position: 'relative',
-                        zIndex: 10,
-                        boxShadow: '0 8px 16px rgba(0,0,0,0.04)',
-                        transition: 'all 0.3s'
-                      }}>
-                        <span style={{ fontSize: '0.625rem', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>T-{table.tableNumber}</span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}>
-                          <Users size={12} color="#9CA3AF" />
-                          <span style={{ fontSize: '0.875rem', fontWeight: 800 }}>{capacity}</span>
-                        </div>
-                        
-                        {status !== 'available' && (
-                          <div style={{ 
-                            position: 'absolute', 
-                            bottom: '-6px', 
-                            backgroundColor: style.color, 
-                            color: '#ffffff', 
-                            fontSize: '0.625rem', 
-                            padding: '2px 10px', 
-                            borderRadius: '100px', 
-                            fontWeight: 800, 
-                            textTransform: 'uppercase',
-                            boxShadow: `0 4px 8px ${style.color}40`
-                          }}>
-                            {status}
-                          </div>
-                        )}
-                      </div>
+              <div style={{ backgroundColor: '#ffffff', paddingBottom: '60px' }}>
+                {Object.entries(
+                  dbTables.reduce((acc, table) => {
+                    const areaName = table.area?.name || table.floor_areas?.name || table.location || 'Main Area'
+                    if (!acc[areaName]) acc[areaName] = []
+                    acc[areaName].push(table)
+                    return acc
+                  }, {} as Record<string, any[]>)
+                ).map(([areaName, areaTables]) => (
+                  <div key={areaName} style={{ marginBottom: '40px' }}>
+                    <div style={{ padding: '24px 60px', backgroundColor: '#F9FAFB', borderTop: '1px solid #F3F4F6', borderBottom: '1px solid #F3F4F6', marginBottom: '40px' }}>
+                      <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#111827', margin: 0 }}>{areaName}</h3>
+                      <p style={{ fontSize: '0.875rem', color: '#6B7280', margin: '4px 0 0 0' }}>{(areaTables as any[]).length} Tables</p>
                     </div>
-                  )
-                })}
+                    <div style={{ padding: '0 60px', display: 'flex', flexWrap: 'wrap', gap: '100px', justifyContent: 'center' }}>
+                      {(areaTables as any[]).map(table => {
+                        const reservation = dbReservations.find(r => r.table?.id === table.id)
+                        const status = reservation?.status || 'available'
+                        const style = getStatusStyle(status)
+                        const capacity = table.capacity || 4
+                        
+                        return (
+                          <div 
+                            key={table.id}
+                            onClick={() => reservation ? setSelectedBooking(reservation) : setSelectedTable(table)}
+                            style={{ position: 'relative', width: '120px', height: '120px', cursor: 'pointer' }}>
+                            
+                            {/* Plus Chair Layout - Rendered based on capacity */}
+                            {capacity >= 1 && <div style={{ position: 'absolute', top: '-12px', left: '50%', transform: 'translateX(-50%)', width: '28px', height: '28px', backgroundColor: '#F3F4F6', borderRadius: '6px', border: '1px solid #E5E7EB' }} />} {/* Top */}
+                            {capacity >= 2 && <div style={{ position: 'absolute', bottom: '-12px', left: '50%', transform: 'translateX(-50%)', width: '28px', height: '28px', backgroundColor: '#F3F4F6', borderRadius: '6px', border: '1px solid #E5E7EB' }} />} {/* Bottom */}
+                            {capacity >= 3 && <div style={{ position: 'absolute', left: '-12px', top: '50%', transform: 'translateY(-50%)', width: '28px', height: '28px', backgroundColor: '#F3F4F6', borderRadius: '6px', border: '1px solid #E5E7EB' }} />} {/* Left */}
+                            {capacity >= 4 && <div style={{ position: 'absolute', right: '-12px', top: '50%', transform: 'translateY(-50%)', width: '28px', height: '28px', backgroundColor: '#F3F4F6', borderRadius: '6px', border: '1px solid #E5E7EB' }} />} {/* Right */}
+
+                            {/* The Table */}
+                            <div style={{ 
+                              width: '100%', 
+                              height: '100%', 
+                              backgroundColor: '#ffffff', 
+                              borderRadius: '50%', 
+                              border: `2.5px solid ${status === 'available' ? '#F3F4F6' : style.color}`,
+                              display: 'flex', 
+                              flexDirection: 'column', 
+                              alignItems: 'center', 
+                              justifyContent: 'center',
+                              position: 'relative',
+                              zIndex: 10,
+                              boxShadow: '0 8px 16px rgba(0,0,0,0.04)',
+                              transition: 'all 0.3s'
+                            }}>
+                              <span style={{ fontSize: '0.625rem', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>T-{table.tableNumber || table.name?.split(' ')[1] || table.name || '0'}</span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}>
+                                <Users size={12} color="#9CA3AF" />
+                                <span style={{ fontSize: '0.875rem', fontWeight: 800 }}>{capacity}</span>
+                              </div>
+                              
+                              {status !== 'available' && (
+                                <div style={{ 
+                                  position: 'absolute', 
+                                  bottom: '-6px', 
+                                  backgroundColor: style.color, 
+                                  color: '#ffffff', 
+                                  fontSize: '0.625rem', 
+                                  padding: '2px 10px', 
+                                  borderRadius: '100px', 
+                                  fontWeight: 800, 
+                                  textTransform: 'uppercase',
+                                  boxShadow: `0 4px 8px ${style.color}40`
+                                }}>
+                                  {status}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
                 {/* Unassigned Reservations in Table View */}
-                {dbReservations.filter(r => !r.tableId).length > 0 && (
+                {dbReservations.filter(r => !r.table?.id).length > 0 && (
                   <div style={{ width: '100%', marginTop: '40px', paddingTop: '40px', borderTop: '2px dashed #F3F4F6', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                     <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#6B7280', margin: '0 0 24px 0' }}>Unassigned Reservations</h3>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '24px', justifyContent: 'center' }}>
-                      {dbReservations.filter(r => !r.tableId).map(res => (
+                      {dbReservations.filter(r => !r.table?.id).map(res => (
                          <div 
                            key={res.id} 
                            onClick={() => setSelectedBooking(res)} 
@@ -485,110 +508,149 @@ export default function StaffTableManagement() {
                 )}
               </div>
             )}
-
-            {activeTab === 'Calendar View' && (
+                      {activeTab === 'Calendar View' && (
               <div style={{ padding: '32px' }}>
-                <div style={{ border: '1px solid #F3F4F6', borderRadius: '24px', overflow: 'hidden', backgroundColor: '#ffffff', boxShadow: '0 4px 12px rgba(0,0,0,0.02)' }}>
+                <div style={{ border: '1px solid #E5E7EB', borderRadius: '16px', overflow: 'hidden', backgroundColor: '#ffffff', boxShadow: '0 4px 12px rgba(0,0,0,0.02)' }}>
+                  
                   {/* Timeline Header */}
-                  <div style={{ display: 'flex', backgroundColor: '#FAFAFA', borderBottom: '1px solid #F3F4F6' }}>
-                    <div style={{ width: '120px', borderRight: '1px solid #F3F4F6', padding: '16px', fontSize: '0.75rem', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase' }}>Table</div>
+                  <div style={{ display: 'flex', backgroundColor: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+                    <div style={{ width: '160px', flexShrink: 0, borderRight: '1px solid #E5E7EB' }}></div>
                     <div style={{ flex: 1, display: 'flex' }}>
-                      {['12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00'].map(t => (
-                        <div key={t} style={{ flex: 1, textAlign: 'center', padding: '16px 0', fontSize: '0.75rem', fontWeight: 700, color: '#6B7280', borderRight: '1px solid #F3F4F6' }}>{t}</div>
+                      {Array.from({ length: 10 }).map((_, i) => (
+                        <div key={i} style={{ flex: 1, position: 'relative', borderRight: '1px solid #E5E7EB' }}>
+                          <div style={{ textAlign: 'center', padding: '16px 0', fontSize: '0.875rem', fontWeight: 700, color: '#111827' }}>
+                            {12 + i}
+                          </div>
+                          {/* Half-hour marker at the bottom center of the hour block */}
+                          <div style={{ position: 'absolute', bottom: 0, left: '50%', width: '1px', height: '8px', backgroundColor: '#E5E7EB' }} />
+                        </div>
                       ))}
                     </div>
                   </div>
-                  {/* Grid Rows */}
-                  {dbTables.map(table => (
-                    <div key={table.id} style={{ display: 'flex', borderBottom: '1px solid #F3F4F6', minHeight: '64px', backgroundColor: '#ffffff' }}>
-                      <div style={{ width: '120px', borderRight: '1px solid #F3F4F6', padding: '0 16px', display: 'flex', alignItems: 'center', fontSize: '0.875rem', fontWeight: 700, color: '#111827' }}>T-{table.tableNumber}</div>
-                      <div style={{ flex: 1, position: 'relative', display: 'flex' }}>
-                        {dbReservations.filter(r => r.tableId === table.id).map(r => {
-                          const startTime = r.startTime || '12:00'
-                          const [h, m] = startTime.split(':').map(Number)
-                          const startPos = (((h - 12) * 60 + m) / (10 * 60)) * 100
-                          const style = getStatusStyle(r.status)
-                          
-                          return (
-                            <div 
-                              key={r.id}
-                              onClick={() => setSelectedBooking(r)}
-                              style={{ 
-                                position: 'absolute', 
-                                left: `${startPos}%`,
-                                width: '18%', // Standard duration estimate
-                                top: '10px',
-                                bottom: '10px',
-                                backgroundColor: style.bg,
-                                color: style.color,
-                                padding: '0 12px',
-                                borderRadius: '10px',
-                                fontSize: '0.75rem',
-                                fontWeight: 700,
-                                display: 'flex',
-                                alignItems: 'center',
-                                cursor: 'pointer',
-                                border: `1px solid ${style.color}20`,
-                                zIndex: 10,
-                                transition: 'transform 0.2s',
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis'
-                              }}>
-                              {r.guestFirstName} {r.guestLastName}
+
+                  {/* Grid Rows by Area */}
+                  {Object.entries(
+                    dbTables.reduce((acc, table) => {
+                      const areaName = table.floor_areas?.name || 'Main Area'
+                      if (!acc[areaName]) acc[areaName] = []
+                      acc[areaName].push(table)
+                      return acc
+                    }, {} as Record<string, any[]>)
+                  ).map(([area, tables], areaIdx, arr) => (
+                    <div key={area} style={{ display: 'flex', borderBottom: areaIdx === arr.length - 1 ? 'none' : '1px solid #E5E7EB' }}>
+                      
+                      {/* Area Name Column (Vertical) */}
+                      <div style={{ width: '60px', borderRight: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F9FAFB' }}>
+                        <span style={{ fontWeight: 700, fontSize: '0.875rem', color: '#111827', writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
+                          {area}
+                        </span>
+                      </div>
+
+                      {/* Tables inside this Area */}
+                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                        {(tables as any[]).map((table, tIdx) => (
+                          <div key={table.id} style={{ display: 'flex', minHeight: '60px', borderBottom: tIdx === (tables as any[]).length - 1 ? 'none' : '1px solid #E5E7EB' }}>
+                            
+                            {/* Table Number & Capacity */}
+                            <div style={{ width: '100px', borderRight: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', padding: '0 16px', justifyContent: 'space-between' }}>
+                              <span style={{ fontWeight: 700, fontSize: '0.875rem', color: '#111827' }}>{table.tableNumber || table.name?.split(' ')?.[1] || 1}</span>
+                              <span style={{ fontSize: '0.75rem', color: '#9CA3AF' }}>{table.capacity}</span>
                             </div>
-                          )
-                        })}
-                        {Array(11).fill(0).map((_, i) => (
-                           <div key={i} style={{ flex: 1, borderRight: '1px solid #F3F4F6', opacity: 0.3 }} />
+
+                            {/* Timeline Grid (20 half-hour columns) */}
+                            <div style={{ flex: 1, display: 'flex', position: 'relative', backgroundColor: '#ffffff' }}>
+                              {Array.from({ length: 20 }).map((_, colIdx) => (
+                                <div key={colIdx} style={{ flex: 1, borderRight: '1px solid #F3F4F6' }} />
+                              ))}
+
+                              {/* Overlay Reservations */}
+                              {dbReservations.filter(r => r.table?.id === table.id).map((r, rIdx) => {
+                                const startTime = r.startTime || '12:00'
+                                const [h, m] = startTime.split(':').map(Number)
+                                // Clamp to 12:00 - 22:00 (600 minutes span)
+                                const totalMins = (h - 12) * 60 + m
+                                const startPos = Math.max(0, Math.min(90, (totalMins / 600) * 100))
+                                
+                                // Default width based on typical 90 min reservation (90/600 * 100 = 15%)
+                                const width = 15
+                                
+                                // Colors strictly from the UI design reference
+                                const isSeated = r.status === 'seated'
+                                const isConfirmed = r.status === 'confirmed'
+                                const bgColor = isSeated ? '#2F5233' : (isConfirmed ? '#8C6B45' : '#111827')
+
+                                return (
+                                  <div 
+                                    key={r.id}
+                                    onClick={() => setSelectedBooking(r)}
+                                    style={{ 
+                                      position: 'absolute', 
+                                      left: `${startPos}%`,
+                                      width: `${width}%`, 
+                                      top: `${8 + (rIdx * 4)}px`, 
+                                      bottom: '8px',
+                                      backgroundColor: bgColor,
+                                      borderRadius: '8px',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      cursor: 'pointer',
+                                      color: '#ffffff',
+                                      overflow: 'hidden',
+                                      zIndex: 10,
+                                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                                    }}>
+                                    <div style={{ padding: '0 12px', height: '100%', backgroundColor: 'rgba(0,0,0,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 700 }}>
+                                      {r.partySize}
+                                    </div>
+                                    <div style={{ padding: '0 12px', fontSize: '0.75rem', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                      {r.guestFirstName} {r.guestLastName}
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
                         ))}
                       </div>
                     </div>
                   ))}
-                  {/* Unassigned Row in Calendar View */}
-                  {dbReservations.filter(r => !r.tableId).length > 0 && (
-                    <div style={{ display: 'flex', borderBottom: '1px solid #F3F4F6', minHeight: '64px', backgroundColor: '#F9FAFB' }}>
-                      <div style={{ width: '120px', borderRight: '1px solid #F3F4F6', padding: '0 16px', display: 'flex', alignItems: 'center', fontSize: '0.875rem', fontWeight: 700, color: '#6B7280' }}>Unassigned</div>
-                      <div style={{ flex: 1, position: 'relative', display: 'flex' }}>
-                        {dbReservations.filter(r => !r.tableId).map(r => {
-                          const startTime = r.startTime || '12:00'
-                          const [h, m] = startTime.split(':').map(Number)
-                          const startPos = Math.max(0, (((h - 12) * 60 + m) / (10 * 60)) * 100)
-                          
-                          return (
-                            <div 
-                              key={r.id}
-                              onClick={() => setSelectedBooking(r)}
-                              style={{ 
-                                position: 'absolute', 
-                                left: `${startPos}%`,
-                                width: '18%', 
-                                top: '10px',
-                                bottom: '10px',
-                                backgroundColor: '#ffffff',
-                                color: '#111827',
-                                padding: '0 12px',
-                                borderRadius: '10px',
-                                fontSize: '0.75rem',
-                                fontWeight: 700,
-                                display: 'flex',
-                                alignItems: 'center',
-                                cursor: 'pointer',
-                                border: `1px dashed #E5E7EB`,
-                                boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
-                                zIndex: 10,
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis'
-                              }}>
-                              {r.guestFirstName} {r.guestLastName}
-                            </div>
-                          )
-                        })}
-                        {Array(11).fill(0).map((_, i) => (
-                           <div key={`unassigned-${i}`} style={{ flex: 1, borderRight: '1px solid #F3F4F6', opacity: 0.3 }} />
-                        ))}
-                      </div>
+
+                  {/* Unassigned / Drag Drop Catcher */}
+                  {dbReservations.filter(r => !r.table?.id || !dbTables.some(t => t.id === r.table?.id)).length > 0 && (
+                    <div style={{ display: 'flex', borderTop: '2px dashed #E5E7EB', backgroundColor: '#F9FAFB' }}>
+                       <div style={{ width: '160px', borderRight: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', padding: '0 16px' }}>
+                          <span style={{ fontWeight: 700, fontSize: '0.875rem', color: '#6B7280' }}>Unassigned</span>
+                       </div>
+                       <div style={{ flex: 1, display: 'flex', position: 'relative', minHeight: '60px' }}>
+                          {Array.from({ length: 20 }).map((_, colIdx) => (
+                            <div key={colIdx} style={{ flex: 1, borderRight: '1px solid #F3F4F6' }} />
+                          ))}
+                          {dbReservations.filter(r => !r.table?.id || !dbTables.some(t => t.id === r.table?.id)).map((r, rIdx) => {
+                             const startTime = r.startTime || '12:00'
+                             const [h, m] = startTime.split(':').map(Number)
+                             const totalMins = (h - 12) * 60 + m
+                             const startPos = Math.max(0, Math.min(90, (totalMins / 600) * 100))
+                             return (
+                                <div 
+                                  key={r.id}
+                                  onClick={() => setSelectedBooking(r)}
+                                  style={{ 
+                                    position: 'absolute', left: `${startPos}%`, width: `15%`, 
+                                    top: `${8 + (rIdx * 4)}px`, bottom: '8px',
+                                    backgroundColor: '#ffffff', border: '1px dashed #E5E7EB', color: '#111827',
+                                    borderRadius: '8px', display: 'flex', alignItems: 'center',
+                                    cursor: 'pointer', overflow: 'hidden', zIndex: 10
+                                  }}>
+                                  <div style={{ padding: '0 12px', height: '100%', borderRight: '1px dashed #E5E7EB', display: 'flex', alignItems: 'center', backgroundColor: '#F9FAFB', fontSize: '0.75rem', fontWeight: 700 }}>
+                                    {r.partySize}
+                                  </div>
+                                  <div style={{ padding: '0 12px', fontSize: '0.75rem', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                                    {r.guestFirstName} {r.guestLastName}
+                                  </div>
+                                </div>
+                             )
+                          })}
+                       </div>
                     </div>
                   )}
                 </div>
@@ -638,65 +700,18 @@ export default function StaffTableManagement() {
           </div>
         </div>
       )}
-
       {/* POS Create Modal */}
-      {showCreateModal && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1001, backdropFilter: 'blur(8px)' }}>
-          <div style={{ backgroundColor: '#ffffff', borderRadius: '32px', width: '100%', maxWidth: '540px', padding: '48px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
-            <h2 style={{ fontSize: '1.75rem', fontWeight: 800, marginBottom: '8px' }}>New Reservation</h2>
-            <p style={{ color: '#6B7280', marginBottom: '40px' }}>Create a manual reservation for a walk-in or phone call.</p>
-            
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '32px' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: '#9CA3AF' }}>Date</label>
-                <input type="date" value={newRes.date} onChange={e => setNewRes({...newRes, date: e.target.value})} style={{ padding: '14px', borderRadius: '12px', border: '1px solid #F3F4F6', fontSize: '1rem', fontWeight: 500 }} />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: '#9CA3AF' }}>Time</label>
-                <input type="time" value={newRes.time} onChange={e => setNewRes({...newRes, time: e.target.value})} style={{ padding: '14px', borderRadius: '12px', border: '1px solid #F3F4F6', fontSize: '1rem', fontWeight: 500 }} />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: '#9CA3AF' }}>First Name</label>
-                <input type="text" placeholder="John" value={newRes.guestFirstName} onChange={e => setNewRes({...newRes, guestFirstName: e.target.value})} style={{ padding: '14px', borderRadius: '12px', border: '1px solid #F3F4F6', fontSize: '1rem', fontWeight: 500 }} />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: '#9CA3AF' }}>Last Name</label>
-                <input type="text" placeholder="Doe" value={newRes.guestLastName} onChange={e => setNewRes({...newRes, guestLastName: e.target.value})} style={{ padding: '14px', borderRadius: '12px', border: '1px solid #F3F4F6', fontSize: '1rem', fontWeight: 500 }} />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: '#9CA3AF' }}>Email Address</label>
-                <input type="email" placeholder="john.doe@example.com" value={newRes.guestEmail} onChange={e => setNewRes({...newRes, guestEmail: e.target.value})} style={{ padding: '14px', borderRadius: '12px', border: '1px solid #F3F4F6', fontSize: '1rem', fontWeight: 500 }} />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: '#9CA3AF' }}>Phone Number</label>
-                <input type="tel" placeholder="+44 20 7123 4567" value={newRes.guestPhone} onChange={e => setNewRes({...newRes, guestPhone: e.target.value})} style={{ padding: '14px', borderRadius: '12px', border: '1px solid #F3F4F6', fontSize: '1rem', fontWeight: 500 }} />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: '#9CA3AF' }}>Party Size</label>
-                <input type="number" min="1" value={newRes.partySize} onChange={e => setNewRes({...newRes, partySize: parseInt(e.target.value) || 1})} style={{ padding: '14px', borderRadius: '12px', border: '1px solid #F3F4F6', fontSize: '1rem', fontWeight: 500 }} />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: '#9CA3AF' }}>Assign Table</label>
-                <select value={newRes.tableId} onChange={e => setNewRes({...newRes, tableId: e.target.value})} style={{ padding: '14px', borderRadius: '12px', border: '1px solid #F3F4F6', fontSize: '1rem', fontWeight: 500, WebkitAppearance: 'none', backgroundColor: '#fff', cursor: 'pointer' }}>
-                  <option value="">No table assigned</option>
-                  {dbTables.map(t => (
-                    <option key={t.id} value={t.id}>Table {t.tableNumber} (Seats: {t.capacity})</option>
-                  ))}
-                </select>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', gridColumn: 'span 2' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: '#9CA3AF' }}>Special Requests</label>
-                <input type="text" placeholder="Birthday, allergies, high chair, etc." value={newRes.specialRequests} onChange={e => setNewRes({...newRes, specialRequests: e.target.value})} style={{ padding: '14px', borderRadius: '12px', border: '1px solid #F3F4F6', fontSize: '1rem', fontWeight: 500 }} />
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: '16px' }}>
-              <button onClick={() => setShowCreateModal(false)} style={{ flex: 1, padding: '16px', borderRadius: '16px', border: 'none', backgroundColor: '#F3F4F6', color: '#4B5563', fontSize: '1rem', fontWeight: 700, cursor: 'pointer' }}>Cancel</button>
-              <button onClick={handleCreateReservation} style={{ flex: 1, padding: '16px', borderRadius: '16px', border: 'none', backgroundColor: '#111827', color: '#ffffff', fontSize: '1rem', fontWeight: 700, cursor: 'pointer' }}>Confirm</button>
-            </div>
-          </div>
-        </div>
+      {showCreateModal && restaurantId && (
+        <StaffReservationWizard
+          restaurantId={restaurantId}
+          onClose={() => setShowCreateModal(false)}
+          onSuccess={() => {
+            setShowCreateModal(false)
+            fetchData(selectedDate, restaurantId)
+          }}
+        />
       )}
+      <PoweredByFooter theme="light" />
     </div>
   )
 }

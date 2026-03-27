@@ -3,6 +3,7 @@ import { Calendar, Clock } from 'lucide-react'
 import Navbar from '../components/Navbar'
 import { useState, useEffect } from 'react'
 import { api } from '../services/api'
+import PoweredByFooter from '../components/PoweredByFooter'
 
 import heroBg from '../assets/mask-group.png'
 
@@ -240,6 +241,9 @@ export default function Landing() {
             </div>
           </div>
         </div>
+      </div>
+      <div style={{ backgroundColor: '#0B1517', zIndex: 20, position: 'relative' }}>
+        <PoweredByFooter theme="dark" />
       </div>
     </div>
   )

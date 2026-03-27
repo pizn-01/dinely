@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import PoweredByFooter from '../components/PoweredByFooter'
 import { Calendar, Info, Minus, Plus, ChefHat, Users, MapPin, Lock, Pencil, Clock, User, Mail, Phone, Loader2 } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api } from '../services/api'
@@ -865,6 +866,7 @@ export default function PremiumReservation() {
         </div>
 
       </div>
+      <PoweredByFooter theme="dark" />
 
       {/* Keyframe for spinner */}
       <style>{`

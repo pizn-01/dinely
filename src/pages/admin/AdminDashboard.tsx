@@ -8,6 +8,7 @@ import ReservationTab from './tabs/ReservationTab'
 import TablesManagementTab from './tabs/TablesManagementTab'
 import StaffManagementTab from './tabs/StaffManagementTab'
 import FloorMapTab from './tabs/FloorMapTab'
+import PoweredByFooter from '../../components/PoweredByFooter'
 import SettingsTab from './tabs/SettingsTab'
 
 const tabs = [
@@ -182,6 +183,7 @@ export default function AdminDashboard() {
           </div>
         </div>
       </div>
+      <PoweredByFooter theme={theme} />
     </div>
   )
 }
