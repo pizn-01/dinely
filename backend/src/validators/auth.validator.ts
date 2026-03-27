@@ -5,6 +5,7 @@ export const signupSchema = z.object({
   ownerName: z.string().min(2, 'Owner name must be at least 2 characters').max(255),
   email: z.string().email('Invalid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
+  phone: z.string().max(50).optional(),
   country: z.string().optional(),
   timezone: z.string().optional(),
 });

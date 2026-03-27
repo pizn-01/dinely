@@ -49,6 +49,7 @@ export class AuthService {
         owner_id: userId,
         country: dto.country || 'United Kingdom',
         timezone: dto.timezone || 'Europe/London',
+        phone: dto.phone || null,
       })
       .select()
       .single();

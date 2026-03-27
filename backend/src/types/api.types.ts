@@ -163,6 +163,7 @@ export interface SignupDto {
   ownerName: string;
   email: string;
   password: string;
+  phone?: string;
   country?: string;
   timezone?: string;
 }

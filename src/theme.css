@@ -1,0 +1,100 @@
+/* ─── Theme System ────────────────────────────────────── */
+/* Light theme (default) */
+:root,
+[data-theme="light"] {
+  --bg-primary: #F9FAFB;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #F3F4F6;
+  --bg-card: #ffffff;
+  --bg-modal: #ffffff;
+  --bg-input: #ffffff;
+  --bg-hover: #F3F4F6;
+
+  --text-primary: #111827;
+  --text-secondary: #6B7280;
+  --text-tertiary: #9CA3AF;
+  --text-inverse: #ffffff;
+
+  --border-primary: #F3F4F6;
+  --border-secondary: #E5E7EB;
+  --border-input: #d1d5db;
+
+  --accent-green: #6B9E78;
+  --accent-gold: #C99C63;
+  --accent-red: #E05D5D;
+  --accent-blue: #5D8FE0;
+
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.02);
+  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.02);
+  --shadow-lg: 0 25px 50px -12px rgba(0,0,0,0.15);
+
+  --header-bg: #ffffff;
+  --header-border: #F3F4F6;
+
+  --stat-bg: #ffffff;
+
+  --table-circle-bg: #ffffff;
+  --table-circle-border: #F3F4F6;
+
+  --chair-bg: #F3F4F6;
+  --chair-border: #E5E7EB;
+
+  --calendar-header-bg: #F9FAFB;
+  --calendar-row-bg: #ffffff;
+
+  --modal-overlay: rgba(0,0,0,0.4);
+  --modal-backdrop: blur(8px);
+}
+
+/* Dark theme */
+[data-theme="dark"] {
+  --bg-primary: #0B1517;
+  --bg-secondary: #101A1C;
+  --bg-tertiary: #162022;
+  --bg-card: #101A1C;
+  --bg-modal: #101A1C;
+  --bg-input: #162022;
+  --bg-hover: #1A2A2E;
+
+  --text-primary: #E5E7EB;
+  --text-secondary: #9CA3AF;
+  --text-tertiary: #6B7280;
+  --text-inverse: #111827;
+
+  --border-primary: rgba(255,255,255,0.06);
+  --border-secondary: rgba(255,255,255,0.1);
+  --border-input: rgba(255,255,255,0.12);
+
+  --accent-green: #4a9e6b;
+  --accent-gold: #C99C63;
+  --accent-red: #E05D5D;
+  --accent-blue: #5D8FE0;
+
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.2);
+  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.3);
+  --shadow-lg: 0 25px 50px -12px rgba(0,0,0,0.5);
+
+  --header-bg: #101A1C;
+  --header-border: rgba(255,255,255,0.06);
+
+  --stat-bg: #101A1C;
+
+  --table-circle-bg: #162022;
+  --table-circle-border: rgba(255,255,255,0.08);
+
+  --chair-bg: #1A2A2E;
+  --chair-border: rgba(255,255,255,0.1);
+
+  --calendar-header-bg: #101A1C;
+  --calendar-row-bg: #0B1517;
+
+  --modal-overlay: rgba(0,0,0,0.7);
+  --modal-backdrop: blur(12px);
+}
+
+/* Smooth transitions when switching themes */
+*,
+*::before,
+*::after {
+  transition: background-color 0.3s ease, color 0.2s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}

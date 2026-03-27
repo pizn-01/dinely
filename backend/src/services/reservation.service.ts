@@ -209,10 +209,10 @@ export class ReservationService {
     const guestEmail = dto.guestEmail || createdRes.guest_email;
     if (guestEmail) {
       try {
-        // Get restaurant name for the email
+        // Get restaurant name and phone for the email
         const { data: orgData } = await supabaseAdmin
           .from('organizations')
-          .select('name')
+          .select('name, phone')
           .eq('id', restaurantId)
           .single();
 
@@ -225,6 +225,7 @@ export class ReservationService {
           partySize: dto.partySize,
           confirmationId: rpcData.id,
           tableName: createdRes.tables?.name || createdRes.tables?.table_number || undefined,
+          restaurantPhone: orgData?.phone || undefined,
         });
       } catch (emailErr: any) {
         console.error('[ReservationService] Confirmation email failed:', emailErr.message);
@@ -286,20 +287,81 @@ export class ReservationService {
     userId?: string,
     reason?: string
   ) {
-    // Delegate state transition lock and status validations to atomic RPC
-    const { data: rpcData, error } = await supabaseAdmin.rpc('update_reservation_status_atomic', {
-      p_reservation_id: reservationId,
-      p_restaurant_id: restaurantId,
-      p_new_status: newStatus,
-      p_user_id: userId ?? null,
-      p_reason: reason ?? null
-    });
+    // Try the atomic RPC first, fall back to direct update if RPC is missing/broken
+    let rpcSuccess = false;
+    try {
+      const { data: rpcData, error } = await supabaseAdmin.rpc('update_reservation_status_atomic', {
+        p_reservation_id: reservationId,
+        p_restaurant_id: restaurantId,
+        p_new_status: newStatus,
+        p_user_id: userId ?? null,
+        p_reason: reason ?? null
+      });
 
-    if (error) {
-      if (error.message.includes('transition')) {
-        throw new AppError(error.message, 400);
+      if (error) {
+        // If it's a transition error from the RPC, throw immediately
+        if (error.message.includes('transition')) {
+          throw new AppError(error.message, 400);
+        }
+        // Otherwise fall through to the fallback
+        console.warn('[ReservationService] RPC failed, using fallback:', error.message);
+      } else {
+        rpcSuccess = true;
       }
-      throw new AppError('Failed to update status', 500);
+    } catch (err: any) {
+      if (err instanceof AppError) throw err;
+      console.warn('[ReservationService] RPC unavailable, using fallback:', err.message);
+    }
+
+    // ─── Fallback: Direct update with validation ─────────────
+    if (!rpcSuccess) {
+      // 1. Fetch current reservation to validate transition
+      const { data: current, error: fetchErr } = await supabaseAdmin
+        .from('reservations')
+        .select('id, status')
+        .eq('id', reservationId)
+        .eq('restaurant_id', restaurantId)
+        .single();
+
+      if (fetchErr || !current) throw new NotFoundError('Reservation');
+
+      // 2. Validate state transition
+      const allowed = VALID_TRANSITIONS[current.status] || [];
+      if (!allowed.includes(newStatus)) {
+        throw new AppError(
+          `Cannot transition from '${current.status}' to '${newStatus}'`,
+          400
+        );
+      }
+
+      // 3. Build update payload
+      const updatePayload: Record<string, any> = {
+        status: newStatus,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (newStatus === ReservationStatus.ARRIVING) {
+        // no special timestamp column for arriving
+      } else if (newStatus === ReservationStatus.SEATED) {
+        updatePayload.seated_at = new Date().toISOString();
+      } else if (newStatus === ReservationStatus.COMPLETED) {
+        updatePayload.completed_at = new Date().toISOString();
+      } else if (newStatus === ReservationStatus.CANCELLED) {
+        updatePayload.cancelled_at = new Date().toISOString();
+        if (reason) updatePayload.cancellation_reason = reason;
+      }
+      // no_show has no special column
+
+      // 4. Perform the update
+      const { error: updateErr } = await supabaseAdmin
+        .from('reservations')
+        .update(updatePayload)
+        .eq('id', reservationId)
+        .eq('restaurant_id', restaurantId);
+
+      if (updateErr) {
+        throw new AppError('Failed to update status', 500);
+      }
     }
 
     // Fetch the detailed payload for frontend format and email side-effects

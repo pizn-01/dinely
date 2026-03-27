@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Users, MapPin, Coffee, Settings, LogOut, ChevronLeft, ChevronRight, Upload, Plus, Calendar, Clock, Layout } from 'lucide-react'
+import { Users, MapPin, Coffee, Settings, LogOut, ChevronLeft, ChevronRight, Upload, Plus, Calendar, Clock, Layout, Moon, Sun } from 'lucide-react'
 import { api } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
+import { useTheme } from '../../context/ThemeContext'
 import PoweredByFooter from '../../components/PoweredByFooter'
 import StaffReservationWizard from './StaffReservationWizard'
 
@@ -32,6 +33,7 @@ const IconContainer = ({ children, color = '#6B9E78' }: { children: React.ReactN
 
 export default function StaffTableManagement() {
   const { user, logout } = useAuth()
+  const { isDark, toggleTheme } = useTheme()
   const [activeTab, setActiveTab] = useState('Table View') // Default to Table View as per floor map focus
   const [loading, setLoading] = useState(true)
   
@@ -219,9 +221,9 @@ export default function StaffTableManagement() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#F9FAFB', color: '#111827', fontFamily: "'Inter', system-ui, sans-serif" }}>
+    <div style={{ minHeight: '100vh', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)', fontFamily: "'Inter', system-ui, sans-serif", transition: 'background-color 0.3s' }}>
       {/* Header Section */}
-      <header style={{ backgroundColor: '#ffffff', padding: '24px 40px', borderBottom: '1px solid #F3F4F6', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 50 }}>
+      <header style={{ backgroundColor: 'var(--header-bg)', padding: '24px 40px', borderBottom: `1px solid var(--header-border)`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 50, transition: 'background-color 0.3s' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <div style={{ width: '40px', height: '40px', backgroundColor: '#F3F4F6', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Layout size={24} color="#111827" />
@@ -276,9 +278,12 @@ export default function StaffTableManagement() {
             <Plus size={18} />
             Create Reservation
           </button>
-          <div style={{ width: '1px', height: '24px', backgroundColor: '#F3F4F6', margin: '0 8px' }} />
-          <button style={{ background: 'none', border: 'none', color: '#6B7280', cursor: 'pointer', padding: '8px' }}><Settings size={20} /></button>
-          <button onClick={logout} style={{ background: 'none', border: 'none', color: '#6B7280', cursor: 'pointer', padding: '8px' }}><LogOut size={20} /></button>
+          <div style={{ width: '1px', height: '24px', backgroundColor: 'var(--header-border)', margin: '0 8px' }} />
+          <button onClick={toggleTheme} title="Toggle Theme" style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '8px' }}>
+            {isDark ? <Sun size={20} /> : <Moon size={20} />}
+          </button>
+          <button style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '8px' }}><Settings size={20} /></button>
+          <button onClick={logout} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '8px' }}><LogOut size={20} /></button>
         </div>
       </header>
 

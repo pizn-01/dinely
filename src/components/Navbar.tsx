@@ -1,21 +1,20 @@
 import { useState, useRef, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { useTheme } from '../context/ThemeContext'
 import { Settings, LogOut, Moon, Sun } from 'lucide-react'
 
 interface NavbarProps {
   variant?: 'public' | 'admin' | 'setup'
-  theme?: 'dark' | 'light'
-  onToggleTheme?: () => void
   onSignOut?: () => void
 }
 
-export default function Navbar({ variant = 'public', theme = 'dark', onToggleTheme, onSignOut }: NavbarProps) {
+export default function Navbar({ variant = 'public', onSignOut }: NavbarProps) {
   const [showSettings, setShowSettings] = useState(false)
   const settingsRef = useRef<HTMLDivElement>(null)
-  const isDark = theme === 'dark'
   const navigate = useNavigate()
   const { logout } = useAuth()
+  const { isDark, toggleTheme } = useTheme()
 
   const handleSignOut = () => {
     if (onSignOut) {
@@ -113,7 +112,7 @@ export default function Navbar({ variant = 'public', theme = 'dark', onToggleThe
                 }}>
                   <button
                     onClick={() => {
-                      onToggleTheme?.()
+                      toggleTheme()
                       setShowSettings(false)
                     }}
                     style={{

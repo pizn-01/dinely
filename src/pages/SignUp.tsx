@@ -11,6 +11,7 @@ export default function SignUp() {
     businessName: '',
     ownerName: '',
     email: '',
+    phone: '',
     password: '',
     country: 'United Kingdom',
     timezone: 'GMT+0 London',
@@ -34,6 +35,7 @@ export default function SignUp() {
         ownerName: form.ownerName,
         email: form.email,
         password: form.password,
+        phone: form.phone || undefined,
         country: form.country,
         timezone: form.timezone,
       });
@@ -170,6 +172,28 @@ export default function SignUp() {
               value={form.email}
               onChange={(e) => handleChange('email', e.target.value)}
               placeholder="Enter"
+              style={{
+                width: '100%',
+                backgroundColor: '#ffffff',
+                border: '1px solid #d1d5db',
+                borderRadius: '10px',
+                padding: '12px 16px',
+                color: '#111827',
+                fontSize: '0.9375rem',
+                outline: 'none',
+              }}
+            />
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: '#111827', marginBottom: '6px' }}>
+              Restaurant Phone Number
+            </label>
+            <input
+              type="tel"
+              value={form.phone}
+              onChange={(e) => handleChange('phone', e.target.value)}
+              placeholder="+44 20 1234 5678"
               style={{
                 width: '100%',
                 backgroundColor: '#ffffff',

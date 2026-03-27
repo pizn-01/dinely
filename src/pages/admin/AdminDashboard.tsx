@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Calendar, Users as UsersIcon, LayoutGrid, UserCheck } from 'lucide-react'
 import { api } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
+import { useTheme } from '../../context/ThemeContext'
 import Navbar from '../../components/Navbar'
 import StatsCard from '../../components/StatsCard'
 import ReservationTab from './tabs/ReservationTab'
@@ -23,7 +24,7 @@ export default function AdminDashboard() {
   const { user } = useAuth()
   const orgId = user?.restaurantId || ''
   const [activeTab, setActiveTab] = useState('reservation')
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark')
+  const { isDark } = useTheme()
   const [stats, setStats] = useState({
     todayBookings: 0,
     seatedNow: 0,
@@ -33,7 +34,6 @@ export default function AdminDashboard() {
     openingTime: '12:00',
     closingTime: '22:00'
   })
-  const isDark = theme === 'dark'
 
   useEffect(() => {
     if (!orgId) return
@@ -61,9 +61,6 @@ export default function AdminDashboard() {
     return () => clearInterval(interval)
   }, [orgId])
 
-  const toggleTheme = () => {
-    setTheme(prev => prev === 'dark' ? 'light' : 'dark')
-  }
 
   if (!user || !orgId) {
     return (
@@ -77,7 +74,7 @@ export default function AdminDashboard() {
         flexDirection: 'column',
         gap: '16px'
       }}>
-        <Navbar variant="admin" theme={theme} onToggleTheme={toggleTheme} />
+        <Navbar variant="admin" />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
           <h2>Access Denied</h2>
           <p>You must be logged in with a restaurant account to access the admin dashboard.</p>
@@ -94,7 +91,7 @@ export default function AdminDashboard() {
       fontFamily: 'var(--font-sans)',
       transition: 'background-color 0.3s ease'
     }}>
-      <Navbar variant="admin" theme={theme} onToggleTheme={toggleTheme} />
+      <Navbar variant="admin" />
 
       <div className="res-admin-container" style={{ padding: '32px 48px' }}>
         {/* Stats Cards */}
@@ -108,25 +105,25 @@ export default function AdminDashboard() {
             label="Today's Bookings"
             value={stats.todayBookings}
             icon={<Calendar size={18} />}
-            variant={theme}
+            variant={isDark ? 'dark' : 'light'}
           />
           <StatsCard
             label="Seated Now"
             value={stats.seatedNow}
             icon={<UsersIcon size={18} />}
-            variant={theme}
+            variant={isDark ? 'dark' : 'light'}
           />
           <StatsCard
             label="Tables"
             value={stats.totalTables}
             icon={<LayoutGrid size={18} />}
-            variant={theme}
+            variant={isDark ? 'dark' : 'light'}
           />
           <StatsCard
             label="Total Staff"
             value={stats.totalStaff}
             icon={<UserCheck size={18} />}
-            variant={theme}
+            variant={isDark ? 'dark' : 'light'}
           />
         </div>
 
@@ -175,15 +172,15 @@ export default function AdminDashboard() {
 
           {/* Tab Content */}
           <div style={{ animation: 'fadeIn 0.3s ease-in-out' }}>
-            {activeTab === 'reservation' && <ReservationTab theme={theme} orgId={orgId} serverToday={stats.serverToday} openingTime={stats.openingTime} closingTime={stats.closingTime} />}
-            {activeTab === 'tables' && <TablesManagementTab theme={theme} orgId={orgId} />}
-            {activeTab === 'staff' && <StaffManagementTab theme={theme} orgId={orgId} />}
-            {activeTab === 'floormap' && <FloorMapTab theme={theme} orgId={orgId} />}
-            {activeTab === 'settings' && <SettingsTab theme={theme} orgId={orgId} />}
+            {activeTab === 'reservation' && <ReservationTab theme={isDark ? 'dark' : 'light'} orgId={orgId} serverToday={stats.serverToday} openingTime={stats.openingTime} closingTime={stats.closingTime} />}
+            {activeTab === 'tables' && <TablesManagementTab theme={isDark ? 'dark' : 'light'} orgId={orgId} />}
+            {activeTab === 'staff' && <StaffManagementTab theme={isDark ? 'dark' : 'light'} orgId={orgId} />}
+            {activeTab === 'floormap' && <FloorMapTab theme={isDark ? 'dark' : 'light'} orgId={orgId} />}
+            {activeTab === 'settings' && <SettingsTab theme={isDark ? 'dark' : 'light'} orgId={orgId} />}
           </div>
         </div>
       </div>
-      <PoweredByFooter theme={theme} />
+      <PoweredByFooter theme={isDark ? 'dark' : 'light'} />
     </div>
   )
 }

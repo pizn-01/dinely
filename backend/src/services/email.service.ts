@@ -184,6 +184,7 @@ class EmailService {
     partySize: number;
     confirmationId: string;
     tableName?: string;
+    restaurantPhone?: string;
   }) {
     return this.send({
       to: params.to,
@@ -225,13 +226,28 @@ class EmailService {
               </tr>
             </table>
           </div>
+
+          <!-- 15-Minute Policy Note -->
+          <div style="background-color: rgba(201, 156, 99, 0.1); border: 1px solid rgba(201, 156, 99, 0.25); border-radius: 12px; padding: 20px; margin-bottom: 24px;">
+            <p style="margin: 0; font-size: 14px; color: #C99C63; font-weight: 600;">⚠️ Important Notice</p>
+            <p style="margin: 8px 0 0 0; font-size: 13px; color: #c9d1d9; line-height: 1.5;">
+              Your reservation will be held for <strong style="color: #ffffff;">15 minutes</strong> past your scheduled time. After that, it may be released to other guests. Please be on time!
+            </p>
+          </div>
+
+          ${params.restaurantPhone ? `
+          <div style="text-align: center; margin-bottom: 24px;">
+            <p style="color: #8b949e; font-size: 13px; margin: 0 0 6px 0;">Need to reach us?</p>
+            <a href="tel:${params.restaurantPhone}" style="color: #4a9e6b; font-weight: 600; font-size: 16px; text-decoration: none;">📞 ${params.restaurantPhone}</a>
+          </div>
+          ` : ''}
           
           <p style="color: #484f58; font-size: 12px; text-align: center; margin: 0;">
             Need to modify or cancel? Contact the restaurant directly or visit your reservations page.
           </p>
         </div>
       `,
-      text: `Hi ${params.guestName}, your reservation at ${params.restaurantName} is confirmed for ${params.date} at ${params.time} (${params.partySize} guests). Confirmation #${params.confirmationId.substring(0, 8).toUpperCase()}`,
+      text: `Hi ${params.guestName}, your reservation at ${params.restaurantName} is confirmed for ${params.date} at ${params.time} (${params.partySize} guests). Confirmation #${params.confirmationId.substring(0, 8).toUpperCase()}. Please note: Your reservation will be held for 15 minutes past your scheduled time. After that, it may be released. Please be on time!${params.restaurantPhone ? ` Contact: ${params.restaurantPhone}` : ''}`,
     });
   }
 
