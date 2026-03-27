@@ -1,6 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from '../types/api.types';
 import { reservationService } from '../services/reservation.service';
+import { supabaseAdmin } from '../config/database';
 
 // Helper to safely extract string param from Express v5
 const param = (req: AuthenticatedRequest, key: string): string => req.params[key] as string;
@@ -31,6 +32,14 @@ export class ReservationController {
         req.body,
         req.user?.sub
       );
+      
+      // Broadcast state change
+      supabaseAdmin.channel(`restaurant_${param(req, 'orgId')}`).send({
+        type: 'broadcast',
+        event: 'RESERVATION_CREATED',
+        payload: result
+      });
+      
       res.status(201).json({ success: true, data: result });
     } catch (error) {
       next(error);
@@ -40,6 +49,14 @@ export class ReservationController {
   async update(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const result = await reservationService.update(param(req, 'id'), param(req, 'orgId'), req.body);
+      
+      // Broadcast state change
+      supabaseAdmin.channel(`restaurant_${param(req, 'orgId')}`).send({
+        type: 'broadcast',
+        event: 'RESERVATION_UPDATED',
+        payload: result
+      });
+      
       res.json({ success: true, data: result });
     } catch (error) {
       next(error);
@@ -56,6 +73,14 @@ export class ReservationController {
         req.user?.sub,
         cancellationReason
       );
+      
+      // Broadcast state change
+      supabaseAdmin.channel(`restaurant_${param(req, 'orgId')}`).send({
+        type: 'broadcast',
+        event: 'RESERVATION_STATUS_UPDATED',
+        payload: result
+      });
+      
       res.json({ success: true, data: result });
     } catch (error) {
       next(error);
@@ -71,6 +96,14 @@ export class ReservationController {
         req.user?.sub,
         reason
       );
+      
+      // Broadcast state change
+      supabaseAdmin.channel(`restaurant_${param(req, 'orgId')}`).send({
+        type: 'broadcast',
+        event: 'RESERVATION_CANCELLED',
+        payload: result
+      });
+      
       res.json({ success: true, data: result });
     } catch (error) {
       next(error);

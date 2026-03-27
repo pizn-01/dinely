@@ -239,77 +239,41 @@ export class ReservationService {
    * If table_id, date, or time is being changed, we check for conflicts first.
    */
   async update(reservationId: string, restaurantId: string, dto: UpdateReservationDto) {
-    // If table/date/time is changing, we need to check for conflicts
-    const isSlotChanging = dto.tableId !== undefined || dto.reservationDate !== undefined ||
-                           dto.startTime !== undefined || dto.endTime !== undefined;
+    // 1. Rely on atomic DB-level locking via an RPC instead of JS memory checks
+    // This assumes you create a matching 'update_reservation_atomic' Postgres function
+    const { data: rpcData, error } = await supabaseAdmin.rpc('update_reservation_atomic', {
+      p_reservation_id: reservationId,
+      p_restaurant_id: restaurantId,
+      p_table_id: dto.tableId ?? null,
+      p_reservation_date: dto.reservationDate ?? null,
+      p_start_time: dto.startTime ?? null,
+      p_end_time: dto.endTime ?? null,
+      p_party_size: dto.partySize ?? null,
+      p_guest_first_name: dto.guestFirstName ?? null,
+      p_guest_last_name: dto.guestLastName ?? null,
+      p_guest_email: dto.guestEmail ?? null,
+      p_guest_phone: dto.guestPhone ?? null,
+      p_special_requests: dto.specialRequests ?? null,
+      p_internal_notes: dto.internalNotes ?? null
+    });
 
-    if (isSlotChanging) {
-      // Fetch current reservation to fill in defaults for unchanged fields
-      const { data: current, error: fetchErr } = await supabaseAdmin
-        .from('reservations')
-        .select('table_id, reservation_date, start_time, end_time, status')
-        .eq('id', reservationId)
-        .eq('restaurant_id', restaurantId)
-        .single();
-
-      if (fetchErr || !current) throw new NotFoundError('Reservation');
-
-      // Only check conflicts for active reservations
-      const activeStatuses = [ReservationStatus.CONFIRMED, ReservationStatus.SEATED, ReservationStatus.PENDING];
-      if (activeStatuses.includes(current.status as ReservationStatus)) {
-        const targetTableId = dto.tableId ?? current.table_id;
-        const targetDate = dto.reservationDate ?? current.reservation_date;
-        const targetStart = dto.startTime ?? current.start_time;
-        const targetEnd = dto.endTime ?? current.end_time;
-
-        if (targetTableId) {
-          // Check for overlapping reservations on the target table, excluding this reservation
-          const { data: conflicts } = await supabaseAdmin
-            .from('reservations')
-            .select('id, start_time, end_time')
-            .eq('table_id', targetTableId)
-            .eq('reservation_date', targetDate)
-            .neq('id', reservationId)
-            .not('status', 'in', `(${ReservationStatus.CANCELLED},${ReservationStatus.NO_SHOW})`);
-
-          if (conflicts && conflicts.length > 0) {
-            for (const conflict of conflicts) {
-              if (timeRangesOverlap(targetStart, targetEnd, conflict.start_time, conflict.end_time)) {
-                throw new AppError(
-                  'Table is already booked for the selected time slot. Please choose a different time or table.',
-                  409
-                );
-              }
-            }
-          }
-        }
+    if (error) {
+      if (error.message.includes('overlap') || error.message.includes('booked')) {
+        throw new AppError('Table is already booked for the selected time slot. Please choose a different time or table.', 409);
       }
+      throw new AppError(`Failed to update reservation: ${error.message}`, 500);
     }
 
-    const updateData: Record<string, any> = { updated_at: new Date().toISOString() };
-
-    if (dto.tableId !== undefined) updateData.table_id = dto.tableId;
-    if (dto.reservationDate !== undefined) updateData.reservation_date = dto.reservationDate;
-    if (dto.startTime !== undefined) updateData.start_time = dto.startTime;
-    if (dto.endTime !== undefined) updateData.end_time = dto.endTime;
-    if (dto.partySize !== undefined) updateData.party_size = dto.partySize;
-    if (dto.guestFirstName !== undefined) updateData.guest_first_name = dto.guestFirstName;
-    if (dto.guestLastName !== undefined) updateData.guest_last_name = dto.guestLastName;
-    if (dto.guestEmail !== undefined) updateData.guest_email = dto.guestEmail;
-    if (dto.guestPhone !== undefined) updateData.guest_phone = dto.guestPhone;
-    if (dto.specialRequests !== undefined) updateData.special_requests = dto.specialRequests;
-    if (dto.internalNotes !== undefined) updateData.internal_notes = dto.internalNotes;
-
-    const { data, error } = await supabaseAdmin
+    // 2. Fetch the newly structured reservation payload for the response
+    const { data: updatedRes, error: fetchErr } = await supabaseAdmin
       .from('reservations')
-      .update(updateData)
+      .select('*, tables(id, table_number, name, floor_areas(name))')
       .eq('id', reservationId)
       .eq('restaurant_id', restaurantId)
-      .select('*, tables(id, table_number, name, floor_areas(name))')
       .single();
 
-    if (error || !data) throw new NotFoundError('Reservation');
-    return this.formatReservation(data);
+    if (fetchErr || !updatedRes) throw new NotFoundError('Reservation');
+    return this.formatReservation(updatedRes);
   }
 
   /**
@@ -322,45 +286,31 @@ export class ReservationService {
     userId?: string,
     reason?: string
   ) {
-    const { data: current, error: fetchError } = await supabaseAdmin
-      .from('reservations')
-      .select('status')
-      .eq('id', reservationId)
-      .eq('restaurant_id', restaurantId)
-      .single();
+    // Delegate state transition lock and status validations to atomic RPC
+    const { data: rpcData, error } = await supabaseAdmin.rpc('update_reservation_status_atomic', {
+      p_reservation_id: reservationId,
+      p_restaurant_id: restaurantId,
+      p_new_status: newStatus,
+      p_user_id: userId ?? null,
+      p_reason: reason ?? null
+    });
 
-    if (fetchError || !current) throw new NotFoundError('Reservation');
-
-    const validNext = VALID_TRANSITIONS[current.status] || [];
-    if (!validNext.includes(newStatus)) {
-      throw new AppError(`Cannot transition from '${current.status}' to '${newStatus}'`, 400);
+    if (error) {
+      if (error.message.includes('transition')) {
+        throw new AppError(error.message, 400);
+      }
+      throw new AppError('Failed to update status', 500);
     }
 
-    const updateData: Record<string, any> = {
-      status: newStatus,
-      updated_at: new Date().toISOString(),
-    };
-
-    switch (newStatus) {
-      case ReservationStatus.CONFIRMED: updateData.confirmed_at = new Date().toISOString(); break;
-      case ReservationStatus.SEATED: updateData.seated_at = new Date().toISOString(); break;
-      case ReservationStatus.COMPLETED: updateData.completed_at = new Date().toISOString(); break;
-      case ReservationStatus.CANCELLED:
-        updateData.cancelled_at = new Date().toISOString();
-        updateData.cancelled_by = userId || null;
-        updateData.cancellation_reason = reason || null;
-        break;
-    }
-
-    const { data, error } = await supabaseAdmin
+    // Fetch the detailed payload for frontend format and email side-effects
+    const { data, error: fetchError } = await supabaseAdmin
       .from('reservations')
-      .update(updateData)
-      .eq('id', reservationId)
-      .eq('restaurant_id', restaurantId)
       .select('*, tables(id, table_number, name, floor_areas(name))')
+      .eq('id', reservationId)
+      .eq('restaurant_id', restaurantId)
       .single();
 
-    if (error || !data) throw new AppError('Failed to update status', 500);
+    if (fetchError || !data) throw new NotFoundError('Reservation');
 
     if (newStatus === ReservationStatus.COMPLETED && data.customer_id) {
       await supabaseAdmin.rpc('increment_customer_visits', {
