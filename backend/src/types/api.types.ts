@@ -68,6 +68,7 @@ export interface UpdateOrganizationDto {
   maxPartySize?: number;
   requirePayment?: boolean;
   cancellationPolicy?: string;
+  setupCompleted?: boolean;
 }
 
 // ─── Table Types ───────────────────────────────────────
@@ -205,6 +206,7 @@ export interface AuthResponse {
     name: string;
     slug: string;
     setupCompleted: boolean;
+    openingTime?: string;
   };
 }
 

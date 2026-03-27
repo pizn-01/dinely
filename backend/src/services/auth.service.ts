@@ -90,6 +90,7 @@ export class AuthService {
         name: org.name,
         slug: org.slug,
         setupCompleted: org.setup_completed,
+        openingTime: org.opening_time,
       },
     };
   }
@@ -188,6 +189,7 @@ export class AuthService {
         name: org.name,
         slug: org.slug,
         setupCompleted: org.setup_completed,
+        openingTime: org.opening_time,
       },
     };
   }

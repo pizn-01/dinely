@@ -31,7 +31,9 @@ export default function Login() {
       })
       
       if (user.role === 'admin' || user.role === 'super_admin') {
-        if (restaurant && restaurant.setupCompleted === false) {
+        // Only redirect to setup if the restaurant explicitly hasn't completed it
+        // and has no opening time configured (brand-new restaurant)
+        if (restaurant && restaurant.setupCompleted === false && !restaurant.openingTime) {
           navigate('/setup')
         } else {
           navigate('/admin')
