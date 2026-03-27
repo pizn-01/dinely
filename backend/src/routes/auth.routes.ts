@@ -4,19 +4,23 @@ import { authenticate } from '../middleware/auth';
 import { validate } from '../middleware/validator';
 import { signupSchema, loginSchema, staffLoginSchema, forgotPasswordSchema, resetPasswordSchema, refreshTokenSchema, acceptInviteSchema, customerSignupSchema, customerLoginSchema } from '../validators/auth.validator';
 import { staffService } from '../services/staff.service';
-import { authLimiter } from '../middleware/rateLimiter';
+import { authLimiter, loginLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
 
-// Apply auth rate limiting to all auth routes to prevent brute-force
+// Apply general auth rate limiting to all auth routes (signup, forgot-password, etc.)
 router.use(authLimiter);
 
-// Public routes
+// Public routes — signup
 router.post('/signup', validate(signupSchema), (req, res, next) => authController.signup(req, res, next));
-router.post('/login', validate(loginSchema), (req, res, next) => authController.login(req, res, next));
+
+// Login routes — use stricter loginLimiter (10 attempts / 2 minutes)
+router.post('/login', loginLimiter, validate(loginSchema), (req, res, next) => authController.login(req, res, next));
+router.post('/staff-login', loginLimiter, validate(staffLoginSchema), (req, res, next) => authController.staffLogin(req, res, next));
+router.post('/customer-login', loginLimiter, validate(customerLoginSchema), (req, res, next) => authController.customerLogin(req, res, next));
 router.post('/customer-signup', validate(customerSignupSchema), (req, res, next) => authController.customerSignup(req, res, next));
-router.post('/customer-login', validate(customerLoginSchema), (req, res, next) => authController.customerLogin(req, res, next));
-router.post('/staff-login', validate(staffLoginSchema), (req, res, next) => authController.staffLogin(req, res, next));
+
+// Password reset
 router.post('/forgot-password', validate(forgotPasswordSchema), (req, res, next) => authController.forgotPassword(req, res, next));
 router.post('/reset-password', validate(resetPasswordSchema), (req, res, next) => authController.resetPassword(req, res, next));
 router.post('/refresh', validate(refreshTokenSchema), (req, res, next) => authController.refreshToken(req, res, next));

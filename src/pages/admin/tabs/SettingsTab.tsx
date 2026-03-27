@@ -30,7 +30,7 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
 
   const baseUrl = window.location.origin
   
-  const staffUrl = `${baseUrl}/staff-login`
+  const staffUrl = restaurantSlug ? `${baseUrl}/staff-login/${restaurantSlug}` : `${baseUrl}/staff-login`
   const bookingUrl = restaurantSlug ? `${baseUrl}/book-a-table?restaurant=${restaurantSlug}` : 'Loading...'
 
   const copyToClipboard = async (text: string, type: 'staff' | 'booking') => {

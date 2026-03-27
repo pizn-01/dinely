@@ -1,17 +1,30 @@
 import { useState, useRef, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 import { Settings, LogOut, Moon, Sun } from 'lucide-react'
 
 interface NavbarProps {
   variant?: 'public' | 'admin' | 'setup'
   theme?: 'dark' | 'light'
   onToggleTheme?: () => void
+  onSignOut?: () => void
 }
 
-export default function Navbar({ variant = 'public', theme = 'dark', onToggleTheme }: NavbarProps) {
+export default function Navbar({ variant = 'public', theme = 'dark', onToggleTheme, onSignOut }: NavbarProps) {
   const [showSettings, setShowSettings] = useState(false)
   const settingsRef = useRef<HTMLDivElement>(null)
   const isDark = theme === 'dark'
+  const navigate = useNavigate()
+  const { logout } = useAuth()
+
+  const handleSignOut = () => {
+    if (onSignOut) {
+      onSignOut()
+    } else {
+      logout()
+      navigate('/login')
+    }
+  }
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -127,13 +140,18 @@ export default function Navbar({ variant = 'public', theme = 'dark', onToggleThe
               )}
             </div>
             <button
+              onClick={handleSignOut}
+              title="Sign Out"
               style={{
                 padding: '8px',
                 color: '#8b949e',
                 background: 'none',
                 border: 'none',
                 cursor: 'pointer',
+                transition: 'color 0.2s'
               }}
+              onMouseOver={(e) => e.currentTarget.style.color = '#ff6b6b'}
+              onMouseOut={(e) => e.currentTarget.style.color = '#8b949e'}
             >
               <LogOut size={20} />
             </button>

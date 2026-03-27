@@ -36,6 +36,7 @@ function App() {
       <Route path="/admin" element={<AdminDashboard />} />
       <Route path="/setup" element={<SetupWizard />} />
       <Route path="/staff-login" element={<StaffLogin />} />
+      <Route path="/staff-login/:slug" element={<StaffLogin />} />
       <Route path="/staff/tables" element={<StaffTableManagement />} />
       <Route path="/accept-invite" element={<AcceptInvite />} />
       <Route path="/logged-in-tab-res" element={<LoggedInTabRes />} />

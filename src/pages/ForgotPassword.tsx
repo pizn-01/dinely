@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { api } from '../services/api'
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('')
@@ -14,9 +15,7 @@ export default function ForgotPassword() {
     setSuccess(false)
 
     try {
-      // Stubbed backend behavior or real if configured
-      await new Promise(r => setTimeout(r, 1000))
-      // In production: await api.post('/auth/forgot-password', { email })
+      await api.post('/auth/forgot-password', { email })
       setSuccess(true)
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to send reset link.')

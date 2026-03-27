@@ -1,17 +1,35 @@
-import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useNavigate, Link, useParams } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
 import { api } from '../services/api'
 import { useAuth } from '../context/AuthContext'
 
 export default function StaffLogin() {
   const navigate = useNavigate()
+  const { slug } = useParams<{ slug?: string }>()
   const { login } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [restaurantName, setRestaurantName] = useState('')
+
+  // Fetch restaurant name from slug for display
+  useEffect(() => {
+    if (!slug) return
+    const fetchRestaurant = async () => {
+      try {
+        const { data } = await api.get(`/public/restaurants/${slug}`)
+        if (data.data?.name) {
+          setRestaurantName(data.data.name)
+        }
+      } catch {
+        // Slug might not resolve — that's okay, show generic login
+      }
+    }
+    fetchRestaurant()
+  }, [slug])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -39,7 +57,7 @@ export default function StaffLogin() {
   return (
     <div className="res-auth-container" style={{
       minHeight: '100vh',
-      backgroundColor: '#F6F7F9', // Light gray background matching 23.png
+      backgroundColor: '#F6F7F9',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -55,22 +73,25 @@ export default function StaffLogin() {
       {/* Login Box */}
       <div className="res-auth-box" style={{
         width: '100%',
-        maxWidth: '480px', // slightly less wide
-        backgroundColor: '#ffffff', // White login box
+        maxWidth: '480px',
+        backgroundColor: '#ffffff',
         borderRadius: '16px',
-        padding: '32px 40px', // balanced padding
+        padding: '32px 40px',
         boxSizing: 'border-box',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
-        border: 'none', // No border in 23.png
-        boxShadow: '0 4px 40px -10px rgba(0, 0, 0, 0.05)' // Very subtle, diffuse shadow
+        border: 'none',
+        boxShadow: '0 4px 40px -10px rgba(0, 0, 0, 0.05)'
       }}>
         <h1 style={{ fontSize: '1.875rem', fontWeight: 700, color: '#111827', textAlign: 'center', margin: '0 0 8px 0', letterSpacing: '-0.02em' }}>
           Welcome Back!
         </h1>
         <p style={{ fontSize: '0.875rem', color: '#6b7280', textAlign: 'center', margin: '0 0 24px 0', lineHeight: 1.4 }}>
-          Log in to access your account and manage everything in one place.
+          {restaurantName 
+            ? `Log in to manage ${restaurantName}.`
+            : 'Log in to access your account and manage everything in one place.'
+          }
         </p>
 
         {error && (
@@ -98,6 +119,7 @@ export default function StaffLogin() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Enter Email"
+              required
               style={{
                 width: '100%',
                 height: '46px',
@@ -127,6 +149,7 @@ export default function StaffLogin() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter Password"
+                required
                 style={{
                   width: '100%',
                   height: '46px',
@@ -174,23 +197,23 @@ export default function StaffLogin() {
           </div>
 
           {/* Sign In Button */}
-          <button type="submit" style={{
+          <button type="submit" disabled={loading} style={{
             width: '100%',
             height: '46px',
-            backgroundColor: '#C99C63',
+            backgroundColor: loading ? '#b58b57' : '#C99C63',
             color: '#ffffff',
             border: 'none',
             borderRadius: '8px',
             fontSize: '0.9375rem',
             fontWeight: 600,
-            cursor: 'pointer',
+            cursor: loading ? 'not-allowed' : 'pointer',
             fontFamily: 'inherit',
             transition: 'background-color 0.2s',
           }}
-          onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#b58b57'}
-          onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#C99C63'}
+          onMouseOver={(e) => !loading && (e.currentTarget.style.backgroundColor = '#b58b57')}
+          onMouseOut={(e) => !loading && (e.currentTarget.style.backgroundColor = '#C99C63')}
           >
-            Sign In
+            {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
       </div>

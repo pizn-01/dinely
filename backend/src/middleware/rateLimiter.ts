@@ -41,13 +41,6 @@ export const rateLimit = (options: RateLimitOptions) => {
   } = options;
 
   return (req: Request, res: Response, next: NextFunction): void => {
-    const ip = req.ip || 'unknown';
-    
-    // Bypass for localhost in development
-    if (ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1') {
-      return next();
-    }
-
     const key = `rl:${keyGenerator(req)}`;
     const now = Date.now();
 
@@ -67,10 +60,11 @@ export const rateLimit = (options: RateLimitOptions) => {
     res.setHeader('X-RateLimit-Reset', Math.ceil(entry.resetAt / 1000));
 
     if (entry.count > maxRequests) {
+      const retryAfter = Math.ceil((entry.resetAt - now) / 1000);
       res.status(429).json({
         success: false,
         error: message,
-        retryAfter: Math.ceil((entry.resetAt - now) / 1000),
+        retryAfter,
       });
       return;
     }
@@ -87,17 +81,31 @@ export const generalLimiter = rateLimit({
   maxRequests: 100,
 });
 
-/** Auth rate limit: 50 attempts per 15 minutes (increased for testing) */
-export const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  maxRequests: 50,
-  message: 'Too many login attempts. Please try again in 15 minutes.',
+/**
+ * Login rate limit: 10 attempts per 2 minutes per IP.
+ * This covers /login, /staff-login, /customer-login.
+ * Users get 10 tries, then wait ~2 minutes before trying again.
+ */
+export const loginLimiter = rateLimit({
+  windowMs: 2 * 60 * 1000,   // 2-minute window
+  maxRequests: 10,            // 10 attempts
+  message: 'Too many login attempts. Please try again in a couple of minutes.',
 });
 
-/** Public API rate limit: 60 requests per minute per IP */
+/**
+ * Auth rate limit for non-login routes (signup, forgot password, etc.)
+ * More generous: 20 requests per 15 minutes.
+ */
+export const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  maxRequests: 20,
+  message: 'Too many requests. Please try again later.',
+});
+
+/** Public API rate limit: 120 requests per minute per IP */
 export const publicApiLimiter = rateLimit({
   windowMs: 60 * 1000,
-  maxRequests: 120, // Increased from 60 to handle more concurrent public users
+  maxRequests: 120,
 });
 
 /** Strict limiter for sensitive operations: 5 per hour */

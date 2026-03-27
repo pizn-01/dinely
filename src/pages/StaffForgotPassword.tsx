@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { api } from '../services/api'
 
 export default function StaffForgotPassword() {
   const [email, setEmail] = useState('')
@@ -14,9 +15,7 @@ export default function StaffForgotPassword() {
     setSuccess(false)
 
     try {
-      // Simulate backend behavior
-      await new Promise(r => setTimeout(r, 1000))
-      // await api.post('/auth/staff/forgot-password', { email })
+      await api.post('/auth/forgot-password', { email })
       setSuccess(true)
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to send reset link.')
@@ -28,7 +27,7 @@ export default function StaffForgotPassword() {
   return (
     <div className="res-auth-container" style={{
       minHeight: '100vh',
-      backgroundColor: '#F6F7F9', // Light gray background
+      backgroundColor: '#F6F7F9',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',

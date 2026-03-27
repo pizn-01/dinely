@@ -248,8 +248,9 @@ export class AuthService {
    * Request a password reset — sends reset link via Supabase Auth.
    */
   async forgotPassword(email: string) {
+    const frontendUrl = process.env.FRONTEND_URL || 'https://dinely-ashy.vercel.app';
     const { error } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
-      redirectTo: `${env.CORS_ORIGINS.split(',')[0]}/reset-password`,
+      redirectTo: `${frontendUrl}/reset-password`,
     });
 
     if (error) {
