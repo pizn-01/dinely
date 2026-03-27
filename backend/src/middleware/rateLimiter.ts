@@ -76,13 +76,13 @@ export const generalLimiter = rateLimit({
 });
 
 /**
- * Auth rate limit for non-login routes (signup, forgot password, etc.)
- * Generous: 30 requests per 15 minutes.
+ * Auth rate limit (login, signup, etc.)
+ * Limits users to 6 attempts per 5 minutes before locking them out.
  */
 export const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  maxRequests: 30,
-  message: 'Too many requests. Please try again later.',
+  windowMs: 5 * 60 * 1000,
+  maxRequests: 6,
+  message: 'Too many login attempts. Please try again in 5 minutes.',
 });
 
 /** Public API rate limit: 200 requests per minute per IP */

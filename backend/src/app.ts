@@ -20,6 +20,7 @@ import publicRoutes from './routes/public.routes';
 import { generalLimiter } from './middleware/rateLimiter';
 
 const app = express();
+app.set('trust proxy', 1);
 
 // ─── Global Middleware ──────────────────────────────────
 
