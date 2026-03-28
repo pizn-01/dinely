@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { api } from '../../../services/api'
+import { useRealtimeReservations } from '../../../hooks/useRealtimeReservations'
 import { Users, MapPin, AlertCircle, CalendarRange } from 'lucide-react'
 
 interface ReservationTabProps {
@@ -17,7 +18,7 @@ export default function ReservationTab({ theme, orgId, serverToday }: Reservatio
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true)
       const dateTarget = serverToday || new Date().toISOString().split('T')[0]
@@ -35,11 +36,14 @@ export default function ReservationTab({ theme, orgId, serverToday }: Reservatio
     } finally {
       setLoading(false)
     }
-  }
+  }, [orgId, serverToday])
 
   useEffect(() => {
     fetchData()
-  }, [orgId, serverToday])
+  }, [fetchData])
+
+  // Real-time sync: instant refresh on any reservation event
+  useRealtimeReservations(orgId, fetchData)
 
   // Get current status of a table
   const getTableStatus = (tableId: string | number) => {

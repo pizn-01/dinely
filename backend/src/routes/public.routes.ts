@@ -5,6 +5,7 @@ import { validate } from '../middleware/validator';
 import { createReservationSchema } from '../validators/reservation.validator';
 import { publicApiLimiter } from '../middleware/rateLimiter';
 import { tableService } from '../services/table.service';
+import { supabaseAdmin } from '../config/database';
 
 const router = Router();
 
@@ -121,6 +122,13 @@ router.post('/:slug/reserve',
       const result = await reservationService.create(org.id, {
         ...req.body,
         source: 'website',
+      });
+
+      // Broadcast to dashboards for real-time sync
+      supabaseAdmin.channel(`restaurant_${org.id}`).send({
+        type: 'broadcast',
+        event: 'RESERVATION_CREATED',
+        payload: result
       });
 
       res.status(201).json({ success: true, data: result });

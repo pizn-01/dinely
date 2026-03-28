@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Calendar, Users as UsersIcon, LayoutGrid, UserCheck } from 'lucide-react'
 import { api } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
+import { useRealtimeReservations } from '../../hooks/useRealtimeReservations'
 import Navbar from '../../components/Navbar'
 import StatsCard from '../../components/StatsCard'
 import ReservationTab from './tabs/ReservationTab'
@@ -35,31 +36,36 @@ export default function AdminDashboard() {
     closingTime: '22:00'
   })
 
+  const fetchStats = useCallback(async () => {
+    if (!orgId) return
+    try {
+      const { data } = await api.get(`/organizations/${orgId}/dashboard/stats`)
+      if (data.data) {
+        setStats({
+          todayBookings: data.data.today?.reservations || 0,
+          seatedNow: data.data.today?.seatedNow || 0,
+          totalTables: data.data.totals?.activeTables || 0,
+          totalStaff: data.data.totals?.totalStaff || 0,
+          serverToday: data.data.today?.date || new Date().toISOString().split('T')[0],
+          openingTime: data.data.today?.openingTime || '12:00',
+          closingTime: data.data.today?.closingTime || '22:00'
+        })
+      }
+    } catch (error) {
+      console.error('Failed to load stats:', error)
+    }
+  }, [orgId])
+
   useEffect(() => {
     if (!orgId) return
-    const fetchStats = async () => {
-      try {
-        const { data } = await api.get(`/organizations/${orgId}/dashboard/stats`)
-        if (data.data) {
-          setStats({
-            todayBookings: data.data.today?.reservations || 0,
-            seatedNow: data.data.today?.seatedNow || 0,
-            totalTables: data.data.totals?.activeTables || 0,
-            totalStaff: data.data.totals?.totalStaff || 0,
-            serverToday: data.data.today?.date || new Date().toISOString().split('T')[0],
-            openingTime: data.data.today?.openingTime || '12:00',
-            closingTime: data.data.today?.closingTime || '22:00'
-          })
-        }
-      } catch (error) {
-        console.error('Failed to load stats:', error)
-      }
-    }
     fetchStats()
-    // Auto-poll every 30 seconds for real-time sync
+    // Auto-poll every 30 seconds as fallback
     const interval = setInterval(fetchStats, 30_000)
     return () => clearInterval(interval)
-  }, [orgId])
+  }, [orgId, fetchStats])
+
+  // Real-time sync: instant refresh on any reservation event
+  useRealtimeReservations(orgId, fetchStats)
 
 
   if (!user || !orgId) {

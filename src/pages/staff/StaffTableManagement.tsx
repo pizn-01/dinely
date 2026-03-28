@@ -1,9 +1,10 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Users, MapPin, Coffee, Settings, LogOut, ChevronLeft, ChevronRight, Upload, Plus, Calendar, Clock, Layout, Moon, Sun } from 'lucide-react'
 import { api } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
+import { useRealtimeReservations } from '../../hooks/useRealtimeReservations'
 import PoweredByFooter from '../../components/PoweredByFooter'
 import StaffReservationWizard from './StaffReservationWizard'
 
@@ -63,17 +64,19 @@ export default function StaffTableManagement() {
 
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null)
 
-  const fetchData = async (date: string, currentRestaurantId: string) => {
-    if (!currentRestaurantId) {
+  const fetchData = useCallback(async (date?: string, currentRestaurantId?: string) => {
+    const rid = currentRestaurantId || restaurantId
+    const d = date || selectedDate
+    if (!rid) {
       setLoading(false)
       return
     }
     try {
       setLoading(true)
       const [tablesRes, resvRes, orgRes] = await Promise.all([
-        api.get(`/organizations/${currentRestaurantId}/tables`),
-        api.get(`/organizations/${currentRestaurantId}/reservations?date=${date}`),
-        api.get(`/organizations/${currentRestaurantId}`)
+        api.get(`/organizations/${rid}/tables`),
+        api.get(`/organizations/${rid}/reservations?date=${d}`),
+        api.get(`/organizations/${rid}`)
       ])
 
       setDbTables(tablesRes.data.data || [])
@@ -85,7 +88,7 @@ export default function StaffTableManagement() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [restaurantId, selectedDate])
 
   useEffect(() => {
     if (restaurantId) {
@@ -95,14 +98,19 @@ export default function StaffTableManagement() {
     }
   }, [user, selectedDate, restaurantId])
 
-  // Auto-poll every 30 seconds for real-time sync
+  // Auto-poll every 30 seconds as fallback
   useEffect(() => {
     if (!restaurantId) return
     const interval = setInterval(() => {
       fetchData(selectedDate, restaurantId)
     }, 30_000)
     return () => clearInterval(interval)
-  }, [selectedDate, restaurantId])
+  }, [selectedDate, restaurantId, fetchData])
+
+  // Real-time sync: instant refresh on any reservation event
+  useRealtimeReservations(restaurantId, useCallback(() => {
+    if (restaurantId) fetchData(selectedDate, restaurantId)
+  }, [restaurantId, selectedDate, fetchData]))
 
   // Redirect if not logged in
   const navigate = useNavigate()
@@ -203,6 +211,15 @@ export default function StaffTableManagement() {
   }
 
   const getStatusStyle = (status: string) => {
+    if (isDark) {
+      switch (status) {
+        case 'arriving': return { bg: 'rgba(194, 65, 12, 0.15)', color: '#F59E0B' }
+        case 'seated': return { bg: 'rgba(185, 28, 28, 0.15)', color: '#F87171' }
+        case 'confirmed': return { bg: 'rgba(29, 78, 216, 0.15)', color: '#60A5FA' }
+        case 'noshow': return { bg: 'rgba(75, 85, 99, 0.15)', color: '#9CA3AF' }
+        default: return { bg: 'rgba(21, 128, 61, 0.15)', color: '#4ADE80' }
+      }
+    }
     switch (status) {
       case 'arriving': return { bg: '#FFF7ED', color: '#C2410C' }
       case 'seated': return { bg: '#FEF2F2', color: '#B91C1C' }
@@ -214,8 +231,8 @@ export default function StaffTableManagement() {
 
   if (loading && dbTables.length === 0) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', backgroundColor: '#F9FAFB' }}>
-        <p style={{ color: '#6B7280', fontSize: '1rem', fontWeight: 500 }}>Loading Dashboard...</p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', backgroundColor: 'var(--bg-primary)' }}>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '1rem', fontWeight: 500 }}>Loading Dashboard...</p>
       </div>
     )
   }
@@ -225,15 +242,15 @@ export default function StaffTableManagement() {
       {/* Header Section */}
       <header style={{ backgroundColor: 'var(--header-bg)', padding: '24px 40px', borderBottom: `1px solid var(--header-border)`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 50, transition: 'background-color 0.3s' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <div style={{ width: '40px', height: '40px', backgroundColor: '#F3F4F6', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Layout size={24} color="#111827" />
+          <div style={{ width: '40px', height: '40px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Layout size={24} color="var(--text-primary)" />
           </div>
           <div>
-            <h1 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0 }}>{restaurantName}</h1>
-            <p style={{ fontSize: '0.875rem', color: '#6B7280', margin: 0 }}>
+            <h1 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>{restaurantName}</h1>
+            <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', margin: 0 }}>
               Staff Console
               {lastRefreshed && (
-                <span style={{ marginLeft: '12px', fontSize: '0.75rem', color: '#9CA3AF' }}>
+                <span style={{ marginLeft: '12px', fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
                   • Last synced: {lastRefreshed.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                 </span>
               )}
@@ -247,13 +264,13 @@ export default function StaffTableManagement() {
             alignItems: 'center', 
             gap: '8px', 
             padding: '10px 16px', 
-            border: '1px solid #F3F4F6', 
+            border: `1px solid var(--border-primary)`, 
             borderRadius: '12px', 
             cursor: 'pointer',
             fontSize: '0.875rem',
             fontWeight: 600,
-            color: '#6B7280',
-            backgroundColor: '#ffffff'
+            color: 'var(--text-secondary)',
+            backgroundColor: 'var(--bg-card)'
           }}>
             <Upload size={18} />
             {uploading ? 'Uploading...' : 'Import Map'}
@@ -262,8 +279,8 @@ export default function StaffTableManagement() {
           <button 
             onClick={() => setShowCreateModal(true)}
             style={{ 
-              backgroundColor: '#111827', 
-              color: '#ffffff', 
+              backgroundColor: isDark ? '#5EEA7A' : '#111827', 
+              color: isDark ? '#0B1517' : '#ffffff', 
               padding: '10px 24px', 
               borderRadius: '12px', 
               border: 'none', 
@@ -291,10 +308,10 @@ export default function StaffTableManagement() {
         {/* Statistics Bar */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '24px', marginBottom: '40px' }}>
           {stats.map((stat, i) => (
-            <div key={i} style={{ backgroundColor: '#ffffff', padding: '24px', borderRadius: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #F3F4F6', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+            <div key={i} style={{ backgroundColor: 'var(--bg-card)', padding: '24px', borderRadius: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid var(--border-primary)', boxShadow: 'var(--shadow-sm)', transition: 'background-color 0.3s, border-color 0.3s' }}>
               <div>
-                <p style={{ fontSize: '0.875rem', color: '#6B7280', fontWeight: 500, marginBottom: '8px', margin: 0 }}>{stat.label}</p>
-                <h2 style={{ fontSize: '1.75rem', fontWeight: 700, margin: 0 }}>{stat.value}</h2>
+                <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: 500, marginBottom: '8px', margin: 0 }}>{stat.label}</p>
+                <h2 style={{ fontSize: '1.75rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>{stat.value}</h2>
               </div>
               <IconContainer color={stat.color}>{stat.icon}</IconContainer>
             </div>
@@ -302,9 +319,9 @@ export default function StaffTableManagement() {
         </div>
 
         {/* View Controls & Date Navigation */}
-        <div style={{ backgroundColor: '#ffffff', borderRadius: '24px', border: '1px solid #F3F4F6', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }}>
-          <div style={{ padding: '24px 32px', borderBottom: '1px solid #F3F4F6', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FAFAFA' }}>
-            <div style={{ display: 'flex', backgroundColor: '#F3F4F6', padding: '4px', borderRadius: '12px', gap: '4px' }}>
+        <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '24px', border: '1px solid var(--border-primary)', overflow: 'hidden', boxShadow: 'var(--shadow-md)', transition: 'background-color 0.3s, border-color 0.3s' }}>
+          <div style={{ padding: '24px 32px', borderBottom: `1px solid var(--border-primary)`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--bg-tertiary)', transition: 'background-color 0.3s' }}>
+            <div style={{ display: 'flex', backgroundColor: 'var(--bg-hover)', padding: '4px', borderRadius: '12px', gap: '4px' }}>
               {['Day View', 'Table View', 'Calendar View'].map(tab => (
                 <button
                   key={tab}
@@ -316,9 +333,9 @@ export default function StaffTableManagement() {
                     fontSize: '0.875rem',
                     fontWeight: 600,
                     cursor: 'pointer',
-                    backgroundColor: activeTab === tab ? '#ffffff' : 'transparent',
-                    color: activeTab === tab ? '#111827' : '#6B7280',
-                    boxShadow: activeTab === tab ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                    backgroundColor: activeTab === tab ? 'var(--bg-card)' : 'transparent',
+                    color: activeTab === tab ? 'var(--text-primary)' : 'var(--text-secondary)',
+                    boxShadow: activeTab === tab ? 'var(--shadow-sm)' : 'none',
                     transition: 'all 0.2s'
                   }}
                 >
@@ -339,15 +356,21 @@ export default function StaffTableManagement() {
                     padding: '8px 16px',
                     borderRadius: '12px',
                     border: '1px solid',
-                    borderColor: selectedDate === tab.iso ? '#111827' : '#F3F4F6',
-                    backgroundColor: selectedDate === tab.iso ? '#111827' : '#ffffff',
-                    color: selectedDate === tab.iso ? '#ffffff' : '#111827',
+                    borderColor: selectedDate === tab.iso
+                      ? (isDark ? '#5EEA7A' : '#111827')
+                      : 'var(--border-primary)',
+                    backgroundColor: selectedDate === tab.iso
+                      ? (isDark ? '#5EEA7A' : '#111827')
+                      : 'var(--bg-card)',
+                    color: selectedDate === tab.iso
+                      ? (isDark ? '#0B1517' : '#ffffff')
+                      : 'var(--text-primary)',
                     cursor: 'pointer',
                     minWidth: '70px',
                     transition: 'all 0.2s'
                   }}
                 >
-                  <span style={{ fontSize: '0.75rem', fontWeight: 500, color: selectedDate === tab.iso ? 'rgba(255,255,255,0.7)' : '#6B7280' }}>{tab.label}</span>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 500, color: selectedDate === tab.iso ? (isDark ? 'rgba(11,21,23,0.7)' : 'rgba(255,255,255,0.7)') : 'var(--text-secondary)' }}>{tab.label}</span>
                   <span style={{ fontSize: '1rem', fontWeight: 700 }}>{tab.day}</span>
                 </button>
               ))}
@@ -357,7 +380,7 @@ export default function StaffTableManagement() {
           {/* View Content */}
           <div style={{ minHeight: '500px' }}>
             {activeTab === 'Table View' && (
-              <div style={{ backgroundColor: '#ffffff', paddingBottom: '60px' }}>
+              <div style={{ backgroundColor: 'var(--bg-card)', paddingBottom: '60px', transition: 'background-color 0.3s' }}>
                 {Object.entries(
                   dbTables.reduce((acc, table) => {
                     const areaName = table.area?.name || table.floor_areas?.name || table.location || 'Main Area'
@@ -367,9 +390,9 @@ export default function StaffTableManagement() {
                   }, {} as Record<string, any[]>)
                 ).map(([areaName, areaTables]) => (
                   <div key={areaName} style={{ marginBottom: '40px' }}>
-                    <div style={{ padding: '24px 60px', backgroundColor: '#F9FAFB', borderTop: '1px solid #F3F4F6', borderBottom: '1px solid #F3F4F6', marginBottom: '40px' }}>
-                      <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#111827', margin: 0 }}>{areaName}</h3>
-                      <p style={{ fontSize: '0.875rem', color: '#6B7280', margin: '4px 0 0 0' }}>{(areaTables as any[]).length} Tables</p>
+                    <div style={{ padding: '24px 60px', backgroundColor: 'var(--bg-tertiary)', borderTop: `1px solid var(--border-primary)`, borderBottom: `1px solid var(--border-primary)`, marginBottom: '40px', transition: 'background-color 0.3s' }}>
+                      <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>{areaName}</h3>
+                      <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>{(areaTables as any[]).length} Tables</p>
                     </div>
                     <div style={{ padding: '0 60px', display: 'flex', flexWrap: 'wrap', gap: '100px', justifyContent: 'center' }}>
                       {(areaTables as any[]).map(table => {
@@ -385,31 +408,31 @@ export default function StaffTableManagement() {
                             style={{ position: 'relative', width: '120px', height: '120px', cursor: 'pointer' }}>
                             
                             {/* Plus Chair Layout - Rendered based on capacity */}
-                            {capacity >= 1 && <div style={{ position: 'absolute', top: '-12px', left: '50%', transform: 'translateX(-50%)', width: '28px', height: '28px', backgroundColor: '#F3F4F6', borderRadius: '6px', border: '1px solid #E5E7EB' }} />} {/* Top */}
-                            {capacity >= 2 && <div style={{ position: 'absolute', bottom: '-12px', left: '50%', transform: 'translateX(-50%)', width: '28px', height: '28px', backgroundColor: '#F3F4F6', borderRadius: '6px', border: '1px solid #E5E7EB' }} />} {/* Bottom */}
-                            {capacity >= 3 && <div style={{ position: 'absolute', left: '-12px', top: '50%', transform: 'translateY(-50%)', width: '28px', height: '28px', backgroundColor: '#F3F4F6', borderRadius: '6px', border: '1px solid #E5E7EB' }} />} {/* Left */}
-                            {capacity >= 4 && <div style={{ position: 'absolute', right: '-12px', top: '50%', transform: 'translateY(-50%)', width: '28px', height: '28px', backgroundColor: '#F3F4F6', borderRadius: '6px', border: '1px solid #E5E7EB' }} />} {/* Right */}
+                            {capacity >= 1 && <div style={{ position: 'absolute', top: '-12px', left: '50%', transform: 'translateX(-50%)', width: '28px', height: '28px', backgroundColor: 'var(--chair-bg)', borderRadius: '6px', border: `1px solid var(--chair-border)` }} />} {/* Top */}
+                            {capacity >= 2 && <div style={{ position: 'absolute', bottom: '-12px', left: '50%', transform: 'translateX(-50%)', width: '28px', height: '28px', backgroundColor: 'var(--chair-bg)', borderRadius: '6px', border: `1px solid var(--chair-border)` }} />} {/* Bottom */}
+                            {capacity >= 3 && <div style={{ position: 'absolute', left: '-12px', top: '50%', transform: 'translateY(-50%)', width: '28px', height: '28px', backgroundColor: 'var(--chair-bg)', borderRadius: '6px', border: `1px solid var(--chair-border)` }} />} {/* Left */}
+                            {capacity >= 4 && <div style={{ position: 'absolute', right: '-12px', top: '50%', transform: 'translateY(-50%)', width: '28px', height: '28px', backgroundColor: 'var(--chair-bg)', borderRadius: '6px', border: `1px solid var(--chair-border)` }} />} {/* Right */}
 
                             {/* The Table */}
                             <div style={{ 
                               width: '100%', 
                               height: '100%', 
-                              backgroundColor: '#ffffff', 
+                              backgroundColor: 'var(--table-circle-bg)', 
                               borderRadius: '50%', 
-                              border: `2.5px solid ${status === 'available' ? '#F3F4F6' : style.color}`,
+                              border: `2.5px solid ${status === 'available' ? 'var(--table-circle-border)' : style.color}`,
                               display: 'flex', 
                               flexDirection: 'column', 
                               alignItems: 'center', 
                               justifyContent: 'center',
                               position: 'relative',
                               zIndex: 10,
-                              boxShadow: '0 8px 16px rgba(0,0,0,0.04)',
+                              boxShadow: 'var(--shadow-md)',
                               transition: 'all 0.3s'
                             }}>
-                              <span style={{ fontSize: '0.625rem', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>T-{table.tableNumber || table.name?.split(' ')[1] || table.name || '0'}</span>
+                              <span style={{ fontSize: '0.625rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>T-{table.tableNumber || table.name?.split(' ')[1] || table.name || '0'}</span>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}>
-                                <Users size={12} color="#9CA3AF" />
-                                <span style={{ fontSize: '0.875rem', fontWeight: 800 }}>{capacity}</span>
+                                <Users size={12} color="var(--text-tertiary)" />
+                                <span style={{ fontSize: '0.875rem', fontWeight: 800, color: 'var(--text-primary)' }}>{capacity}</span>
                               </div>
                               
                               {status !== 'available' && (
@@ -437,20 +460,20 @@ export default function StaffTableManagement() {
                 ))}
                 {/* Unassigned Reservations in Table View */}
                 {dbReservations.filter(r => !r.table?.id).length > 0 && (
-                  <div style={{ width: '100%', marginTop: '40px', paddingTop: '40px', borderTop: '2px dashed #F3F4F6', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#6B7280', margin: '0 0 24px 0' }}>Unassigned Reservations</h3>
+                  <div style={{ width: '100%', marginTop: '40px', paddingTop: '40px', borderTop: `2px dashed var(--border-primary)`, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-secondary)', margin: '0 0 24px 0' }}>Unassigned Reservations</h3>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '24px', justifyContent: 'center' }}>
                       {dbReservations.filter(r => !r.table?.id).map(res => (
                          <div 
                            key={res.id} 
                            onClick={() => setSelectedBooking(res)} 
-                           style={{ backgroundColor: '#F9FAFB', border: '1px dashed #E5E7EB', padding: '16px 32px', borderRadius: '16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', transition: 'all 0.2s' }}
-                           onMouseEnter={e => e.currentTarget.style.borderColor = '#9CA3AF'}
-                           onMouseLeave={e => e.currentTarget.style.borderColor = '#E5E7EB'}
+                           style={{ backgroundColor: 'var(--bg-tertiary)', border: `1px dashed var(--border-secondary)`, padding: '16px 32px', borderRadius: '16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', boxShadow: 'var(--shadow-sm)', transition: 'all 0.2s' }}
+                           onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--text-tertiary)'}
+                           onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border-secondary)'}
                          >
-                           <span style={{ fontSize: '1rem', fontWeight: 700, color: '#111827' }}>{res.guestFirstName} {res.guestLastName}</span>
-                           <span style={{ fontSize: '0.875rem', color: '#6B7280', marginTop: '4px' }}>{res.partySize} Guests • {res.startTime?.slice(0, 5)}</span>
-                           <span style={{ marginTop: '12px', fontSize: '0.625rem', fontWeight: 800, color: '#C2410C', backgroundColor: '#FFF7ED', padding: '4px 10px', borderRadius: '100px', letterSpacing: '0.05em' }}>NEEDS TABLE</span>
+                           <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>{res.guestFirstName} {res.guestLastName}</span>
+                           <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginTop: '4px' }}>{res.partySize} Guests • {res.startTime?.slice(0, 5)}</span>
+                           <span style={{ marginTop: '12px', fontSize: '0.625rem', fontWeight: 800, color: '#C2410C', backgroundColor: isDark ? 'rgba(194,65,12,0.15)' : '#FFF7ED', padding: '4px 10px', borderRadius: '100px', letterSpacing: '0.05em' }}>NEEDS TABLE</span>
                          </div>
                       ))}
                     </div>
@@ -462,7 +485,7 @@ export default function StaffTableManagement() {
             {activeTab === 'Day View' && (
               <div style={{ padding: '40px', display: 'grid', gridTemplateColumns: 'repeat(1, 1fr)', gap: '12px' }}>
                 {dbReservations.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '80px', color: '#6B7280' }}>
+                  <div style={{ textAlign: 'center', padding: '80px', color: 'var(--text-secondary)' }}>
                     <Calendar size={48} style={{ opacity: 0.1, marginBottom: '16px' }} />
                     <p>No reservations found for {selectedDate}</p>
                   </div>
@@ -474,25 +497,25 @@ export default function StaffTableManagement() {
                         key={res.id} 
                         onClick={() => setSelectedBooking(res)}
                         style={{ 
-                          backgroundColor: '#ffffff', 
+                          backgroundColor: 'var(--bg-card)', 
                           padding: '20px 24px', 
                           borderRadius: '16px', 
-                          border: '1px solid #F3F4F6', 
+                          border: `1px solid var(--border-primary)`, 
                           display: 'flex', 
                           alignItems: 'center', 
                           justifyContent: 'space-between',
                           cursor: 'pointer',
                           transition: 'all 0.2s',
-                          boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
+                          boxShadow: 'var(--shadow-sm)'
                         }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-                          <div style={{ fontSize: '1.125rem', fontWeight: 800, color: '#111827', width: '70px' }}>{res.startTime?.slice(0, 5)}</div>
+                          <div style={{ fontSize: '1.125rem', fontWeight: 800, color: 'var(--text-primary)', width: '70px' }}>{res.startTime?.slice(0, 5)}</div>
                           <div style={{ width: '40px', height: '40px', borderRadius: '12px', backgroundColor: style.bg, color: style.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.875rem', fontWeight: 700 }}>
                             {res.guestFirstName?.[0]}{res.guestLastName?.[0]}
                           </div>
                           <div>
-                            <div style={{ fontSize: '1rem', fontWeight: 700, color: '#111827' }}>{res.guestFirstName} {res.guestLastName}</div>
-                            <div style={{ fontSize: '0.875rem', color: '#6B7280', marginTop: '2px' }}>Table {res.table?.tableNumber || 'N/A'} • {res.partySize} Guests</div>
+                            <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>{res.guestFirstName} {res.guestLastName}</div>
+                            <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginTop: '2px' }}>Table {res.table?.tableNumber || 'N/A'} • {res.partySize} Guests</div>
                           </div>
                         </div>
                         <div style={{ 
@@ -516,19 +539,19 @@ export default function StaffTableManagement() {
             )}
                       {activeTab === 'Calendar View' && (
               <div style={{ padding: '32px' }}>
-                <div style={{ border: '1px solid #E5E7EB', borderRadius: '16px', overflow: 'hidden', backgroundColor: '#ffffff', boxShadow: '0 4px 12px rgba(0,0,0,0.02)' }}>
+                <div style={{ border: `1px solid var(--border-secondary)`, borderRadius: '16px', overflow: 'hidden', backgroundColor: 'var(--bg-card)', boxShadow: 'var(--shadow-md)', transition: 'background-color 0.3s' }}>
                   
                   {/* Timeline Header */}
-                  <div style={{ display: 'flex', backgroundColor: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
-                    <div style={{ width: '160px', flexShrink: 0, borderRight: '1px solid #E5E7EB' }}></div>
+                  <div style={{ display: 'flex', backgroundColor: 'var(--calendar-header-bg)', borderBottom: `1px solid var(--border-secondary)` }}>
+                    <div style={{ width: '160px', flexShrink: 0, borderRight: `1px solid var(--border-secondary)` }}></div>
                     <div style={{ flex: 1, display: 'flex' }}>
                       {Array.from({ length: 10 }).map((_, i) => (
-                        <div key={i} style={{ flex: 1, position: 'relative', borderRight: '1px solid #E5E7EB' }}>
-                          <div style={{ textAlign: 'center', padding: '16px 0', fontSize: '0.875rem', fontWeight: 700, color: '#111827' }}>
+                        <div key={i} style={{ flex: 1, position: 'relative', borderRight: `1px solid var(--border-secondary)` }}>
+                          <div style={{ textAlign: 'center', padding: '16px 0', fontSize: '0.875rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                             {12 + i}
                           </div>
                           {/* Half-hour marker at the bottom center of the hour block */}
-                          <div style={{ position: 'absolute', bottom: 0, left: '50%', width: '1px', height: '8px', backgroundColor: '#E5E7EB' }} />
+                          <div style={{ position: 'absolute', bottom: 0, left: '50%', width: '1px', height: '8px', backgroundColor: 'var(--border-secondary)' }} />
                         </div>
                       ))}
                     </div>
@@ -543,11 +566,11 @@ export default function StaffTableManagement() {
                       return acc
                     }, {} as Record<string, any[]>)
                   ).map(([area, tables], areaIdx, arr) => (
-                    <div key={area} style={{ display: 'flex', borderBottom: areaIdx === arr.length - 1 ? 'none' : '1px solid #E5E7EB' }}>
+                    <div key={area} style={{ display: 'flex', borderBottom: areaIdx === arr.length - 1 ? 'none' : `1px solid var(--border-secondary)` }}>
                       
                       {/* Area Name Column (Vertical) */}
-                      <div style={{ width: '60px', borderRight: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F9FAFB' }}>
-                        <span style={{ fontWeight: 700, fontSize: '0.875rem', color: '#111827', writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
+                      <div style={{ width: '60px', borderRight: `1px solid var(--border-secondary)`, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--calendar-header-bg)' }}>
+                        <span style={{ fontWeight: 700, fontSize: '0.875rem', color: 'var(--text-primary)', writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
                           {area}
                         </span>
                       </div>
@@ -555,18 +578,18 @@ export default function StaffTableManagement() {
                       {/* Tables inside this Area */}
                       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                         {(tables as any[]).map((table, tIdx) => (
-                          <div key={table.id} style={{ display: 'flex', minHeight: '60px', borderBottom: tIdx === (tables as any[]).length - 1 ? 'none' : '1px solid #E5E7EB' }}>
+                          <div key={table.id} style={{ display: 'flex', minHeight: '60px', borderBottom: tIdx === (tables as any[]).length - 1 ? 'none' : `1px solid var(--border-secondary)` }}>
                             
                             {/* Table Number & Capacity */}
-                            <div style={{ width: '100px', borderRight: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', padding: '0 16px', justifyContent: 'space-between' }}>
-                              <span style={{ fontWeight: 700, fontSize: '0.875rem', color: '#111827' }}>{table.tableNumber || table.name?.split(' ')?.[1] || 1}</span>
-                              <span style={{ fontSize: '0.75rem', color: '#9CA3AF' }}>{table.capacity}</span>
+                            <div style={{ width: '100px', borderRight: `1px solid var(--border-secondary)`, display: 'flex', alignItems: 'center', padding: '0 16px', justifyContent: 'space-between' }}>
+                              <span style={{ fontWeight: 700, fontSize: '0.875rem', color: 'var(--text-primary)' }}>{table.tableNumber || table.name?.split(' ')?.[1] || 1}</span>
+                              <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>{table.capacity}</span>
                             </div>
 
                             {/* Timeline Grid (20 half-hour columns) */}
-                            <div style={{ flex: 1, display: 'flex', position: 'relative', backgroundColor: '#ffffff' }}>
+                            <div style={{ flex: 1, display: 'flex', position: 'relative', backgroundColor: 'var(--calendar-row-bg)' }}>
                               {Array.from({ length: 20 }).map((_, colIdx) => (
-                                <div key={colIdx} style={{ flex: 1, borderRight: '1px solid #F3F4F6' }} />
+                                <div key={colIdx} style={{ flex: 1, borderRight: `1px solid var(--border-primary)` }} />
                               ))}
 
                               {/* Overlay Reservations */}
@@ -583,7 +606,7 @@ export default function StaffTableManagement() {
                                 // Colors strictly from the UI design reference
                                 const isSeated = r.status === 'seated'
                                 const isConfirmed = r.status === 'confirmed'
-                                const bgColor = isSeated ? '#2F5233' : (isConfirmed ? '#8C6B45' : '#111827')
+                                const bgColor = isSeated ? '#2F5233' : (isConfirmed ? '#8C6B45' : (isDark ? '#1A2A2E' : '#111827'))
 
                                 return (
                                   <div 
@@ -623,13 +646,13 @@ export default function StaffTableManagement() {
 
                   {/* Unassigned / Drag Drop Catcher */}
                   {dbReservations.filter(r => !r.table?.id || !dbTables.some(t => t.id === r.table?.id)).length > 0 && (
-                    <div style={{ display: 'flex', borderTop: '2px dashed #E5E7EB', backgroundColor: '#F9FAFB' }}>
-                       <div style={{ width: '160px', borderRight: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', padding: '0 16px' }}>
-                          <span style={{ fontWeight: 700, fontSize: '0.875rem', color: '#6B7280' }}>Unassigned</span>
+                    <div style={{ display: 'flex', borderTop: `2px dashed var(--border-secondary)`, backgroundColor: 'var(--bg-tertiary)' }}>
+                       <div style={{ width: '160px', borderRight: `1px solid var(--border-secondary)`, display: 'flex', alignItems: 'center', padding: '0 16px' }}>
+                          <span style={{ fontWeight: 700, fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Unassigned</span>
                        </div>
                        <div style={{ flex: 1, display: 'flex', position: 'relative', minHeight: '60px' }}>
                           {Array.from({ length: 20 }).map((_, colIdx) => (
-                            <div key={colIdx} style={{ flex: 1, borderRight: '1px solid #F3F4F6' }} />
+                            <div key={colIdx} style={{ flex: 1, borderRight: `1px solid var(--border-primary)` }} />
                           ))}
                           {dbReservations.filter(r => !r.table?.id || !dbTables.some(t => t.id === r.table?.id)).map((r, rIdx) => {
                              const startTime = r.startTime || '12:00'
@@ -643,11 +666,11 @@ export default function StaffTableManagement() {
                                   style={{ 
                                     position: 'absolute', left: `${startPos}%`, width: `15%`, 
                                     top: `${8 + (rIdx * 4)}px`, bottom: '8px',
-                                    backgroundColor: '#ffffff', border: '1px dashed #E5E7EB', color: '#111827',
+                                    backgroundColor: 'var(--bg-card)', border: `1px dashed var(--border-secondary)`, color: 'var(--text-primary)',
                                     borderRadius: '8px', display: 'flex', alignItems: 'center',
                                     cursor: 'pointer', overflow: 'hidden', zIndex: 10
                                   }}>
-                                  <div style={{ padding: '0 12px', height: '100%', borderRight: '1px dashed #E5E7EB', display: 'flex', alignItems: 'center', backgroundColor: '#F9FAFB', fontSize: '0.75rem', fontWeight: 700 }}>
+                                  <div style={{ padding: '0 12px', height: '100%', borderRight: `1px dashed var(--border-secondary)`, display: 'flex', alignItems: 'center', backgroundColor: 'var(--bg-tertiary)', fontSize: '0.75rem', fontWeight: 700 }}>
                                     {r.partySize}
                                   </div>
                                   <div style={{ padding: '0 12px', fontSize: '0.75rem', fontWeight: 600, whiteSpace: 'nowrap' }}>
@@ -668,28 +691,28 @@ export default function StaffTableManagement() {
 
       {/* Reservation Detail Modal */}
       {(selectedBooking || selectedTable) && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(8px)' }}>
-          <div style={{ backgroundColor: '#ffffff', borderRadius: '32px', width: '100%', maxWidth: '440px', padding: '40px', position: 'relative', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'var(--modal-overlay)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'var(--modal-backdrop)' }}>
+          <div style={{ backgroundColor: 'var(--bg-modal)', borderRadius: '32px', width: '100%', maxWidth: '440px', padding: '40px', position: 'relative', boxShadow: 'var(--shadow-lg)', border: `1px solid var(--border-primary)` }}>
             <button 
               onClick={() => { setSelectedBooking(null); setSelectedTable(null); }} 
-              style={{ position: 'absolute', top: '32px', right: '32px', background: '#F3F4F6', border: 'none', cursor: 'pointer', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              style={{ position: 'absolute', top: '32px', right: '32px', background: 'var(--bg-tertiary)', border: 'none', cursor: 'pointer', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
               <Plus size={20} style={{ transform: 'rotate(45deg)' }} />
             </button>
             
-            <h2 style={{ fontSize: '1.5rem', fontWeight: 800, margin: '0 0 8px 0' }}>{selectedTable ? `Table ${selectedTable.tableNumber}` : `Reservation`}</h2>
-            <p style={{ color: '#6B7280', fontSize: '0.875rem', marginBottom: '32px' }}>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: 800, margin: '0 0 8px 0', color: 'var(--text-primary)' }}>{selectedTable ? `Table ${selectedTable.tableNumber}` : `Reservation`}</h2>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginBottom: '32px' }}>
               {selectedTable ? `${selectedTable.capacity} Seats • Available` : `${selectedBooking.partySize} Guests • ${selectedBooking.status.toUpperCase()}`}
             </p>
 
             {selectedBooking && (
-              <div style={{ backgroundColor: '#F9FAFB', borderRadius: '24px', padding: '24px', marginBottom: '32px', border: '1px solid #F3F4F6' }}>
+              <div style={{ backgroundColor: 'var(--bg-tertiary)', borderRadius: '24px', padding: '24px', marginBottom: '32px', border: `1px solid var(--border-primary)` }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '1.125rem', fontWeight: 700 }}>{selectedBooking.guestFirstName} {selectedBooking.guestLastName}</span>
+                  <span style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary)' }}>{selectedBooking.guestFirstName} {selectedBooking.guestLastName}</span>
                   <span style={{ color: '#C99C63', fontWeight: 800 }}>{selectedBooking.startTime?.slice(0, 5)}</span>
                 </div>
-                <p style={{ margin: 0, color: '#6B7280', fontSize: '0.875rem' }}>{selectedBooking.partySize}nd Person • Table {selectedBooking.table?.tableNumber}</p>
+                <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.875rem' }}>{selectedBooking.partySize} Person • Table {selectedBooking.table?.tableNumber}</p>
                 <div style={{ marginTop: '16px', display: 'flex', gap: '8px' }}>
-                   {selectedBooking.status === 'confirmed' && <button onClick={() => handleStatusUpdate(selectedBooking.id, 'arriving')} style={{ flex: 1, padding: '12px', borderRadius: '12px', backgroundColor: '#111827', color: '#fff', border: 'none', fontWeight: 600, cursor: 'pointer' }}>Mark Arriving</button>}
+                   {selectedBooking.status === 'confirmed' && <button onClick={() => handleStatusUpdate(selectedBooking.id, 'arriving')} style={{ flex: 1, padding: '12px', borderRadius: '12px', backgroundColor: isDark ? '#5EEA7A' : '#111827', color: isDark ? '#0B1517' : '#fff', border: 'none', fontWeight: 600, cursor: 'pointer' }}>Mark Arriving</button>}
                    {selectedBooking.status === 'arriving' && <button onClick={() => handleStatusUpdate(selectedBooking.id, 'seated')} style={{ flex: 1, padding: '12px', borderRadius: '12px', backgroundColor: '#6B9E78', color: '#fff', border: 'none', fontWeight: 600, cursor: 'pointer' }}>Mark Seated</button>}
                    <button onClick={() => handleStatusUpdate(selectedBooking.id, 'no_show')} style={{ flex: 1, padding: '12px', borderRadius: '12px', backgroundColor: 'transparent', color: '#E05D5D', border: '1px solid #E05D5D', fontWeight: 600, cursor: 'pointer' }}>No-Show</button>
                 </div>
@@ -699,7 +722,7 @@ export default function StaffTableManagement() {
             {!selectedBooking && (
               <button 
                 onClick={() => { setShowCreateModal(true); setSelectedTable(null); }}
-                style={{ width: '100%', padding: '16px', borderRadius: '16px', backgroundColor: '#111827', color: '#ffffff', border: 'none', fontSize: '1rem', fontWeight: 700, cursor: 'pointer' }}>
+                style={{ width: '100%', padding: '16px', borderRadius: '16px', backgroundColor: isDark ? '#5EEA7A' : '#111827', color: isDark ? '#0B1517' : '#ffffff', border: 'none', fontSize: '1rem', fontWeight: 700, cursor: 'pointer' }}>
                 Make Reservation
               </button>
             )}
@@ -717,7 +740,7 @@ export default function StaffTableManagement() {
           }}
         />
       )}
-      <PoweredByFooter theme="light" />
+      <PoweredByFooter theme={isDark ? 'dark' : 'light'} />
     </div>
   )
 }
