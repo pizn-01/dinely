@@ -45,9 +45,10 @@ export default function ReservationTab({ theme, orgId, serverToday }: Reservatio
   // Real-time sync: instant refresh on any reservation event
   useRealtimeReservations(orgId, fetchData)
 
-  // Get current status of a table
   const getTableStatus = (tableId: string | number) => {
-    const tableRes = resList.filter(r => r.tableId === tableId || String(r.tableId) === String(tableId))
+    // Only consider active reservations — completed/cancelled/no_show free the table
+    const terminalStatuses = ['completed', 'cancelled', 'no_show']
+    const tableRes = resList.filter(r => (r.tableId === tableId || String(r.tableId) === String(tableId)) && !terminalStatuses.includes(r.status))
     if (tableRes.length === 0) return 'available'
 
     const now = new Date()

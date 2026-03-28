@@ -216,6 +216,7 @@ export default function StaffTableManagement() {
         case 'arriving': return { bg: 'rgba(194, 65, 12, 0.15)', color: '#F59E0B' }
         case 'seated': return { bg: 'rgba(185, 28, 28, 0.15)', color: '#F87171' }
         case 'confirmed': return { bg: 'rgba(29, 78, 216, 0.15)', color: '#60A5FA' }
+        case 'completed': return { bg: 'rgba(94, 234, 122, 0.1)', color: '#5EEA7A' }
         case 'noshow': return { bg: 'rgba(75, 85, 99, 0.15)', color: '#9CA3AF' }
         default: return { bg: 'rgba(21, 128, 61, 0.15)', color: '#4ADE80' }
       }
@@ -224,6 +225,7 @@ export default function StaffTableManagement() {
       case 'arriving': return { bg: '#FFF7ED', color: '#C2410C' }
       case 'seated': return { bg: '#FEF2F2', color: '#B91C1C' }
       case 'confirmed': return { bg: '#EFF6FF', color: '#1D4ED8' }
+      case 'completed': return { bg: '#F0FDF4', color: '#15803D' }
       case 'noshow': return { bg: '#F9FAFB', color: '#4B5563' }
       default: return { bg: '#F0FDF4', color: '#15803D' }
     }
@@ -396,7 +398,9 @@ export default function StaffTableManagement() {
                     </div>
                     <div style={{ padding: '0 60px', display: 'flex', flexWrap: 'wrap', gap: '100px', justifyContent: 'center' }}>
                       {(areaTables as any[]).map(table => {
-                        const reservation = dbReservations.find(r => r.table?.id === table.id)
+                        // Only match active reservations — completed/cancelled/no_show should free the table
+                        const activeStatuses = ['pending', 'confirmed', 'arriving', 'seated']
+                        const reservation = dbReservations.find(r => r.table?.id === table.id && activeStatuses.includes(r.status))
                         const status = reservation?.status || 'available'
                         const style = getStatusStyle(status)
                         const capacity = table.capacity || 4
@@ -459,11 +463,11 @@ export default function StaffTableManagement() {
                   </div>
                 ))}
                 {/* Unassigned Reservations in Table View */}
-                {dbReservations.filter(r => !r.table?.id).length > 0 && (
+                {dbReservations.filter(r => !r.table?.id && !['completed', 'cancelled', 'no_show'].includes(r.status)).length > 0 && (
                   <div style={{ width: '100%', marginTop: '40px', paddingTop: '40px', borderTop: `2px dashed var(--border-primary)`, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                     <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-secondary)', margin: '0 0 24px 0' }}>Unassigned Reservations</h3>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '24px', justifyContent: 'center' }}>
-                      {dbReservations.filter(r => !r.table?.id).map(res => (
+                      {dbReservations.filter(r => !r.table?.id && !['completed', 'cancelled', 'no_show'].includes(r.status)).map(res => (
                          <div 
                            key={res.id} 
                            onClick={() => setSelectedBooking(res)} 
@@ -592,8 +596,8 @@ export default function StaffTableManagement() {
                                 <div key={colIdx} style={{ flex: 1, borderRight: `1px solid var(--border-primary)` }} />
                               ))}
 
-                              {/* Overlay Reservations */}
-                              {dbReservations.filter(r => r.table?.id === table.id).map((r, rIdx) => {
+                              {/* Overlay Reservations — only active ones */}
+                              {dbReservations.filter(r => r.table?.id === table.id && !['completed', 'cancelled', 'no_show'].includes(r.status)).map((r, rIdx) => {
                                 const startTime = r.startTime || '12:00'
                                 const [h, m] = startTime.split(':').map(Number)
                                 // Clamp to 12:00 - 22:00 (600 minutes span)
@@ -645,7 +649,7 @@ export default function StaffTableManagement() {
                   ))}
 
                   {/* Unassigned / Drag Drop Catcher */}
-                  {dbReservations.filter(r => !r.table?.id || !dbTables.some(t => t.id === r.table?.id)).length > 0 && (
+                  {dbReservations.filter(r => (!r.table?.id || !dbTables.some(t => t.id === r.table?.id)) && !['completed', 'cancelled', 'no_show'].includes(r.status)).length > 0 && (
                     <div style={{ display: 'flex', borderTop: `2px dashed var(--border-secondary)`, backgroundColor: 'var(--bg-tertiary)' }}>
                        <div style={{ width: '160px', borderRight: `1px solid var(--border-secondary)`, display: 'flex', alignItems: 'center', padding: '0 16px' }}>
                           <span style={{ fontWeight: 700, fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Unassigned</span>
@@ -654,7 +658,7 @@ export default function StaffTableManagement() {
                           {Array.from({ length: 20 }).map((_, colIdx) => (
                             <div key={colIdx} style={{ flex: 1, borderRight: `1px solid var(--border-primary)` }} />
                           ))}
-                          {dbReservations.filter(r => !r.table?.id || !dbTables.some(t => t.id === r.table?.id)).map((r, rIdx) => {
+                          {dbReservations.filter(r => (!r.table?.id || !dbTables.some(t => t.id === r.table?.id)) && !['completed', 'cancelled', 'no_show'].includes(r.status)).map((r, rIdx) => {
                              const startTime = r.startTime || '12:00'
                              const [h, m] = startTime.split(':').map(Number)
                              const totalMins = (h - 12) * 60 + m
@@ -711,10 +715,30 @@ export default function StaffTableManagement() {
                   <span style={{ color: '#C99C63', fontWeight: 800 }}>{selectedBooking.startTime?.slice(0, 5)}</span>
                 </div>
                 <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.875rem' }}>{selectedBooking.partySize} Person • Table {selectedBooking.table?.tableNumber}</p>
-                <div style={{ marginTop: '16px', display: 'flex', gap: '8px' }}>
-                   {selectedBooking.status === 'confirmed' && <button onClick={() => handleStatusUpdate(selectedBooking.id, 'arriving')} style={{ flex: 1, padding: '12px', borderRadius: '12px', backgroundColor: isDark ? '#5EEA7A' : '#111827', color: isDark ? '#0B1517' : '#fff', border: 'none', fontWeight: 600, cursor: 'pointer' }}>Mark Arriving</button>}
-                   {selectedBooking.status === 'arriving' && <button onClick={() => handleStatusUpdate(selectedBooking.id, 'seated')} style={{ flex: 1, padding: '12px', borderRadius: '12px', backgroundColor: '#6B9E78', color: '#fff', border: 'none', fontWeight: 600, cursor: 'pointer' }}>Mark Seated</button>}
-                   <button onClick={() => handleStatusUpdate(selectedBooking.id, 'no_show')} style={{ flex: 1, padding: '12px', borderRadius: '12px', backgroundColor: 'transparent', color: '#E05D5D', border: '1px solid #E05D5D', fontWeight: 600, cursor: 'pointer' }}>No-Show</button>
+                <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                   {selectedBooking.status === 'confirmed' && (
+                     <div style={{ display: 'flex', gap: '8px' }}>
+                       <button onClick={() => handleStatusUpdate(selectedBooking.id, 'arriving')} style={{ flex: 1, padding: '12px', borderRadius: '12px', backgroundColor: isDark ? '#5EEA7A' : '#111827', color: isDark ? '#0B1517' : '#fff', border: 'none', fontWeight: 600, cursor: 'pointer' }}>Mark Arriving</button>
+                       <button onClick={() => handleStatusUpdate(selectedBooking.id, 'no_show')} style={{ flex: 1, padding: '12px', borderRadius: '12px', backgroundColor: 'transparent', color: '#E05D5D', border: '1px solid #E05D5D', fontWeight: 600, cursor: 'pointer' }}>No-Show</button>
+                     </div>
+                   )}
+                   {selectedBooking.status === 'arriving' && (
+                     <div style={{ display: 'flex', gap: '8px' }}>
+                       <button onClick={() => handleStatusUpdate(selectedBooking.id, 'seated')} style={{ flex: 1, padding: '12px', borderRadius: '12px', backgroundColor: '#6B9E78', color: '#fff', border: 'none', fontWeight: 600, cursor: 'pointer' }}>Mark Seated</button>
+                       <button onClick={() => handleStatusUpdate(selectedBooking.id, 'no_show')} style={{ flex: 1, padding: '12px', borderRadius: '12px', backgroundColor: 'transparent', color: '#E05D5D', border: '1px solid #E05D5D', fontWeight: 600, cursor: 'pointer' }}>No-Show</button>
+                     </div>
+                   )}
+                   {selectedBooking.status === 'seated' && (
+                     <button onClick={() => handleStatusUpdate(selectedBooking.id, 'completed')} style={{ width: '100%', padding: '14px', borderRadius: '12px', backgroundColor: isDark ? '#5EEA7A' : '#111827', color: isDark ? '#0B1517' : '#fff', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '0.9375rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                       Clear Table — Mark Complete
+                     </button>
+                   )}
+                   {selectedBooking.status === 'completed' && (
+                     <div style={{ textAlign: 'center', padding: '12px', borderRadius: '12px', backgroundColor: isDark ? 'rgba(94,234,122,0.1)' : '#F0FDF4', color: isDark ? '#5EEA7A' : '#15803D', fontWeight: 600, fontSize: '0.875rem' }}>
+                       ✓ Table has been cleared and is now available
+                     </div>
+                   )}
                 </div>
               </div>
             )}
