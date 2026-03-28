@@ -22,6 +22,7 @@ export interface ReservationData {
   phone: string
   specialRequest: string
   paymentMethod: string | null
+  returnUrl?: string | null
 }
 
 const initialData: ReservationData = {
@@ -93,7 +94,7 @@ export default function BookATableWizard() {
         // Public reservation endpoint
         await api.post(`/public/${restaurantSlug}/reserve`, payload)
         
-        navigate('/public-booking-confirmed', { state: data })
+        navigate('/public-booking-confirmed', { state: { ...data, returnUrl } })
       } catch (err: any) {
         setError(err.response?.data?.error || 'Failed to confirm reservation. Please try again.')
       } finally {
@@ -112,6 +113,7 @@ export default function BookATableWizard() {
 
   const searchParams = new URLSearchParams(window.location.search)
   const restaurantSlug = searchParams.get('restaurant') || 'default-restaurant'
+  const returnUrl = searchParams.get('return_url') || searchParams.get('origin')
   const percentage = Math.round((currentStep / TOTAL_STEPS) * 100)
 
   const renderStep = () => {

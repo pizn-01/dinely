@@ -5,7 +5,9 @@ import type { ReservationData } from './BookATableWizard'
 export default function PublicBookingConfirmed() {
   const navigate = useNavigate()
   const location = useLocation()
+  const searchParams = new URLSearchParams(window.location.search)
   const data = (location.state as ReservationData) || {}
+  const returnUrlParam = searchParams.get('return_url') || searchParams.get('origin')
 
   const formattedDate = data.date 
     ? new Date(data.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
@@ -133,7 +135,14 @@ export default function PublicBookingConfirmed() {
           {/* Footer Button */}
           <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <button
-              onClick={() => navigate('/')}
+              onClick={() => {
+                const returnUrl = data.returnUrl || returnUrlParam || document.referrer || '/'
+                if (returnUrl.startsWith('http')) {
+                  window.location.href = returnUrl
+                } else {
+                  navigate(returnUrl)
+                }
+              }}
               style={{
                 backgroundColor: '#C99C63',
                 color: '#ffffff',
