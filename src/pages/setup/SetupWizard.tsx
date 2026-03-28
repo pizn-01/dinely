@@ -417,7 +417,7 @@ export default function SetupWizard() {
       flexDirection: 'column',
       fontFamily: 'Inter, system-ui, sans-serif'
     }}>
-      <Navbar variant="setup" theme="light" />
+      <Navbar variant="setup" />
 
       <div style={{
         flex: 1,
