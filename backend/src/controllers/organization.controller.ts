@@ -42,6 +42,22 @@ export class OrganizationController {
       next(error);
     }
   }
+
+  async uploadLogo(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const file = (req as any).file;
+      if (!file) {
+        res.status(400).json({ success: false, error: 'Image file is required' });
+        return;
+      }
+      
+      const paramId = (req as any).params.orgId; // safely get param in express 5
+      const result = await organizationService.uploadLogo(paramId, file);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const organizationController = new OrganizationController();

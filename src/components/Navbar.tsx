@@ -6,10 +6,11 @@ import { Settings, LogOut, Moon, Sun } from 'lucide-react'
 
 interface NavbarProps {
   variant?: 'public' | 'admin' | 'setup'
+  logoUrl?: string
   onSignOut?: () => void
 }
 
-export default function Navbar({ variant = 'public', onSignOut }: NavbarProps) {
+export default function Navbar({ variant = 'public', logoUrl, onSignOut }: NavbarProps) {
   const [showSettings, setShowSettings] = useState(false)
   const settingsRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
@@ -55,10 +56,16 @@ export default function Navbar({ variant = 'public', onSignOut }: NavbarProps) {
           textDecoration: 'none',
           letterSpacing: '-0.02em',
           fontFamily: 'var(--font-sans)',
-          transition: 'color 0.2s'
+          transition: 'color 0.2s',
+          display: 'flex',
+          alignItems: 'center'
         }}
       >
-        Logo
+        {logoUrl ? (
+          <img src={logoUrl} alt="Logo" style={{ height: '36px', maxWidth: '140px', objectFit: 'contain' }} />
+        ) : (
+          'Logo'
+        )}
       </Link>
 
       <div className="res-nav-actions" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>

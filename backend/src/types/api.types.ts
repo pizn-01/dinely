@@ -69,6 +69,7 @@ export interface UpdateOrganizationDto {
   requirePayment?: boolean;
   cancellationPolicy?: string;
   setupCompleted?: boolean;
+  logoUrl?: string;
 }
 
 // ─── Table Types ───────────────────────────────────────

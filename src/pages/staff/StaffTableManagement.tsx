@@ -43,6 +43,7 @@ export default function StaffTableManagement() {
   const [dbTables, setDbTables] = useState<any[]>([])
   const [dbReservations, setDbReservations] = useState<any[]>([])
   const [restaurantName, setRestaurantName] = useState('Staff Dashboard')
+  const [orgData, setOrgData] = useState<any>(null)
 
   // Modal State
   const [selectedBooking, setSelectedBooking] = useState<any>(null)
@@ -82,6 +83,7 @@ export default function StaffTableManagement() {
       setDbTables(tablesRes.data.data || [])
       setDbReservations(resvRes.data.reservations || []) 
       setRestaurantName(orgRes.data.data?.name || 'Staff Dashboard')
+      setOrgData(orgRes.data.data)
       setLastRefreshed(new Date())
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error)
@@ -244,9 +246,13 @@ export default function StaffTableManagement() {
       {/* Header Section */}
       <header style={{ backgroundColor: 'var(--header-bg)', padding: '24px 40px', borderBottom: `1px solid var(--header-border)`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 50, transition: 'background-color 0.3s' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <div style={{ width: '40px', height: '40px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Layout size={24} color="var(--text-primary)" />
-          </div>
+          {orgData?.logoUrl ? (
+            <img src={orgData.logoUrl} alt="Logo" style={{ height: '44px', maxWidth: '120px', objectFit: 'contain' }} />
+          ) : (
+            <div style={{ width: '40px', height: '40px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Layout size={24} color="var(--text-primary)" />
+            </div>
+          )}
           <div>
             <h1 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>{restaurantName}</h1>
             <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', margin: 0 }}>

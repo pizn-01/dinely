@@ -65,6 +65,7 @@ export class OrganizationService {
     if (dto.requirePayment !== undefined) updateData.require_payment = dto.requirePayment;
     if (dto.cancellationPolicy !== undefined) updateData.cancellation_policy = dto.cancellationPolicy;
     if (dto.setupCompleted !== undefined) updateData.setup_completed = dto.setupCompleted;
+    if (dto.logoUrl !== undefined) updateData.logo_url = dto.logoUrl;
 
     const { data, error } = await supabaseAdmin
       .from('organizations')
@@ -110,6 +111,61 @@ export class OrganizationService {
     }
 
     return this.formatOrganization(data);
+  }
+
+  /**
+   * Upload a logo image and update the organization record.
+   */
+  async uploadLogo(orgId: string, file: Express.Multer.File) {
+    // Clean up old logo if present
+    const { data: currentOrg } = await supabaseAdmin
+      .from('organizations')
+      .select('logo_url')
+      .eq('id', orgId)
+      .single();
+
+    if (currentOrg?.logo_url) {
+      try {
+        const oldPath = currentOrg.logo_url.split('/restaurant-assets/')[1];
+        if (oldPath) {
+          await supabaseAdmin.storage.from('restaurant-assets').remove([oldPath]);
+        }
+      } catch (cleanupErr) {
+        console.warn('[OrgService] Failed to clean up old logo:', cleanupErr);
+      }
+    }
+
+    const fileName = `logos/${orgId}/${Date.now()}-${file.originalname}`;
+
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from('restaurant-assets')
+      .upload(fileName, file.buffer, {
+        contentType: file.mimetype,
+        upsert: true,
+      });
+
+    if (uploadError) {
+      console.error('[OrgService] Logo upload failed:', uploadError);
+      throw new AppError('Failed to upload logo image', 500);
+    }
+
+    const { data: urlData } = supabaseAdmin.storage
+      .from('restaurant-assets')
+      .getPublicUrl(fileName);
+
+    const logoUrl = urlData.publicUrl;
+
+    // Update organization record
+    const { error: updateError } = await supabaseAdmin
+      .from('organizations')
+      .update({ logo_url: logoUrl, updated_at: new Date().toISOString() })
+      .eq('id', orgId);
+
+    if (updateError) {
+      throw new AppError('Failed to save logo URL', 500);
+    }
+
+    return { logoUrl };
   }
 
   /**

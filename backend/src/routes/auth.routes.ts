@@ -4,21 +4,18 @@ import { authenticate } from '../middleware/auth';
 import { validate } from '../middleware/validator';
 import { signupSchema, loginSchema, staffLoginSchema, forgotPasswordSchema, resetPasswordSchema, refreshTokenSchema, acceptInviteSchema, customerSignupSchema, customerLoginSchema } from '../validators/auth.validator';
 import { staffService } from '../services/staff.service';
-import { authLimiter } from '../middleware/rateLimiter';
+import { authLimiter, inviteLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
 
-// Apply general auth rate limiting to all auth routes
-router.use(authLimiter);
-
 // Public routes — signup
-router.post('/signup', validate(signupSchema), (req, res, next) => authController.signup(req, res, next));
+router.post('/signup', authLimiter, validate(signupSchema), (req, res, next) => authController.signup(req, res, next));
 
-// Login routes — NO separate login rate limiter; Supabase enforces its own
-router.post('/login', validate(loginSchema), (req, res, next) => authController.login(req, res, next));
-router.post('/staff-login', validate(staffLoginSchema), (req, res, next) => authController.staffLogin(req, res, next));
-router.post('/customer-login', validate(customerLoginSchema), (req, res, next) => authController.customerLogin(req, res, next));
-router.post('/customer-signup', validate(customerSignupSchema), (req, res, next) => authController.customerSignup(req, res, next));
+// Login routes
+router.post('/login', authLimiter, validate(loginSchema), (req, res, next) => authController.login(req, res, next));
+router.post('/staff-login', authLimiter, validate(staffLoginSchema), (req, res, next) => authController.staffLogin(req, res, next));
+router.post('/customer-login', authLimiter, validate(customerLoginSchema), (req, res, next) => authController.customerLogin(req, res, next));
+router.post('/customer-signup', authLimiter, validate(customerSignupSchema), (req, res, next) => authController.customerSignup(req, res, next));
 
 // Password reset
 router.post('/forgot-password', validate(forgotPasswordSchema), (req, res, next) => authController.forgotPassword(req, res, next));
@@ -26,7 +23,7 @@ router.post('/reset-password', validate(resetPasswordSchema), (req, res, next) =
 router.post('/refresh', validate(refreshTokenSchema), (req, res, next) => authController.refreshToken(req, res, next));
 
 // Accept staff invitation
-router.post('/accept-invite', validate(acceptInviteSchema), async (req, res, next) => {
+router.post('/accept-invite', inviteLimiter, validate(acceptInviteSchema), async (req, res, next) => {
   try {
     const { token, password, name } = req.body;
     const result = await staffService.acceptInvite(token, password, name);

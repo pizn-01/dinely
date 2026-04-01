@@ -77,12 +77,21 @@ export const generalLimiter = rateLimit({
 
 /**
  * Auth rate limit (login, signup, etc.)
- * Limits users to 6 attempts per 5 minutes before locking them out.
+ * Limits users to 20 attempts per 5 minutes before locking them out.
  */
 export const authLimiter = rateLimit({
   windowMs: 5 * 60 * 1000,
-  maxRequests: 6,
-  message: 'Too many login attempts. Please try again in 5 minutes.',
+  maxRequests: 20,
+  message: 'Too many login attempts. Please try again later.',
+});
+
+/**
+ * Invite Limit: Prevent brute-forcing staff invitations.
+ */
+export const inviteLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  maxRequests: 10,
+  message: 'Too many invite requests. Please try again later.',
 });
 
 /** Public API rate limit: 200 requests per minute per IP */

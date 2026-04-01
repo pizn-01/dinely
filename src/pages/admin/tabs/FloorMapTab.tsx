@@ -58,6 +58,11 @@ export default function FloorMapTab({ theme, orgId }: FloorMapTabProps) {
   const [form, setForm] = useState<TableForm>(emptyForm)
   const [creating, setCreating] = useState(false)
 
+  // Inline area creation
+  const [showNewArea, setShowNewArea] = useState(false)
+  const [newAreaName, setNewAreaName] = useState('')
+  const [creatingArea, setCreatingArea] = useState(false)
+
   // Fetch Tables
   useEffect(() => {
     if (!orgId) return
@@ -101,15 +106,24 @@ export default function FloorMapTab({ theme, orgId }: FloorMapTabProps) {
   }, [orgId])
 
   const handleSaveTable = async () => {
-    if (!form.tableNumber || !form.capacity) {
-      alert('Please fill in Table Number and Capacity')
+    if (!form.tableNumber.trim()) {
+      alert('Please enter a Table Number')
+      return
+    }
+    if (!form.capacity || form.capacity < 1) {
+      alert('Capacity must be at least 1')
       return
     }
     
     try {
       setCreating(true)
       const payload = {
-        ...form,
+        tableNumber: form.tableNumber.trim(),
+        name: form.name.trim() || undefined,
+        capacity: form.capacity,
+        areaId: form.areaId || undefined,
+        shape: form.shape,
+        type: form.type.trim() || undefined,
         positionX: 0,
         positionY: 0
       }
@@ -133,7 +147,10 @@ export default function FloorMapTab({ theme, orgId }: FloorMapTabProps) {
       }
     } catch (err: any) {
       console.error('Failed to create table:', err)
-      alert(err.response?.data?.error || 'Failed to create table')
+      const errorMsg = err.response?.data?.details
+        ? err.response.data.details.map((d: any) => `${d.field}: ${d.message}`).join('\n')
+        : err.response?.data?.error || 'Failed to create table'
+      alert(errorMsg)
     } finally {
       setCreating(false)
     }
@@ -434,20 +451,83 @@ export default function FloorMapTab({ theme, orgId }: FloorMapTabProps) {
 
               <div>
                 <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.875rem', color: isDark ? '#c9d1d9' : '#374151' }}>Restaurant Area</label>
-                <select
-                  value={form.areaId}
-                  onChange={e => setForm({ ...form, areaId: e.target.value })}
-                  style={{
-                    width: '100%', padding: '10px 12px', borderRadius: '6px',
-                    backgroundColor: isDark ? '#0d1117' : '#ffffff', border: `1px solid ${isDark ? '#30363d' : '#d1d5db'}`,
-                    color: isDark ? '#c9d1d9' : '#111827'
-                  }}
-                >
-                  <option value="">No Area (Unassigned)</option>
-                  {areas.map(a => (
-                    <option key={a.id} value={a.id}>{a.name}</option>
-                  ))}
-                </select>
+                {!showNewArea ? (
+                  <>
+                    <select
+                      value={form.areaId}
+                      onChange={e => {
+                        if (e.target.value === '__create_new__') {
+                          setShowNewArea(true)
+                        } else {
+                          setForm({ ...form, areaId: e.target.value })
+                        }
+                      }}
+                      style={{
+                        width: '100%', padding: '10px 12px', borderRadius: '6px',
+                        backgroundColor: isDark ? '#0d1117' : '#ffffff', border: `1px solid ${isDark ? '#30363d' : '#d1d5db'}`,
+                        color: isDark ? '#c9d1d9' : '#111827'
+                      }}
+                    >
+                      <option value="">No Area (Unassigned)</option>
+                      {areas.map(a => (
+                        <option key={a.id} value={a.id}>{a.name}</option>
+                      ))}
+                      <option value="__create_new__">+ Create New Area</option>
+                    </select>
+                  </>
+                ) : (
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input
+                      type="text"
+                      value={newAreaName}
+                      onChange={e => setNewAreaName(e.target.value)}
+                      placeholder="e.g. Patio, Bar Area"
+                      autoFocus
+                      style={{
+                        flex: 1, padding: '10px 12px', borderRadius: '6px',
+                        backgroundColor: isDark ? '#0d1117' : '#ffffff', border: `1px solid ${isDark ? '#30363d' : '#d1d5db'}`,
+                        color: isDark ? '#c9d1d9' : '#111827'
+                      }}
+                    />
+                    <button
+                      onClick={async () => {
+                        if (!newAreaName.trim()) return
+                        try {
+                          setCreatingArea(true)
+                          const { data } = await api.post(`/organizations/${orgId}/tables/areas`, { name: newAreaName.trim() })
+                          if (data.data) {
+                            setAreas(prev => [...prev, data.data])
+                            setForm({ ...form, areaId: data.data.id })
+                          }
+                          setShowNewArea(false)
+                          setNewAreaName('')
+                        } catch (areaErr: any) {
+                          alert(areaErr?.response?.data?.error || 'Failed to create area')
+                        } finally {
+                          setCreatingArea(false)
+                        }
+                      }}
+                      disabled={creatingArea || !newAreaName.trim()}
+                      style={{
+                        padding: '10px 14px', backgroundColor: isDark ? '#238636' : '#10b981',
+                        color: '#ffffff', border: 'none', borderRadius: '6px',
+                        fontWeight: 600, cursor: creatingArea ? 'wait' : 'pointer', fontSize: '0.8rem', whiteSpace: 'nowrap'
+                      }}
+                    >
+                      {creatingArea ? '...' : 'Add'}
+                    </button>
+                    <button
+                      onClick={() => { setShowNewArea(false); setNewAreaName('') }}
+                      style={{
+                        padding: '10px 12px', backgroundColor: 'transparent',
+                        border: `1px solid ${isDark ? '#30363d' : '#d1d5db'}`,
+                        color: isDark ? '#c9d1d9' : '#374151', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem'
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 

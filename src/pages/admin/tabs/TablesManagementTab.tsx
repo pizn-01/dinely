@@ -44,6 +44,11 @@ export default function TablesManagementTab({ theme, orgId }: TablesManagementTa
   const [confirmDelete, setConfirmDelete] = useState<any>(null)
   const [deleting, setDeleting] = useState(false)
 
+  // Inline area creation
+  const [showNewAreaInput, setShowNewAreaInput] = useState(false)
+  const [newAreaName, setNewAreaName] = useState('')
+  const [creatingArea, setCreatingArea] = useState(false)
+
   const fetchTables = async () => {
     try {
       setLoading(true)
@@ -123,10 +128,15 @@ export default function TablesManagementTab({ theme, orgId }: TablesManagementTa
       setShowModal(false)
       setForm(emptyForm)
       setEditingTable(null)
+      setShowNewAreaInput(false)
+      setNewAreaName('')
       fetchTables()
     } catch (err: any) {
       console.error('Failed to save table:', err)
-      alert(err?.response?.data?.message || 'Failed to save table.')
+      const errorMsg = err?.response?.data?.details
+        ? err.response.data.details.map((d: any) => `${d.field}: ${d.message}`).join('\n')
+        : err?.response?.data?.message || err?.response?.data?.error || 'Failed to save table.'
+      alert(errorMsg)
     } finally {
       setSaving(false)
     }
@@ -328,16 +338,85 @@ export default function TablesManagementTab({ theme, orgId }: TablesManagementTa
               </div>
               <div>
                 <label style={labelStyle}>Area</label>
-                <select
-                  value={form.areaId}
-                  onChange={(e) => setForm({ ...form, areaId: e.target.value })}
-                  style={{ ...inputStyle, backgroundColor: isDark ? '#161B22' : '#ffffff' }}
-                >
-                  <option value="">No Area</option>
-                  {areasList.map((area: any) => (
-                    <option key={area.id} value={area.id}>{area.name}</option>
-                  ))}
-                </select>
+                {!showNewAreaInput ? (
+                  <>
+                    <select
+                      value={form.areaId}
+                      onChange={(e) => {
+                        if (e.target.value === '__create_new__') {
+                          setShowNewAreaInput(true)
+                        } else {
+                          setForm({ ...form, areaId: e.target.value })
+                        }
+                      }}
+                      style={{ ...inputStyle, backgroundColor: isDark ? '#161B22' : '#ffffff' }}
+                    >
+                      <option value="">No Area</option>
+                      {areasList.map((area: any) => (
+                        <option key={area.id} value={area.id}>{area.name}</option>
+                      ))}
+                      <option value="__create_new__">+ Create New Area</option>
+                    </select>
+                  </>
+                ) : (
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input
+                      type="text"
+                      value={newAreaName}
+                      onChange={(e) => setNewAreaName(e.target.value)}
+                      placeholder="Area name"
+                      style={{ ...inputStyle, flex: 1 }}
+                      autoFocus
+                    />
+                    <button
+                      onClick={async () => {
+                        if (!newAreaName.trim()) return
+                        try {
+                          setCreatingArea(true)
+                          const { data } = await api.post(`/organizations/${orgId}/tables/areas`, { name: newAreaName.trim() })
+                          if (data.data) {
+                            setAreasList((prev: any[]) => [...prev, data.data])
+                            setForm({ ...form, areaId: data.data.id })
+                          }
+                          setShowNewAreaInput(false)
+                          setNewAreaName('')
+                        } catch (areaErr: any) {
+                          alert(areaErr?.response?.data?.error || 'Failed to create area')
+                        } finally {
+                          setCreatingArea(false)
+                        }
+                      }}
+                      disabled={creatingArea || !newAreaName.trim()}
+                      style={{
+                        padding: '10px 16px',
+                        backgroundColor: isDark ? '#238636' : '#10b981',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '8px',
+                        fontWeight: 600,
+                        cursor: creatingArea ? 'wait' : 'pointer',
+                        fontSize: '0.8rem',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      {creatingArea ? '...' : 'Add'}
+                    </button>
+                    <button
+                      onClick={() => { setShowNewAreaInput(false); setNewAreaName('') }}
+                      style={{
+                        padding: '10px 12px',
+                        backgroundColor: 'transparent',
+                        border: `1px solid ${isDark ? '#30363d' : '#d1d5db'}`,
+                        color: isDark ? '#c9d1d9' : '#374151',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        fontSize: '0.8rem'
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
               </div>
               <div>
                 <label style={labelStyle}>Shape</label>

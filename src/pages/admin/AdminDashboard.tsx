@@ -26,6 +26,7 @@ export default function AdminDashboard() {
   const orgId = user?.restaurantId || ''
   const [activeTab, setActiveTab] = useState('reservation')
   const { isDark } = useTheme()
+  const [orgData, setOrgData] = useState<any>(null)
   const [stats, setStats] = useState({
     todayBookings: 0,
     seatedNow: 0,
@@ -39,20 +40,28 @@ export default function AdminDashboard() {
   const fetchStats = useCallback(async () => {
     if (!orgId) return
     try {
-      const { data } = await api.get(`/organizations/${orgId}/dashboard/stats`)
-      if (data.data) {
+      const [statsRes, orgRes] = await Promise.all([
+        api.get(`/organizations/${orgId}/dashboard/stats`),
+        api.get(`/organizations/${orgId}`)
+      ])
+      
+      if (orgRes.data.data) {
+        setOrgData(orgRes.data.data)
+      }
+      
+      if (statsRes.data.data) {
         setStats({
-          todayBookings: data.data.today?.reservations || 0,
-          seatedNow: data.data.today?.seatedNow || 0,
-          totalTables: data.data.totals?.activeTables || 0,
-          totalStaff: data.data.totals?.totalStaff || 0,
-          serverToday: data.data.today?.date || new Date().toISOString().split('T')[0],
-          openingTime: data.data.today?.openingTime || '12:00',
-          closingTime: data.data.today?.closingTime || '22:00'
+          todayBookings: statsRes.data.data.today?.reservations || 0,
+          seatedNow: statsRes.data.data.today?.seatedNow || 0,
+          totalTables: statsRes.data.data.totals?.activeTables || 0,
+          totalStaff: statsRes.data.data.totals?.totalStaff || 0,
+          serverToday: statsRes.data.data.today?.date || new Date().toISOString().split('T')[0],
+          openingTime: statsRes.data.data.today?.openingTime || '12:00',
+          closingTime: statsRes.data.data.today?.closingTime || '22:00'
         })
       }
     } catch (error) {
-      console.error('Failed to load stats:', error)
+      console.error('Failed to load dashboard data:', error)
     }
   }, [orgId])
 
@@ -97,7 +106,7 @@ export default function AdminDashboard() {
       fontFamily: 'var(--font-sans)',
       transition: 'background-color 0.3s ease'
     }}>
-      <Navbar variant="admin" />
+      <Navbar variant="admin" logoUrl={orgData?.logoUrl} />
 
       <div className="res-admin-container" style={{ padding: '32px 48px' }}>
         {/* Stats Cards */}

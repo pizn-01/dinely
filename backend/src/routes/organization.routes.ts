@@ -41,4 +41,15 @@ router.get('/:orgId/stats',
   (req, res, next) => organizationController.getStats(req, res, next)
 );
 
+import multer from 'multer';
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+
+// POST /organizations/:orgId/logo
+router.post('/:orgId/logo',
+  requireRestaurantAccess,
+  requireMinRole(UserRole.RESTAURANT_ADMIN),
+  upload.single('logo'),
+  (req, res, next) => organizationController.uploadLogo(req, res, next)
+);
+
 export default router;
