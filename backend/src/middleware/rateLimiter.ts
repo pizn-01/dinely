@@ -69,10 +69,11 @@ export const rateLimit = (options: RateLimitOptions) => {
 
 // ─── Prebuilt rate limiters ────────────────────────────
 
-/** General API rate limit: 200 requests per 15 minutes */
+/** General API rate limit: 500 requests per 15 minutes per IP+path */
 export const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  maxRequests: 200,
+  maxRequests: 500,
+  keyGenerator: (req) => `${req.ip || 'unknown'}:${req.method}:${req.baseUrl || req.path}`,
 });
 
 /**
@@ -81,7 +82,7 @@ export const generalLimiter = rateLimit({
  */
 export const authLimiter = rateLimit({
   windowMs: 5 * 60 * 1000,
-  maxRequests: 50,
+  maxRequests: 100,
   message: 'Too many login attempts. Please try again later.',
 });
 

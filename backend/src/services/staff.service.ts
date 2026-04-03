@@ -282,25 +282,55 @@ export class StaffService {
   }
 
   /**
-   * Remove (deactivate) staff member.
+   * Remove staff member — hard delete from database and Supabase auth.
    */
   async remove(staffId: string, restaurantId: string) {
+    // 1. Fetch the staff record to get the linked auth user ID
     const { data: staff } = await supabaseAdmin
       .from('staff_members')
-      .select('role')
+      .select('id, role, user_id, email')
       .eq('id', staffId)
       .eq('restaurant_id', restaurantId)
       .single();
 
     if (!staff) throw new NotFoundError('Staff member');
 
+    // 2. Hard-delete the staff_members record from the database
     const { error } = await supabaseAdmin
       .from('staff_members')
-      .update({ is_active: false })
+      .delete()
       .eq('id', staffId)
       .eq('restaurant_id', restaurantId);
 
     if (error) throw new AppError('Failed to remove staff member', 500);
+
+    // 3. Remove the Supabase auth user if one was linked
+    if (staff.user_id) {
+      try {
+        // Check if this user has staff records in OTHER restaurants before deleting auth
+        const { data: otherRecords } = await supabaseAdmin
+          .from('staff_members')
+          .select('id')
+          .eq('user_id', staff.user_id)
+          .limit(1);
+
+        // Only delete auth user if they have no other restaurant memberships
+        if (!otherRecords || otherRecords.length === 0) {
+          const { error: authErr } = await supabaseAdmin.auth.admin.deleteUser(staff.user_id);
+          if (authErr) {
+            console.error(`[StaffService] Failed to delete auth user ${staff.user_id}:`, authErr.message);
+          } else {
+            console.log(`[StaffService] ✅ Deleted auth user ${staff.user_id} (${staff.email})`);
+          }
+        } else {
+          console.log(`[StaffService] Auth user ${staff.user_id} has other restaurant memberships, keeping auth account`);
+        }
+      } catch (authCleanupErr: any) {
+        console.error(`[StaffService] Auth cleanup error:`, authCleanupErr.message);
+        // Don't throw — the staff record is already deleted
+      }
+    }
+
     return { success: true };
   }
 
