@@ -20,15 +20,14 @@ export default function ReservationTab({ theme, orgId, serverToday }: Reservatio
 
   const fetchData = useCallback(async () => {
     try {
-      setLoading(true)
       const dateTarget = serverToday || new Date().toISOString().split('T')[0]
       // Fetch Tables
       const tablesRes = await api.get(`/organizations/${orgId}/tables`)
       setTablesList(tablesRes.data.data || [])
 
-      // Fetch Today's Reservations
+      // Fetch Today's Reservations — API returns { success, reservations, meta }
       const resRes = await api.get(`/organizations/${orgId}/reservations?limit=100&sortOrder=desc&date=${dateTarget}`)
-      const fetchedRes = resRes.data.data || []
+      const fetchedRes = resRes.data.reservations || []
       setResList(fetchedRes)
     } catch (err) {
       console.error('Failed to load reservation data:', err)
@@ -40,6 +39,9 @@ export default function ReservationTab({ theme, orgId, serverToday }: Reservatio
 
   useEffect(() => {
     fetchData()
+    // Auto-poll every 5 seconds to keep the system updated
+    const interval = setInterval(fetchData, 5_000)
+    return () => clearInterval(interval)
   }, [fetchData])
 
   // Real-time sync: instant refresh on any reservation event
@@ -48,7 +50,10 @@ export default function ReservationTab({ theme, orgId, serverToday }: Reservatio
   const getTableStatus = (tableId: string | number) => {
     // Only consider active reservations — completed/cancelled/no_show free the table
     const terminalStatuses = ['completed', 'cancelled', 'no_show']
-    const tableRes = resList.filter(r => (r.tableId === tableId || String(r.tableId) === String(tableId)) && !terminalStatuses.includes(r.status))
+    const tableRes = resList.filter(r => {
+      const resTableId = r.table?.id || r.tableId
+      return (resTableId === tableId || String(resTableId) === String(tableId)) && !terminalStatuses.includes(r.status)
+    })
     if (tableRes.length === 0) return 'available'
 
     const now = new Date()
@@ -184,7 +189,7 @@ export default function ReservationTab({ theme, orgId, serverToday }: Reservatio
           }}>
               {tablesList.map(table => {
                 const status = getTableStatus(table.id)
-                const areaName = table.floor_area?.name || 'Unassigned'
+                const areaName = table.area?.name || 'Unassigned'
                 return (
                   <div key={table.id} style={{
                     border: `1px solid ${borderColor}`,
