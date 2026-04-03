@@ -62,7 +62,7 @@ export default function Navbar({ variant = 'public', logoUrl, onSignOut }: Navba
         }}
       >
         {logoUrl ? (
-          <img src={logoUrl} alt="Logo" style={{ height: '40px', maxWidth: '160px', objectFit: 'contain' }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; if (e.currentTarget.parentNode) { const span = document.createElement('span'); span.innerText = 'Logo'; e.currentTarget.parentNode.appendChild(span); } }} />
+          <img src={logoUrl} alt="Logo" style={{ height: '56px', maxWidth: '200px', objectFit: 'contain' }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; if (e.currentTarget.parentNode) { const span = document.createElement('span'); span.innerText = 'Logo'; e.currentTarget.parentNode.appendChild(span); } }} />
         ) : (
           'Logo'
         )}
