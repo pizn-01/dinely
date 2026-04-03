@@ -439,7 +439,7 @@ export default function StaffTableManagement() {
                               boxShadow: 'var(--shadow-md)',
                               transition: 'all 0.3s'
                             }}>
-                              <span style={{ fontSize: '0.625rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>T-{table.tableNumber || table.name?.split(' ')[1] || table.name || '0'}</span>
+                              <span style={{ fontSize: '0.625rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{table.name || `T-${table.tableNumber}`}</span>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}>
                                 <Users size={12} color="var(--text-tertiary)" />
                                 <span style={{ fontSize: '0.875rem', fontWeight: 800, color: 'var(--text-primary)' }}>{capacity}</span>
@@ -592,7 +592,7 @@ export default function StaffTableManagement() {
                             
                             {/* Table Number & Capacity */}
                             <div style={{ width: '100px', borderRight: `1px solid var(--border-secondary)`, display: 'flex', alignItems: 'center', padding: '0 16px', justifyContent: 'space-between' }}>
-                              <span style={{ fontWeight: 700, fontSize: '0.875rem', color: 'var(--text-primary)' }}>{table.tableNumber || table.name?.split(' ')?.[1] || 1}</span>
+                              <span style={{ fontWeight: 700, fontSize: '0.875rem', color: 'var(--text-primary)' }}>{table.name || table.tableNumber || '—'}</span>
                               <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>{table.capacity}</span>
                             </div>
 

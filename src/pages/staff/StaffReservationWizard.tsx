@@ -175,7 +175,7 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
     if (availableTables.length === 0) return <div style={{ textAlign: 'center', padding: '40px', color: '#DC2626' }}>No tables available for {data.guests} guests at {data.time}.</div>
 
     const tablesByArea = availableTables.reduce((acc, table) => {
-      const areaName = table.floor_areas?.name || 'Main Area'
+      const areaName = table.area?.name || 'Main Area'
       if (!acc[areaName]) acc[areaName] = []
       acc[areaName].push(table)
       return acc
@@ -190,7 +190,7 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
               {(tables as any[]).map(table => (
                 <div
                   key={table.id}
-                  onClick={() => updateData({ tableId: table.id, tableName: table.table_number || table.name || '', tableCapacity: table.capacity, tableLocation: area })}
+                  onClick={() => updateData({ tableId: table.id, tableName: table.name || `Table ${table.tableNumber}`, tableCapacity: table.capacity, tableLocation: area })}
                   style={{
                     padding: '16px',
                     borderRadius: '12px',
@@ -203,7 +203,7 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
                     transition: 'all 0.2s'
                   }}
                 >
-                  <span style={{ fontSize: '1.25rem', fontWeight: 700, color: '#111827' }}>T-{table.table_number || table.name?.split(' ')[1] || '0'}</span>
+                  <span style={{ fontSize: '1.25rem', fontWeight: 700, color: '#111827' }}>{table.name || `Table ${table.tableNumber}`}</span>
                   <span style={{ fontSize: '0.75rem', color: '#6B7280', marginTop: '4px' }}>Up to {table.capacity} Guests</span>
                 </div>
               ))}
@@ -258,7 +258,7 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
           </div>
           <div>
             <span style={{ color: '#6B7280', display: 'block' }}>Table</span>
-            <span style={{ fontWeight: 600, color: '#111827' }}>T-{data.tableName} ({data.tableLocation})</span>
+            <span style={{ fontWeight: 600, color: '#111827' }}>{data.tableName} ({data.tableLocation})</span>
           </div>
           <div>
             <span style={{ color: '#6B7280', display: 'block' }}>Guest</span>
