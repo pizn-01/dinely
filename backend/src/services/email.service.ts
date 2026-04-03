@@ -163,12 +163,11 @@ class EmailService {
           </div>
           
           <p style="color: #484f58; font-size: 12px; text-align: center; margin: 0;">
-            If the button doesn't work, copy and paste this URL into your browser:<br/>
-            <a href="${inviteUrl}" style="color: #4a9e6b; word-break: break-all;">${inviteUrl}</a>
+            If the button above doesn't work, <a href="${inviteUrl}" style="color: #4a9e6b; text-decoration: none;">click here</a> to accept your invitation.
           </p>
         </div>
       `,
-      text: `Hi ${params.staffName}, you've been invited to join ${params.restaurantName} as a ${params.role}. Accept your invitation here: ${inviteUrl}`,
+      text: `Hi ${params.staffName}, you've been invited to join ${params.restaurantName} as a ${params.role}. Accept your invitation by visiting: ${inviteUrl}`,
     });
   }
 

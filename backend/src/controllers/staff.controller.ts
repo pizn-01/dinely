@@ -27,7 +27,8 @@ export class StaffController {
 
   async invite(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const result = await staffService.invite(param(req, 'orgId'), req.body);
+      const origin = req.headers.origin || req.headers.referer?.split('/').slice(0, 3).join('/');
+      const result = await staffService.invite(param(req, 'orgId'), req.body, origin);
       res.status(201).json({ success: true, data: result });
     } catch (error) {
       next(error);

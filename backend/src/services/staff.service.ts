@@ -52,7 +52,7 @@ export class StaffService {
    * 4. Send our branded invitation email via emailService
    * 5. Return staff record (NO invite link — email only)
    */
-  async invite(restaurantId: string, dto: InviteStaffDto) {
+  async invite(restaurantId: string, dto: InviteStaffDto, origin?: string) {
     // 1. Check for existing staff member in this restaurant
     const { data: existing } = await supabaseAdmin
       .from('staff_members')
@@ -92,7 +92,7 @@ export class StaffService {
       throw new AppError('Failed to create staff record', 500);
     }
 
-    const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const FRONTEND_URL = origin || process.env.FRONTEND_URL || 'http://localhost:5173';
     const inviteToken = staffRecord.id;
     const redirectTo = `${FRONTEND_URL}/accept-invite?token=${inviteToken}`;
 

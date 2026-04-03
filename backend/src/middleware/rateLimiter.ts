@@ -81,7 +81,7 @@ export const generalLimiter = rateLimit({
  */
 export const authLimiter = rateLimit({
   windowMs: 5 * 60 * 1000,
-  maxRequests: 20,
+  maxRequests: 50,
   message: 'Too many login attempts. Please try again later.',
 });
 
@@ -90,7 +90,7 @@ export const authLimiter = rateLimit({
  */
 export const inviteLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  maxRequests: 10,
+  maxRequests: 50,
   message: 'Too many invite requests. Please try again later.',
 });
 

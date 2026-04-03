@@ -247,7 +247,7 @@ export default function StaffTableManagement() {
       <header style={{ backgroundColor: 'var(--header-bg)', padding: '24px 40px', borderBottom: `1px solid var(--header-border)`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 50, transition: 'background-color 0.3s' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           {orgData?.logoUrl ? (
-            <img src={orgData.logoUrl} alt="Logo" style={{ height: '44px', maxWidth: '120px', objectFit: 'contain' }} />
+            <img src={orgData.logoUrl} alt="Logo" style={{ height: '44px', maxWidth: '120px', objectFit: 'contain' }} onError={(e) => { e.currentTarget.style.display = 'none'; const span = document.createElement('span'); span.innerText = 'Logo'; span.style.fontWeight = '700'; span.style.fontSize = '1.35rem'; span.style.color = 'var(--text-primary)'; e.currentTarget.parentNode?.appendChild(span); }} />
           ) : (
             <div style={{ width: '40px', height: '40px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Layout size={24} color="var(--text-primary)" />
