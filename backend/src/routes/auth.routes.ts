@@ -4,7 +4,7 @@ import { authenticate } from '../middleware/auth';
 import { validate } from '../middleware/validator';
 import { signupSchema, loginSchema, staffLoginSchema, forgotPasswordSchema, resetPasswordSchema, refreshTokenSchema, acceptInviteSchema, customerSignupSchema, customerLoginSchema } from '../validators/auth.validator';
 import { staffService } from '../services/staff.service';
-import { authLimiter, inviteLimiter } from '../middleware/rateLimiter';
+import { authLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
 
@@ -22,8 +22,8 @@ router.post('/forgot-password', validate(forgotPasswordSchema), (req, res, next)
 router.post('/reset-password', validate(resetPasswordSchema), (req, res, next) => authController.resetPassword(req, res, next));
 router.post('/refresh', validate(refreshTokenSchema), (req, res, next) => authController.refreshToken(req, res, next));
 
-// Accept staff invitation
-router.post('/accept-invite', inviteLimiter, validate(acceptInviteSchema), async (req, res, next) => {
+// Accept staff invitation — no aggressive rate limit; UUID tokens can't be brute-forced
+router.post('/accept-invite', authLimiter, validate(acceptInviteSchema), async (req, res, next) => {
   try {
     const { token, password, name } = req.body;
     const result = await staffService.acceptInvite(token, password, name);
