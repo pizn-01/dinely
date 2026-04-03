@@ -68,8 +68,8 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (!orgId) return
     fetchStats()
-    // Auto-poll every 5 seconds to keep the system updated
-    const interval = setInterval(fetchStats, 5_000)
+    // Auto-poll every 15 seconds to keep the system updated
+    const interval = setInterval(fetchStats, 15_000)
     return () => clearInterval(interval)
   }, [orgId, fetchStats])
 

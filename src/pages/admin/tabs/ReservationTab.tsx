@@ -39,8 +39,8 @@ export default function ReservationTab({ theme, orgId, serverToday }: Reservatio
 
   useEffect(() => {
     fetchData()
-    // Auto-poll every 5 seconds to keep the system updated
-    const interval = setInterval(fetchData, 5_000)
+    // Auto-poll every 15 seconds to keep the system updated
+    const interval = setInterval(fetchData, 15_000)
     return () => clearInterval(interval)
   }, [fetchData])
 

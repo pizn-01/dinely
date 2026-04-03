@@ -105,7 +105,7 @@ export default function StaffTableManagement() {
     if (!restaurantId) return
     const interval = setInterval(() => {
       fetchData(selectedDate, restaurantId)
-    }, 5_000)
+    }, 15_000)
     return () => clearInterval(interval)
   }, [selectedDate, restaurantId, fetchData])
 
