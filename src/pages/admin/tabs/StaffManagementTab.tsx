@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Search, MoreVertical, Plus, X, Trash2 } from 'lucide-react'
 import { api } from '../../../services/api'
+import { toast } from 'react-hot-toast'
 import StatusBadge from '../../../components/StatusBadge'
 
 interface StaffManagementTabProps {
@@ -56,14 +57,14 @@ export default function StaffManagementTab({ theme, orgId }: StaffManagementTabP
         setDemoInviteLink(`${window.location.origin}/accept-invite?token=${token}`)
       }
       
-      alert('Invitation sent! The staff member will receive an email with instructions to set up their account.')
+      toast.success('Invitation sent! The staff member will receive an email with instructions to set up their account.')
       setShowInvite(false)
       setInviteEmail('')
       fetchStaff()
     } catch (err: any) {
       console.error('Failed to invite staff:', err)
       const message = err.response?.data?.error || 'Failed to invite staff.'
-      alert(message)
+      toast.error(message)
     } finally {
       setInviteLoading(false)
     }
@@ -78,7 +79,7 @@ export default function StaffManagementTab({ theme, orgId }: StaffManagementTabP
       setConfirmDeleteMember(null)
     } catch (err) {
       console.error('Failed to remove staff:', err)
-      alert('Failed to remove staff member. Ensure you have the right permissions.')
+      toast.error('Failed to remove staff member. Ensure you have the right permissions.')
     } finally {
       setDeleteLoading(false)
     }
@@ -92,7 +93,7 @@ export default function StaffManagementTab({ theme, orgId }: StaffManagementTabP
           <p style={{ fontSize: '0.875rem', marginBottom: '8px' }}>Since email delivery is not configured for this demo, copy this link manually to accept the invitation in an incognito window.</p>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             <input type="text" readOnly value={demoInviteLink} style={{ flex: 1, padding: '8px 12px', borderRadius: '6px', border: '1px solid rgba(234, 179, 8, 0.2)', backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : '#ffffff', color: isDark ? '#ffffff' : '#1f2937' }} />
-            <button onClick={() => { navigator.clipboard.writeText(demoInviteLink); alert('Copied to clipboard!') }} style={{ padding: '8px 16px', backgroundColor: '#eab308', color: '#ffffff', borderRadius: '6px', border: 'none', fontWeight: 600, cursor: 'pointer' }}>Copy</button>
+            <button onClick={() => { navigator.clipboard.writeText(demoInviteLink); toast.success('Copied to clipboard!') }} style={{ padding: '8px 16px', backgroundColor: '#eab308', color: '#ffffff', borderRadius: '6px', border: 'none', fontWeight: 600, cursor: 'pointer' }}>Copy</button>
             <button onClick={() => setDemoInviteLink('')} style={{ padding: '8px 16px', backgroundColor: 'transparent', color: '#eab308', borderRadius: '6px', border: '1px solid rgba(234, 179, 8, 0.5)', fontWeight: 600, cursor: 'pointer' }}>Dismiss</button>
           </div>
         </div>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Plus, Edit, Trash2, X } from 'lucide-react'
 import { api } from '../../../services/api'
+import { toast } from 'react-hot-toast'
 import StatusBadge from '../../../components/StatusBadge'
 
 interface TablesManagementTabProps {
@@ -16,6 +17,8 @@ interface TableForm {
   shape: string
   type: string
   isMergeable: boolean
+  isPremium: boolean
+  premiumPrice: number
 }
 
 const emptyForm: TableForm = {
@@ -26,6 +29,8 @@ const emptyForm: TableForm = {
   shape: 'rectangle',
   type: '',
   isMergeable: false,
+  isPremium: false,
+  premiumPrice: 0,
 }
 
 export default function TablesManagementTab({ theme, orgId }: TablesManagementTabProps) {
@@ -96,6 +101,8 @@ export default function TablesManagementTab({ theme, orgId }: TablesManagementTa
       shape: table.shape || 'rectangle',
       type: table.type || '',
       isMergeable: table.isMergeable || false,
+      isPremium: table.isPremium || false,
+      premiumPrice: table.premiumPrice || 0,
     })
     setShowModal(true)
   }
@@ -113,6 +120,8 @@ export default function TablesManagementTab({ theme, orgId }: TablesManagementTa
           shape: form.shape,
           type: form.type || undefined,
           isMergeable: form.isMergeable,
+          isPremium: form.isPremium,
+          premiumPrice: form.isPremium ? form.premiumPrice : null,
         })
       } else {
         await api.post(`/organizations/${orgId}/tables`, {
@@ -123,6 +132,8 @@ export default function TablesManagementTab({ theme, orgId }: TablesManagementTa
           shape: form.shape,
           type: form.type || undefined,
           isMergeable: form.isMergeable,
+          isPremium: form.isPremium,
+          premiumPrice: form.isPremium ? form.premiumPrice : null,
         })
       }
       setShowModal(false)
@@ -136,7 +147,7 @@ export default function TablesManagementTab({ theme, orgId }: TablesManagementTa
       const errorMsg = err?.response?.data?.details
         ? err.response.data.details.map((d: any) => `${d.field}: ${d.message}`).join('\n')
         : err?.response?.data?.message || err?.response?.data?.error || 'Failed to save table.'
-      alert(errorMsg)
+      toast.error(errorMsg)
     } finally {
       setSaving(false)
     }
@@ -151,7 +162,7 @@ export default function TablesManagementTab({ theme, orgId }: TablesManagementTa
       setConfirmDelete(null)
     } catch (err) {
       console.error('Failed to delete table:', err)
-      alert('Failed to delete table.')
+      toast.error('Failed to delete table.')
     } finally {
       setDeleting(false)
     }
@@ -244,6 +255,16 @@ export default function TablesManagementTab({ theme, orgId }: TablesManagementTa
                 </td>
                 <td style={{ padding: '16px', color: isDark ? '#8b949e' : '#6b7280' }}>
                   {table.type || 'Standard'}
+                  {table.isPremium && (
+                    <span style={{ marginLeft: '8px', padding: '2px 6px', backgroundColor: 'rgba(201,156,99,0.1)', color: '#C99C63', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600 }}>
+                      Premium (${table.premiumPrice})
+                    </span>
+                  )}
+                  {table.isMerged && (
+                    <span style={{ marginLeft: '8px', padding: '2px 6px', backgroundColor: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600 }}>
+                      Merged Area
+                    </span>
+                  )}
                 </td>
                 <td style={{ padding: '16px', color: isDark ? '#8b949e' : '#6b7280' }}>
                   {table.shape || 'Rectangle'}
@@ -381,7 +402,7 @@ export default function TablesManagementTab({ theme, orgId }: TablesManagementTa
                           setShowNewAreaInput(false)
                           setNewAreaName('')
                         } catch (areaErr: any) {
-                          alert(areaErr?.response?.data?.error || 'Failed to create area')
+                          toast.error(areaErr?.response?.data?.error || 'Failed to create area')
                         } finally {
                           setCreatingArea(false)
                         }
@@ -389,7 +410,7 @@ export default function TablesManagementTab({ theme, orgId }: TablesManagementTa
                       disabled={creatingArea || !newAreaName.trim()}
                       style={{
                         padding: '10px 16px',
-                        backgroundColor: isDark ? '#238636' : '#10b981',
+                        backgroundColor: '#C99C63',
                         color: '#ffffff',
                         border: 'none',
                         borderRadius: '8px',
@@ -443,8 +464,8 @@ export default function TablesManagementTab({ theme, orgId }: TablesManagementTa
               </div>
             </div>
 
-            <div style={{ marginBottom: '24px' }}>
-              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+            <div style={{ marginBottom: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', margin: 0 }}>
                 <input
                   type="checkbox"
                   checked={form.isMergeable}
@@ -453,6 +474,33 @@ export default function TablesManagementTab({ theme, orgId }: TablesManagementTa
                 />
                 Allow merging with adjacent tables
               </label>
+
+              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', margin: 0 }}>
+                <input
+                  type="checkbox"
+                  checked={form.isPremium}
+                  onChange={(e) => setForm({ ...form, isPremium: e.target.checked })}
+                  style={{ width: '16px', height: '16px', accentColor: '#C99C63' }}
+                />
+                Enable Premium Pricing for this table
+              </label>
+
+              {form.isPremium && (
+                <div style={{ paddingLeft: '24px', marginTop: '4px' }}>
+                  <label style={{ ...labelStyle, fontSize: '0.8rem' }}>Premium Reservation Price (£/$/€)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.premiumPrice}
+                    onChange={(e) => setForm({ ...form, premiumPrice: parseFloat(e.target.value) || 0 })}
+                    style={{ ...inputStyle, width: '100px', padding: '6px 12px' }}
+                  />
+                  <div style={{ fontSize: '0.75rem', color: isDark ? '#8b949e' : '#6b7280', marginTop: '4px' }}>
+                    This amount will be required upfront during online booking.
+                  </div>
+                </div>
+              )}
             </div>
 
             <button

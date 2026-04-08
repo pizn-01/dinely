@@ -1,11 +1,14 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
 import { api } from '../services/api'
 import { useAuth } from '../context/AuthContext'
+import dinelyLogo from '../assets/dinely-logo.png'
 
 export default function SignUp() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const selectedPlan = searchParams.get('plan') // 'starter' | 'professional' | null
   const { login } = useAuth()
   const [form, setForm] = useState({
     businessName: '',
@@ -48,7 +51,26 @@ export default function SignUp() {
         restaurantId: restaurant?.id,
       });
 
-      // Redirect to setup wizard for new restaurant owners
+      // If a paid plan was selected from the landing page, redirect to Stripe Checkout
+      if (selectedPlan && (selectedPlan === 'starter' || selectedPlan === 'professional') && restaurant?.id) {
+        try {
+          const checkoutRes = await api.post('/subscriptions/checkout', {
+            organizationId: restaurant.id,
+            plan: selectedPlan,
+            email: form.email,
+          });
+
+          if (checkoutRes.data?.data?.url) {
+            window.location.href = checkoutRes.data.data.url;
+            return;
+          }
+        } catch (checkoutErr: any) {
+          console.error('Checkout session error:', checkoutErr);
+          // Fall through to setup if checkout fails — org is still created
+        }
+      }
+
+      // Default: redirect to setup wizard for free tier / fallback
       navigate('/setup')
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to sign up. Please try again.')
@@ -74,15 +96,7 @@ export default function SignUp() {
         top: '32px',
         left: '48px'
       }}>
-        <Link to="/" style={{
-          fontSize: '1.5rem',
-          fontWeight: 700,
-          color: '#111827',
-          textDecoration: 'none',
-          letterSpacing: '-0.02em',
-        }}>
-          Logo
-        </Link>
+          <img src={dinelyLogo} alt="Dinely" style={{ height: '32px', objectFit: 'contain' }} />
       </div>
 
       {/* Main Card */}

@@ -93,7 +93,7 @@ export default function AdminDashboard() {
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
           <h2>Access Denied</h2>
           <p>You must be logged in with a restaurant account to access the admin dashboard.</p>
-          <a href="/login" style={{ color: '#5EEA7A', textDecoration: 'none', marginTop: '16px', fontWeight: 600 }}>Go to Login</a>
+          <a href="/login" style={{ color: '#C99C63', textDecoration: 'none', marginTop: '16px', fontWeight: 600 }}>Go to Login</a>
         </div>
       </div>
     )
@@ -165,7 +165,7 @@ export default function AdminDashboard() {
                   background: 'none',
                   border: 'none',
                   color: activeTab === tab.id
-                    ? (isDark ? '#5EEA7A' : '#10b981')
+                    ? '#C99C63'
                     : (isDark ? '#8b949e' : '#6b7280'),
                   transition: 'color 0.2s'
                 }}
@@ -178,7 +178,7 @@ export default function AdminDashboard() {
                     left: 0,
                     right: 0,
                     height: '2px',
-                    backgroundColor: isDark ? '#5EEA7A' : '#10b981'
+                    backgroundColor: '#C99C63'
                   }} />
                 )}
               </button>

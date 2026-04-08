@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { Calendar, Clock, Users, MapPin, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { api } from '../services/api'
@@ -11,19 +11,29 @@ export default function CustomerDashboard() {
   const [upcomingList, setUpcomingList] = useState<any[]>([])
   const [historyList, setHistoryList] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
+  const [customerProfile, setCustomerProfile] = useState<any>(null)
+  const location = useLocation()
+  const searchParams = new URLSearchParams(location.search)
+  const slug = searchParams.get('restaurant') || 'demo-restaurant'
 
   useEffect(() => {
     const fetchCustomerReservations = async () => {
       if (!user?.id) return
       try {
         setLoading(true)
-        const { data } = await api.get(`/reservations?customerId=${user.id}`)
-        if (data.data) {
-          const now = new Date()
-          const upcoming = data.data.filter((r: any) => new Date(r.startTime) >= now && r.status !== 'cancelled')
-          const history = data.data.filter((r: any) => new Date(r.startTime) < now || r.status === 'completed' || r.status === 'cancelled')
-          setUpcomingList(upcoming)
-          setHistoryList(history)
+        const [upcomingRes, historyRes, profileRes] = await Promise.all([
+          api.get('/customers/me/reservations/upcoming'),
+          api.get('/customers/me/reservations/history'),
+          api.get('/customers/me').catch(() => null)
+        ])
+        
+        let upcoming = upcomingRes.data.data || []
+        let history = historyRes.data.reservations || historyRes.data.data || []
+        
+        setUpcomingList(upcoming)
+        setHistoryList(history)
+        if (profileRes?.data?.data) {
+          setCustomerProfile(profileRes.data.data)
         }
       } catch (err) {
         console.error('Failed to load customer reservations:', err)
@@ -39,7 +49,7 @@ export default function CustomerDashboard() {
       {/* Header */}
       <div className="bg-dark-card border-b border-dark-border px-8 py-8 res-cust-header">
         <div className="max-w-5xl mx-auto">
-          <h1 className="text-2xl font-bold text-white mb-1">Welcome back, John!</h1>
+          <h1 className="text-2xl font-bold text-white mb-1">Welcome back, {customerProfile?.firstName || user?.name?.split(' ')[0] || 'Guest'}!</h1>
           <p className="text-dark-text-secondary text-sm">Manage your dining reservations</p>
 
           {/* Stats */}
@@ -64,7 +74,7 @@ export default function CustomerDashboard() {
             <p className="text-sm text-dark-text-secondary mt-1">Reserve your favorite table in just a few clicks</p>
           </div>
           <button
-            onClick={() => navigate('/reserve')}
+            onClick={() => navigate(`/premium-reserve/${slug}`)}
             className="btn-gold shrink-0"
           >
             Book A Table
@@ -107,12 +117,12 @@ export default function CustomerDashboard() {
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 text-sm text-white">
                     <Calendar size={14} className="text-gold" />
-                    {new Date(res.startTime).toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                    {res.reservationDate ? new Date(res.reservationDate + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : ''}
                   </div>
                   <div className="flex items-center gap-4 text-sm text-dark-text-secondary res-cust-res-meta">
                     <span className="flex items-center gap-1.5">
                       <Clock size={13} />
-                      {new Date(res.startTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                      {res.startTime || ''}
                     </span>
                     <span className="flex items-center gap-1.5">
                       <Users size={13} />

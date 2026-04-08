@@ -23,6 +23,8 @@ export const staffLoginSchema = z.object({
 
 export const forgotPasswordSchema = z.object({
   email: z.string().email('Invalid email address'),
+  slug: z.string().optional(),
+  origin: z.string().optional(),
 });
 
 export const resetPasswordSchema = z.object({

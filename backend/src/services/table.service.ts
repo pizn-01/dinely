@@ -100,6 +100,8 @@ export class TableService {
         shape: dto.shape || 'rectangle',
         type: dto.type || null,
         is_mergeable: dto.isMergeable || false,
+        is_premium: dto.isPremium || false,
+        premium_price: dto.premiumPrice || null,
         position_x: dto.positionX || null,
         position_y: dto.positionY || null,
       })
@@ -121,6 +123,8 @@ export class TableService {
     if (dto.shape !== undefined) updateData.shape = dto.shape;
     if (dto.type !== undefined) updateData.type = dto.type;
     if (dto.isMergeable !== undefined) updateData.is_mergeable = dto.isMergeable;
+    if (dto.isPremium !== undefined) updateData.is_premium = dto.isPremium;
+    if (dto.premiumPrice !== undefined) updateData.premium_price = dto.premiumPrice;
     if (dto.positionX !== undefined) updateData.position_x = dto.positionX;
     if (dto.positionY !== undefined) updateData.position_y = dto.positionY;
     if (dto.isActive !== undefined) updateData.is_active = dto.isActive;
@@ -244,6 +248,87 @@ export class TableService {
     return (data || []).map(this.formatTable);
   }
 
+  // ─── Table Merging ────────────────────────────────────
+
+  async mergeTables(restaurantId: string, sourceTableIds: string[], mergedTableDef: { name: string, capacity: number }) {
+    if (sourceTableIds.length < 2) throw new AppError('Need at least 2 tables to merge', 400);
+
+    // 1. Fetch source tables
+    const { data: sourceTables, error: fetchErr } = await supabaseAdmin
+      .from('tables')
+      .select('*')
+      .in('id', sourceTableIds)
+      .eq('restaurant_id', restaurantId);
+
+    if (fetchErr || !sourceTables || sourceTables.length !== sourceTableIds.length) {
+      throw new AppError('Could not find all source tables', 404);
+    }
+
+    // 2. Calculate average position for visual placement
+    const avgX = sourceTables.reduce((sum, t) => sum + (t.position_x || 0), 0) / sourceTables.length;
+    const avgY = sourceTables.reduce((sum, t) => sum + (t.position_y || 0), 0) / sourceTables.length;
+    const areaId = sourceTables[0].area_id;
+
+    // 3. Create the new Merged Table
+    const { data: mergedTable, error: createErr } = await supabaseAdmin
+      .from('tables')
+      .insert({
+        restaurant_id: restaurantId,
+        table_number: `M-${Date.now().toString().slice(-5)}`,
+        name: mergedTableDef.name,
+        capacity: mergedTableDef.capacity,
+        min_capacity: 1,
+        area_id: areaId,
+        position_x: avgX,
+        position_y: avgY,
+        shape: 'rectangle',
+        is_merged: true,
+        merged_table_ids: sourceTableIds
+      })
+      .select('*, floor_areas(id, name)')
+      .single();
+
+    if (createErr || !mergedTable) throw new AppError(`Failed to create merged table: ${createErr?.message}`, 500);
+
+    // 4. Update source tables to be parented and inactive
+    await supabaseAdmin
+      .from('tables')
+      .update({ is_active: false, parent_table_id: mergedTable.id })
+      .in('id', sourceTableIds)
+      .eq('restaurant_id', restaurantId);
+
+    return this.formatTable(mergedTable);
+  }
+
+  async unmergeTable(mergedTableId: string, restaurantId: string) {
+    const { data: mergedTable, error: fetchErr } = await supabaseAdmin
+      .from('tables')
+      .select('*')
+      .eq('id', mergedTableId)
+      .eq('restaurant_id', restaurantId)
+      .single();
+
+    if (fetchErr || !mergedTable || !mergedTable.is_merged) throw new NotFoundError('Merged Table');
+
+    // Restore the source tables
+    if (mergedTable.merged_table_ids && mergedTable.merged_table_ids.length > 0) {
+      await supabaseAdmin
+        .from('tables')
+        .update({ is_active: true, parent_table_id: null })
+        .in('id', mergedTable.merged_table_ids)
+        .eq('restaurant_id', restaurantId);
+    }
+
+    // Delete the temporary merged table wrapper
+    await supabaseAdmin
+      .from('tables')
+      .delete()
+      .eq('id', mergedTableId)
+      .eq('restaurant_id', restaurantId);
+
+    return { success: true };
+  }
+
   // ─── Formatters ───────────────────────────────────────
 
   private formatTable(row: any) {
@@ -257,9 +342,14 @@ export class TableService {
       shape: row.shape,
       type: row.type,
       isMergeable: row.is_mergeable,
+      isPremium: row.is_premium,
+      premiumPrice: row.premium_price,
       positionX: row.position_x,
       positionY: row.position_y,
       isActive: row.is_active,
+      isMerged: row.is_merged,
+      parentTableId: row.parent_table_id,
+      mergedTableIds: row.merged_table_ids,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };

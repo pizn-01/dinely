@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Users, MapPin, Coffee, Settings, LogOut, ChevronLeft, ChevronRight, Upload, Plus, Calendar, Clock, Layout, Moon, Sun } from 'lucide-react'
 import { api } from '../../services/api'
+import { toast } from 'react-hot-toast'
 import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
 import { useRealtimeReservations } from '../../hooks/useRealtimeReservations'
@@ -35,7 +36,8 @@ const IconContainer = ({ children, color = '#6B9E78' }: { children: React.ReactN
 export default function StaffTableManagement() {
   const { user, logout } = useAuth()
   const { isDark, toggleTheme } = useTheme()
-  const [activeTab, setActiveTab] = useState('Table View') // Default to Table View as per floor map focus
+  const [activeTab, setActiveTab] = useState('Table View') // Default to Table View
+  const [calendarMonth, setCalendarMonth] = useState(new Date())
   const [loading, setLoading] = useState(true)
   
   // Dynamic State
@@ -118,7 +120,7 @@ export default function StaffTableManagement() {
   const navigate = useNavigate()
   useEffect(() => {
     if (!loading && !user) {
-      navigate('/staff-login')
+      navigate('/')
     }
   }, [user, loading, navigate])
 
@@ -170,11 +172,11 @@ export default function StaffTableManagement() {
         }
       })
 
-      alert('Floor plan CSV uploaded successfully!')
+      toast.success('Floor plan CSV uploaded successfully!')
       if (restaurantId) fetchData(selectedDate, restaurantId)
     } catch (error) {
       console.error('Failed to upload CSV:', error)
-      alert('Failed to upload floor plan CSV.')
+      toast.error('Failed to upload floor plan CSV.')
     } finally {
       setUploading(false)
     }
@@ -187,7 +189,7 @@ export default function StaffTableManagement() {
       if (restaurantId) fetchData(selectedDate, restaurantId)
     } catch (error: any) {
       console.error('Failed to update status:', error)
-      alert(error.response?.data?.error || 'Failed to update reservation status.')
+      toast.error(error.response?.data?.error || 'Failed to update reservation status.')
     }
   }
 
@@ -287,7 +289,7 @@ export default function StaffTableManagement() {
           <button 
             onClick={() => setShowCreateModal(true)}
             style={{ 
-              backgroundColor: isDark ? '#5EEA7A' : '#111827', 
+              backgroundColor: isDark ? '#C99C63' : '#111827', 
               color: isDark ? '#0B1517' : '#ffffff', 
               padding: '10px 24px', 
               borderRadius: '12px', 
@@ -330,7 +332,7 @@ export default function StaffTableManagement() {
         <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '24px', border: '1px solid var(--border-primary)', overflow: 'hidden', boxShadow: 'var(--shadow-md)', transition: 'background-color 0.3s, border-color 0.3s' }}>
           <div style={{ padding: '24px 32px', borderBottom: `1px solid var(--border-primary)`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--bg-tertiary)', transition: 'background-color 0.3s' }}>
             <div style={{ display: 'flex', backgroundColor: 'var(--bg-hover)', padding: '4px', borderRadius: '12px', gap: '4px' }}>
-              {['Day View', 'Table View', 'Calendar View'].map(tab => (
+              {['Day View', 'Table View', 'Timeline View', 'Calendar View'].map(tab => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
@@ -365,10 +367,10 @@ export default function StaffTableManagement() {
                     borderRadius: '12px',
                     border: '1px solid',
                     borderColor: selectedDate === tab.iso
-                      ? (isDark ? '#5EEA7A' : '#111827')
+                      ? (isDark ? '#C99C63' : '#111827')
                       : 'var(--border-primary)',
                     backgroundColor: selectedDate === tab.iso
-                      ? (isDark ? '#5EEA7A' : '#111827')
+                      ? (isDark ? '#C99C63' : '#111827')
                       : 'var(--bg-card)',
                     color: selectedDate === tab.iso
                       ? (isDark ? '#0B1517' : '#ffffff')
@@ -404,17 +406,60 @@ export default function StaffTableManagement() {
                     </div>
                     <div style={{ padding: '0 60px', display: 'flex', flexWrap: 'wrap', gap: '100px', justifyContent: 'center' }}>
                       {(areaTables as any[]).map(table => {
-                        // Only match active reservations — completed/cancelled/no_show should free the table
-                        const activeStatuses = ['pending', 'confirmed', 'arriving', 'seated']
-                        const reservation = dbReservations.find(r => r.table?.id === table.id && activeStatuses.includes(r.status))
-                        const status = reservation?.status || 'available'
-                        const style = getStatusStyle(status)
+                        // Get all valid reservations for this table today
+                        const tableReservations = dbReservations.filter(r => r.table?.id === table.id && !['cancelled', 'no_show'].includes(r.status))
+                        
+                        let status = 'available'
+                        let nextReservationTime: string | null = null
+                        
+                        const now = new Date()
+                        const currentTotalMins = now.getHours() * 60 + now.getMinutes()
+                        const isToday = selectedDate === now.toISOString().split('T')[0]
+                        
+                        if (isToday) {
+                          // 1. Is someone seated?
+                          const seatedRes = tableReservations.find(r => r.status === 'seated')
+                          if (seatedRes) {
+                            status = 'seated'
+                          } else {
+                            // 2. Is someone arriving within next 45 mins or up to 30 mins late?
+                            const arrivingSoon = tableReservations.filter(r => {
+                              if (r.status === 'completed') return false
+                              const [h, m] = (r.startTime || '00:00').split(':').map(Number)
+                              const diff = (h * 60 + m) - currentTotalMins
+                              return diff <= 45 && diff >= -30
+                            }).sort((a,b) => (a.startTime || '00:00').localeCompare(b.startTime || '00:00'))
+                            
+                            if (arrivingSoon.length > 0) {
+                              status = arrivingSoon[0].status === 'arriving' ? 'arriving' : 'pending_arrival'
+                            } else {
+                              // 3. Find next future reservation today
+                              const futureRes = tableReservations.filter(r => {
+                                if (r.status === 'completed') return false
+                                const [h, m] = (r.startTime || '00:00').split(':').map(Number)
+                                return (h * 60 + m) > currentTotalMins + 45
+                              }).sort((a,b) => (a.startTime || '00:00').localeCompare(b.startTime || '00:00'))
+                              if (futureRes.length > 0) {
+                                nextReservationTime = futureRes[0].startTime?.slice(0, 5)
+                              }
+                            }
+                          }
+                        } else {
+                           // If viewing future date, just show first active reservation status
+                           const activeRes = tableReservations.find(r => !['completed'].includes(r.status))
+                           if (activeRes) {
+                             status = activeRes.status
+                           }
+                        }
+                        
+                        const visualStatus = status === 'pending_arrival' ? 'arriving' : status
+                        const style = getStatusStyle(visualStatus)
                         const capacity = table.capacity || 4
                         
                         return (
                           <div 
                             key={table.id}
-                            onClick={() => reservation ? setSelectedBooking(reservation) : setSelectedTable(table)}
+                            onClick={() => setSelectedTable(table)}
                             style={{ position: 'relative', width: '120px', height: '120px', cursor: 'pointer' }}>
                             
                             {/* Plus Chair Layout - Rendered based on capacity */}
@@ -428,7 +473,7 @@ export default function StaffTableManagement() {
                               width: '100%', 
                               height: '100%', 
                               backgroundColor: 'var(--table-circle-bg)', 
-                              borderRadius: '50%', 
+                              borderRadius: '16px', 
                               border: `2.5px solid ${status === 'available' ? 'var(--table-circle-border)' : style.color}`,
                               display: 'flex', 
                               flexDirection: 'column', 
@@ -445,7 +490,7 @@ export default function StaffTableManagement() {
                                 <span style={{ fontSize: '0.875rem', fontWeight: 800, color: 'var(--text-primary)' }}>{capacity}</span>
                               </div>
                               
-                              {status !== 'available' && (
+                              {visualStatus !== 'available' ? (
                                 <div style={{ 
                                   position: 'absolute', 
                                   bottom: '-6px', 
@@ -458,9 +503,24 @@ export default function StaffTableManagement() {
                                   textTransform: 'uppercase',
                                   boxShadow: `0 4px 8px ${style.color}40`
                                 }}>
-                                  {status}
+                                  {visualStatus === 'arriving' ? 'ARRIVING' : visualStatus}
                                 </div>
-                              )}
+                              ) : nextReservationTime ? (
+                                <div style={{ 
+                                  position: 'absolute', 
+                                  bottom: '-6px', 
+                                  backgroundColor: 'var(--bg-tertiary)', 
+                                  color: 'var(--text-secondary)', 
+                                  border: `1px solid var(--border-primary)`,
+                                  fontSize: '0.55rem', 
+                                  padding: '2px 8px', 
+                                  borderRadius: '100px', 
+                                  fontWeight: 700, 
+                                  textTransform: 'uppercase'
+                                }}>
+                                  NEXT: {nextReservationTime}
+                                </div>
+                              ) : null}
                             </div>
                           </div>
                         )
@@ -547,7 +607,7 @@ export default function StaffTableManagement() {
                 )}
               </div>
             )}
-                      {activeTab === 'Calendar View' && (
+                      {activeTab === 'Timeline View' && (
               <div style={{ padding: '32px' }}>
                 <div style={{ border: `1px solid var(--border-secondary)`, borderRadius: '16px', overflow: 'hidden', backgroundColor: 'var(--bg-card)', boxShadow: 'var(--shadow-md)', transition: 'background-color 0.3s' }}>
                   
@@ -695,6 +755,106 @@ export default function StaffTableManagement() {
                 </div>
               </div>
             )}
+            
+            {activeTab === 'Calendar View' && (
+              <div style={{ padding: '32px' }}>
+                <div style={{ 
+                  backgroundColor: 'var(--bg-card)', 
+                  borderRadius: '24px', 
+                  padding: '32px',
+                  boxShadow: 'var(--shadow-md)',
+                  border: '1px solid var(--border-primary)'
+                }}>
+                  {/* Calendar Header Nav */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                    <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                      {calendarMonth.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}
+                    </h2>
+                    <div style={{ display: 'flex', gap: '12px' }}>
+                      <button 
+                        onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))}
+                        style={{ padding: '8px', borderRadius: '8px', backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-secondary)', color: 'var(--text-secondary)', cursor: 'pointer' }}
+                      ><ChevronLeft size={20} /></button>
+                      <button 
+                        onClick={() => setCalendarMonth(new Date())}
+                        style={{ padding: '8px 16px', borderRadius: '8px', backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-secondary)', color: 'var(--text-primary)', fontWeight: 600, cursor: 'pointer' }}
+                      >Today</button>
+                      <button 
+                        onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))}
+                        style={{ padding: '8px', borderRadius: '8px', backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-secondary)', color: 'var(--text-secondary)', cursor: 'pointer' }}
+                      ><ChevronRight size={20} /></button>
+                    </div>
+                  </div>
+
+                  {/* Calendar Grid */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '12px' }}>
+                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                      <div key={day} style={{ textAlign: 'center', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '0.875rem', paddingBottom: '12px' }}>
+                        {day}
+                      </div>
+                    ))}
+                    
+                    {(() => {
+                      const year = calendarMonth.getFullYear();
+                      const month = calendarMonth.getMonth();
+                      const firstDay = new Date(year, month, 1).getDay();
+                      const daysInMonth = new Date(year, month + 1, 0).getDate();
+                      
+                      const cells = [];
+                      for (let i = 0; i < firstDay; i++) {
+                        cells.push(<div key={`empty-${i}`} style={{ opacity: 0.3 }} />);
+                      }
+                      
+                      for (let d = 1; d <= daysInMonth; d++) {
+                        const dateStr = new Date(year, month, d).toLocaleDateString('en-CA'); // YYYY-MM-DD local format
+                        const isSelected = selectedDate === dateStr;
+                        const isToday = new Date().toLocaleDateString('en-CA') === dateStr;
+                        
+                        cells.push(
+                          <div 
+                            key={d} 
+                            onClick={() => {
+                              setSelectedDate(dateStr);
+                              setActiveTab('Day View');
+                            }}
+                            style={{ 
+                              aspectRatio: '1', 
+                              backgroundColor: isSelected ? (isDark ? '#C99C63' : '#C99C63') : 'var(--bg-tertiary)',
+                              border: `1px solid ${isSelected ? 'transparent' : 'var(--border-secondary)'}`,
+                              borderRadius: '16px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              cursor: 'pointer',
+                              position: 'relative',
+                              transition: 'all 0.2s',
+                              overflow: 'hidden'
+                            }}
+                            onMouseEnter={(e) => {
+                              if (!isSelected) e.currentTarget.style.borderColor = isDark ? '#C99C63' : '#C99C63';
+                            }}
+                            onMouseLeave={(e) => {
+                              if (!isSelected) e.currentTarget.style.borderColor = 'var(--border-secondary)';
+                            }}
+                          >
+                            <span style={{ 
+                              position: 'absolute', 
+                              top: '12px', 
+                              left: '16px', 
+                              fontSize: '1.25rem', 
+                              fontWeight: 700,
+                              color: isSelected ? '#ffffff' : (isToday ? (isDark ? '#C99C63' : '#C99C63') : 'var(--text-primary)')
+                            }}>
+                              {d}
+                            </span>
+                          </div>
+                        )
+                      }
+                      return cells;
+                    })()}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </main>
@@ -709,51 +869,83 @@ export default function StaffTableManagement() {
               <Plus size={20} style={{ transform: 'rotate(45deg)' }} />
             </button>
             
-            <h2 style={{ fontSize: '1.5rem', fontWeight: 800, margin: '0 0 8px 0', color: 'var(--text-primary)' }}>{selectedTable ? `Table ${selectedTable.tableNumber}` : `Reservation`}</h2>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginBottom: '32px' }}>
-              {selectedTable ? `${selectedTable.capacity} Seats • Available` : `${selectedBooking.partySize} Guests • ${selectedBooking.status.toUpperCase()}`}
+            <h2 style={{ fontSize: '1.5rem', fontWeight: 800, margin: '0 0 8px 0', color: 'var(--text-primary)' }}>{selectedTable ? `Table ${selectedTable.name || selectedTable.tableNumber}` : `Reservation`}</h2>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginBottom: '24px' }}>
+              {selectedTable ? `${selectedTable.capacity} Seats • Schedule for ${selectedDate}` : `${selectedBooking.partySize} Guests • ${selectedBooking.status.toUpperCase()}`}
             </p>
 
-            {selectedBooking && (
+            {selectedTable && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '32px', maxHeight: '400px', overflowY: 'auto' }}>
+                {(() => {
+                  const tableReservations = dbReservations.filter(r => r.table?.id === selectedTable.id && !['cancelled', 'no_show'].includes(r.status)).sort((a,b) => (a.startTime || '00:00').localeCompare(b.startTime || '00:00'))
+                  
+                  if (tableReservations.length === 0) {
+                    return (
+                      <div style={{ padding: '24px', textAlign: 'center', backgroundColor: 'var(--bg-tertiary)', borderRadius: '16px', color: 'var(--text-secondary)' }}>
+                        No reservations for this table today.
+                      </div>
+                    )
+                  }
+
+                  return tableReservations.map(res => (
+                    <div key={res.id} style={{ backgroundColor: 'var(--bg-tertiary)', borderRadius: '16px', padding: '20px', border: `1px solid var(--border-primary)` }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                        <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>{res.guestFirstName} {res.guestLastName}</span>
+                        <span style={{ color: '#C99C63', fontWeight: 800 }}>{res.startTime?.slice(0, 5)}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.8125rem' }}>{res.partySize} Guests</p>
+                        <span style={{ fontSize: '0.625rem', fontWeight: 800, color: getStatusStyle(res.status).color, backgroundColor: getStatusStyle(res.status).bg, padding: '2px 8px', borderRadius: '100px', textTransform: 'uppercase' }}>{res.status}</span>
+                      </div>
+                      <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                         {['pending', 'confirmed'].includes(res.status) && (
+                           <div style={{ display: 'flex', gap: '8px' }}>
+                             <button onClick={() => handleStatusUpdate(res.id, 'arriving')} style={{ flex: 1, padding: '10px', borderRadius: '12px', backgroundColor: isDark ? '#5EEA7A' : '#111827', color: isDark ? '#0B1517' : '#fff', border: 'none', fontWeight: 600, cursor: 'pointer', fontSize: '0.875rem' }}>Mark Arriving</button>
+                             <button onClick={() => handleStatusUpdate(res.id, 'no_show')} style={{ flex: 1, padding: '10px', borderRadius: '12px', backgroundColor: 'transparent', color: '#E05D5D', border: '1px solid #E05D5D', fontWeight: 600, cursor: 'pointer', fontSize: '0.875rem' }}>No-Show</button>
+                           </div>
+                         )}
+                         {res.status === 'arriving' && (
+                           <div style={{ display: 'flex', gap: '8px' }}>
+                             <button onClick={() => handleStatusUpdate(res.id, 'seated')} style={{ flex: 1, padding: '10px', borderRadius: '12px', backgroundColor: '#6B9E78', color: '#fff', border: 'none', fontWeight: 600, cursor: 'pointer', fontSize: '0.875rem' }}>Seat Guests</button>
+                             <button onClick={() => handleStatusUpdate(res.id, 'no_show')} style={{ flex: 1, padding: '10px', borderRadius: '12px', backgroundColor: 'transparent', color: '#E05D5D', border: '1px solid #E05D5D', fontWeight: 600, cursor: 'pointer', fontSize: '0.875rem' }}>No-Show</button>
+                           </div>
+                         )}
+                         {res.status === 'seated' && (
+                           <button onClick={() => handleStatusUpdate(res.id, 'completed')} style={{ width: '100%', padding: '10px', borderRadius: '12px', backgroundColor: isDark ? '#5EEA7A' : '#111827', color: isDark ? '#0B1517' : '#fff', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '0.875rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                             Clear Table — Mark Complete
+                           </button>
+                         )}
+                      </div>
+                    </div>
+                  ))
+                })()}
+              </div>
+            )}
+
+            {selectedBooking && !selectedTable && ( // Fallback for Unassigned reservations panel
               <div style={{ backgroundColor: 'var(--bg-tertiary)', borderRadius: '24px', padding: '24px', marginBottom: '32px', border: `1px solid var(--border-primary)` }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                   <span style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary)' }}>{selectedBooking.guestFirstName} {selectedBooking.guestLastName}</span>
                   <span style={{ color: '#C99C63', fontWeight: 800 }}>{selectedBooking.startTime?.slice(0, 5)}</span>
                 </div>
-                <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.875rem' }}>{selectedBooking.partySize} Person • Table {selectedBooking.table?.tableNumber}</p>
+                <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.875rem' }}>{selectedBooking.partySize} Person • Unassigned</p>
                 <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                   {selectedBooking.status === 'confirmed' && (
+                   {['pending', 'confirmed'].includes(selectedBooking.status) && (
                      <div style={{ display: 'flex', gap: '8px' }}>
                        <button onClick={() => handleStatusUpdate(selectedBooking.id, 'arriving')} style={{ flex: 1, padding: '12px', borderRadius: '12px', backgroundColor: isDark ? '#5EEA7A' : '#111827', color: isDark ? '#0B1517' : '#fff', border: 'none', fontWeight: 600, cursor: 'pointer' }}>Mark Arriving</button>
                        <button onClick={() => handleStatusUpdate(selectedBooking.id, 'no_show')} style={{ flex: 1, padding: '12px', borderRadius: '12px', backgroundColor: 'transparent', color: '#E05D5D', border: '1px solid #E05D5D', fontWeight: 600, cursor: 'pointer' }}>No-Show</button>
-                     </div>
-                   )}
-                   {selectedBooking.status === 'arriving' && (
-                     <div style={{ display: 'flex', gap: '8px' }}>
-                       <button onClick={() => handleStatusUpdate(selectedBooking.id, 'seated')} style={{ flex: 1, padding: '12px', borderRadius: '12px', backgroundColor: '#6B9E78', color: '#fff', border: 'none', fontWeight: 600, cursor: 'pointer' }}>Mark Seated</button>
-                       <button onClick={() => handleStatusUpdate(selectedBooking.id, 'no_show')} style={{ flex: 1, padding: '12px', borderRadius: '12px', backgroundColor: 'transparent', color: '#E05D5D', border: '1px solid #E05D5D', fontWeight: 600, cursor: 'pointer' }}>No-Show</button>
-                     </div>
-                   )}
-                   {selectedBooking.status === 'seated' && (
-                     <button onClick={() => handleStatusUpdate(selectedBooking.id, 'completed')} style={{ width: '100%', padding: '14px', borderRadius: '12px', backgroundColor: isDark ? '#5EEA7A' : '#111827', color: isDark ? '#0B1517' : '#fff', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '0.9375rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                       Clear Table — Mark Complete
-                     </button>
-                   )}
-                   {selectedBooking.status === 'completed' && (
-                     <div style={{ textAlign: 'center', padding: '12px', borderRadius: '12px', backgroundColor: isDark ? 'rgba(94,234,122,0.1)' : '#F0FDF4', color: isDark ? '#5EEA7A' : '#15803D', fontWeight: 600, fontSize: '0.875rem' }}>
-                       ✓ Table has been cleared and is now available
                      </div>
                    )}
                 </div>
               </div>
             )}
 
-            {!selectedBooking && (
+            {selectedTable && (
               <button 
-                onClick={() => { setShowCreateModal(true); setSelectedTable(null); }}
+                onClick={() => { setShowCreateModal(true); }}
                 style={{ width: '100%', padding: '16px', borderRadius: '16px', backgroundColor: isDark ? '#5EEA7A' : '#111827', color: isDark ? '#0B1517' : '#ffffff', border: 'none', fontSize: '1rem', fontWeight: 700, cursor: 'pointer' }}>
-                Make Reservation
+                New Reservation for Table
               </button>
             )}
           </div>

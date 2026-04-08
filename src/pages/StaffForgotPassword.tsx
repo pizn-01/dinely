@@ -1,8 +1,10 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { api } from '../services/api'
+import dinelyLogo from '../assets/dinely-logo.png'
 
 export default function StaffForgotPassword() {
+  const { slug } = useParams<{ slug?: string }>()
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
@@ -15,7 +17,11 @@ export default function StaffForgotPassword() {
     setSuccess(false)
 
     try {
-      await api.post('/auth/forgot-password', { email })
+      await api.post('/auth/forgot-password', { 
+        email, 
+        slug: slug || undefined,
+        origin: window.location.origin 
+      })
       setSuccess(true)
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to send reset link.')
@@ -37,7 +43,7 @@ export default function StaffForgotPassword() {
     }}>
       {/* Top Left Logo */}
       <div className="res-auth-logo" style={{ position: 'absolute', top: '40px', left: '40px' }}>
-        <h1 style={{ color: '#111827', fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>Logo</h1>
+        <img src={dinelyLogo} alt="Dinely" style={{ height: '32px', objectFit: 'contain' }} />
       </div>
 
       {/* Forgot Password Box */}
@@ -126,7 +132,7 @@ export default function StaffForgotPassword() {
 
         <p style={{ textAlign: 'center', color: '#6b7280', fontSize: '0.875rem', margin: '24px 0 0 0' }}>
           Remember your password?{' '}
-          <Link to="/staff-login" style={{ color: '#4A9E6B', textDecoration: 'none', fontWeight: 500 }}>
+          <Link to={slug ? `/staff-login/${slug}` : "/staff-login"} style={{ color: '#4A9E6B', textDecoration: 'none', fontWeight: 500 }}>
             Back to login
           </Link>
         </p>

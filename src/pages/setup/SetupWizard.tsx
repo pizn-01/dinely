@@ -4,6 +4,7 @@ import Navbar from '../../components/Navbar'
 import ProgressBar from '../../components/ProgressBar'
 import { X, Upload, Download, Eye, EyeOff, ChefHat, MapPin, Clock } from 'lucide-react'
 import { api } from '../../services/api'
+import { toast } from 'react-hot-toast'
 import { useAuth } from '../../context/AuthContext'
 
 const TOTAL_STEPS = 4
@@ -43,7 +44,7 @@ export default function SetupWizard() {
         setIsSubmitting(true)
         const orgId = user?.restaurantId
         if (!orgId) {
-          alert('No restaurant found for your account. Please sign up again.')
+          toast.error('No restaurant found for your account. Please sign up again.')
           setIsSubmitting(false)
           return
         }
@@ -73,7 +74,7 @@ export default function SetupWizard() {
         navigate('/admin')
       } catch (err) {
         console.error('Failed to complete setup:', err)
-        alert('Failed to save settings.')
+        toast.error('Failed to save settings.')
       } finally {
         setIsSubmitting(false)
       }

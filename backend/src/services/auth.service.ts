@@ -8,6 +8,7 @@ import { SignupDto, LoginDto, StaffLoginDto, AuthResponse, JwtPayload, CustomerS
 import { UserRole } from '../types/enums';
 import { AppError, NotFoundError, ConflictError } from '../middleware/errorHandler';
 import { env } from '../config/env';
+import { emailService } from './email.service';
 
 export class AuthService {
   /**
@@ -248,17 +249,31 @@ export class AuthService {
   // ─── Password Reset ──────────────────────────────────
 
   /**
-   * Request a password reset — sends reset link via Supabase Auth.
+   * Request a password reset — sends reset link via Resend.
    */
-  async forgotPassword(email: string) {
-    const frontendUrl = process.env.FRONTEND_URL || 'https://dinely-ashy.vercel.app';
-    const { error } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
-      redirectTo: `${frontendUrl}/reset-password`,
+  async forgotPassword(email: string, slug?: string, origin?: string) {
+    const frontendUrl = origin || process.env.FRONTEND_URL || 'https://dinely-ashy.vercel.app';
+    const redirectUrl = `${frontendUrl}/reset-password${slug ? `/${slug}` : ''}`;
+    
+    // Generate a recovery link through Supabase Admin without sending Supabase's default email
+    const { data, error } = await supabaseAdmin.auth.admin.generateLink({
+      type: 'recovery',
+      email: email,
+      options: {
+        redirectTo: redirectUrl,
+      }
     });
 
     if (error) {
       // Don't reveal if email exists or not
-      console.error('Password reset error:', error.message);
+      console.error('Password reset generation error:', error.message);
+    } else if (data?.properties?.action_link) {
+      // Send the exact verification link from Supabase via Resend. 
+      // Supabase will automatically redirect to the redirectTo URL above with the token hash appended.
+      await emailService.sendPasswordReset({
+        to: email,
+        resetUrl: data.properties.action_link
+      });
     }
 
     // Always return success to prevent email enumeration
@@ -269,16 +284,21 @@ export class AuthService {
    * Reset password using token from Supabase Auth email link.
    */
   async resetPassword(accessToken: string, newPassword: string) {
+    // Verify the token with Supabase and get the user
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(accessToken);
+
+    if (authError || !user) {
+      throw new AppError('Invalid or expired token', 400);
+    }
+
+    // Update the password using the resolved user ID
     const { error } = await supabaseAdmin.auth.admin.updateUserById(
-      // We need to verify the token first
-      accessToken,
+      user.id,
       { password: newPassword }
     );
 
-    // For Supabase, the user exchanges the reset token client-side for a session,
-    // then sends the access_token to this endpoint to set new password
     if (error) {
-      throw new AppError('Failed to reset password. The link may have expired.', 400);
+      throw new AppError('Failed to reset password.', 400);
     }
 
     return { message: 'Password has been reset successfully.' };

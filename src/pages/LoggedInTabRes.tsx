@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
+import dinelyLogo from '../assets/dinely-logo.png'
 
 export default function LoggedInTabRes() {
   const navigate = useNavigate()
@@ -28,7 +29,7 @@ export default function LoggedInTabRes() {
     }}>
       {/* Top Left Logo */}
       <div style={{ position: 'absolute', top: '40px', left: '40px' }}>
-        <h1 style={{ color: '#ffffff', fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>Logo</h1>
+        <img src={dinelyLogo} alt="Dinely" style={{ height: '32px', objectFit: 'contain', filter: 'brightness(0) invert(1)' }} />
       </div>
 
       {/* Login Container */}

@@ -30,6 +30,10 @@ router.post('/me/reservations/:id/cancel', authenticate,
   (req, res, next) => customerController.cancelReservation(req, res, next)
 );
 
+router.post('/me/upgrade-vip', authenticate,
+  (req, res, next) => customerController.upgradeVip(req, res, next)
+);
+
 // ─── Admin-scoped routes (/api/v1/organizations/:orgId/customers) ─
 
 router.get('/', authenticate, requireRestaurantAccess, requireMinRole(UserRole.MANAGER),

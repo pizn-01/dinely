@@ -158,6 +158,25 @@ export class TableController {
       next(error);
     }
   }
+
+  async mergeTables(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const { sourceTableIds, mergedTable } = req.body;
+      const result = await tableService.mergeTables(param(req, 'orgId'), sourceTableIds, mergedTable);
+      res.status(201).json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async unmergeTable(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      await tableService.unmergeTable(param(req, 'id'), param(req, 'orgId'));
+      res.json({ success: true, message: 'Table successfully unmerged' });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const tableController = new TableController();

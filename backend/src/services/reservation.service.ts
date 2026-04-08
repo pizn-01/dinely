@@ -520,6 +520,8 @@ export class ReservationService {
           area: table.floor_areas ? { id: table.floor_areas.id, name: table.floor_areas.name } : null,
           type: table.type,
           shape: table.shape,
+          isPremium: table.is_premium || false,
+          premiumPrice: table.premium_price || 0,
         });
       }
     }

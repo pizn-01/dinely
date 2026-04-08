@@ -7,6 +7,7 @@ import UserStepDateTime from '../user-reservation/UserStepDateTime'
 import UserStepTableSelect from '../user-reservation/UserStepTableSelect'
 import UserStepContactInfo from '../user-reservation/UserStepContactInfo'
 import UserStepConfirmReview from '../user-reservation/UserStepConfirmReview'
+import UserStepPayment from '../user-reservation/UserStepPayment'
 
 export interface ReservationData {
   date: string
@@ -23,6 +24,8 @@ export interface ReservationData {
   specialRequest: string
   paymentMethod: string | null
   returnUrl?: string | null
+  restaurantSlug?: string
+  tableFee?: number
 }
 
 const initialData: ReservationData = {
@@ -40,8 +43,6 @@ const initialData: ReservationData = {
   specialRequest: '',
   paymentMethod: null,
 }
-
-const TOTAL_STEPS = 4
 
 export default function BookATableWizard() {
   const navigate = useNavigate()
@@ -65,8 +66,13 @@ export default function BookATableWizard() {
     setData((prev) => ({ ...prev, ...updates }))
   }, [])
 
+  const TOTAL_STEPS = data.tableFee ? 5 : 4
+
   const nextStep = async () => {
     if (currentStep < TOTAL_STEPS) {
+      if (data.tableFee && currentStep === 3 && !data.paymentMethod) {
+         // Optionally you could set a default here, or just let them go to the payment step.
+      }
       setCurrentStep(currentStep + 1)
     } else {
       try {
@@ -125,6 +131,9 @@ export default function BookATableWizard() {
       case 3:
         return <UserStepContactInfo data={data} updateData={updateData} />
       case 4:
+        if (data.tableFee) return <UserStepPayment data={data} updateData={updateData} />
+        return <UserStepConfirmReview data={data} onEdit={(step: number) => setCurrentStep(step)} />
+      case 5:
         return <UserStepConfirmReview data={data} onEdit={(step: number) => setCurrentStep(step)} />
       default:
         return null
@@ -132,11 +141,10 @@ export default function BookATableWizard() {
   }
 
   const getNextLabel = () => {
-    switch (currentStep) {
-      case 3: return 'Review Booking'
-      case 4: return 'Confirm Reservation'
-      default: return 'Next'
-    }
+    if (currentStep === TOTAL_STEPS) return 'Confirm Reservation'
+    if (currentStep === 3) return data.tableFee ? 'Proceed to Payment' : 'Review Booking'
+    if (currentStep === 4 && data.tableFee) return 'Review Booking'
+    return 'Next'
   }
 
   return (

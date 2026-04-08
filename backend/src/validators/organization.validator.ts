@@ -5,8 +5,8 @@ export const createOrganizationSchema = z.object({
   address: z.string().optional(),
   country: z.string().optional(),
   timezone: z.string().optional(),
-  openingTime: z.string().regex(/^\d{2}:\d{2}$/, 'Must be in HH:MM format').optional(),
-  closingTime: z.string().regex(/^\d{2}:\d{2}$/, 'Must be in HH:MM format').optional(),
+  openingTime: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/, 'Must be in HH:MM or HH:MM:SS format').optional(),
+  closingTime: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/, 'Must be in HH:MM or HH:MM:SS format').optional(),
 });
 
 export const updateOrganizationSchema = z.object({
@@ -14,8 +14,8 @@ export const updateOrganizationSchema = z.object({
   address: z.string().optional(),
   phone: z.string().optional(),
   email: z.string().email().optional(),
-  openingTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
-  closingTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+  openingTime: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/).optional(),
+  closingTime: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/).optional(),
   currency: z.string().max(10).optional(),
   allowMergeableTables: z.boolean().optional(),
   allowWalkIns: z.boolean().optional(),

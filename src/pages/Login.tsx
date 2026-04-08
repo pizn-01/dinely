@@ -1,22 +1,47 @@
-import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
 import { api } from '../services/api'
 import { useAuth } from '../context/AuthContext'
+import dinelyLogo from '../assets/dinely-logo.png'
 
 export default function Login() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const { login } = useAuth()
+  const [logoUrl, setLogoUrl] = useState('')
+
+
+  // Capture restaurant slug if provided
+  const searchParams = new URLSearchParams(location.search)
+  const defaultSlug = searchParams.get('restaurant') || 'demo-restaurant'
+
+  useEffect(() => {
+    if (!defaultSlug || defaultSlug === 'demo-restaurant') return
+    const fetchRestaurant = async () => {
+      try {
+        const { data } = await api.get(`/public/${defaultSlug}/info`)
+        if (data.data?.logoUrl) {
+          setLogoUrl(data.data.logoUrl)
+        }
+      } catch (err) {
+        console.error('Failed to fetch restaurant info:', err)
+      }
+    }
+    fetchRestaurant()
+  }, [defaultSlug])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setLoading(true)
+
+    const isCustomerFlow = defaultSlug !== 'demo-restaurant'
 
     const handleSuccess = (response: any) => {
       const { token, refreshToken: rToken, user, restaurant } = response.data.data
@@ -30,7 +55,9 @@ export default function Login() {
         restaurantId: restaurant?.id
       })
       
-      if (user.role === 'admin' || user.role === 'super_admin') {
+      if (user.role === 'super_admin') {
+        navigate('/super-admin')
+      } else if (user.role === 'admin') {
         // Only redirect to setup if the restaurant explicitly hasn't completed it
         // and has no opening time configured (brand-new restaurant)
         if (restaurant && restaurant.setupCompleted === false && !restaurant.openingTime) {
@@ -41,37 +68,50 @@ export default function Login() {
       } else if (user.role === 'manager' || user.role === 'host') {
         navigate('/staff/tables')
       } else {
-        // Customer role: check VIP status
-        if (user.isVip) {
-          navigate('/dashboard') // Or /premium-reserve depending on desired flow
+        // Customer role:
+        // Always pass the current slug onto the customer dashboard so that "Book A Table" hits premium routing
+        navigate(`/welcome?restaurant=${restaurant?.slug || defaultSlug}`)
+      }
+    }
+
+    if (isCustomerFlow) {
+      // When coming from a restaurant page, try customer login first
+      try {
+        const customerResponse = await api.post('/auth/customer-login', { email, password })
+        handleSuccess(customerResponse)
+      } catch (customerErr: any) {
+        // If customer login fails, try staff login as fallback
+        try {
+          const staffResponse = await api.post('/auth/login', { email, password })
+          handleSuccess(staffResponse)
+        } catch (staffErr: any) {
+          setError(customerErr.response?.data?.error || 'Invalid email or password')
+        }
+      }
+    } else {
+      // Default: try staff login first (admin/staff login flow)
+      try {
+        const response = await api.post('/auth/login', { email, password })
+        handleSuccess(response)
+      } catch (err: any) {
+        if (
+          err.response?.status === 401 && 
+          err.response?.data?.error === 'No active staff account found for this email'
+        ) {
+          // Fallback to Customer Login if it's not a staff email
+          try {
+            const customerResponse = await api.post('/auth/customer-login', { email, password })
+            handleSuccess(customerResponse)
+          } catch (customerErr: any) {
+            setError(customerErr.response?.data?.error || 'Invalid email or password')
+          }
         } else {
-          navigate('/dashboard')
+          setError(err.response?.data?.error || 'Invalid email or password')
         }
       }
     }
 
-    try {
-      // 1. Try Staff Login First
-      const response = await api.post('/auth/login', { email, password })
-      handleSuccess(response)
-    } catch (err: any) {
-      if (
-        err.response?.status === 401 && 
-        err.response?.data?.error === 'No active staff account found for this email'
-      ) {
-        // 2. Fallback to Customer Login if it's not a staff email
-        try {
-          const customerResponse = await api.post('/auth/customer-login', { email, password })
-          handleSuccess(customerResponse)
-        } catch (customerErr: any) {
-          setError(customerErr.response?.data?.error || 'Invalid email or password')
-        }
-      } else {
-        setError(err.response?.data?.error || 'Invalid email or password')
-      }
-    } finally {
-      setLoading(false)
-    }
+    setLoading(false)
   }
 
   return (
@@ -87,7 +127,11 @@ export default function Login() {
     }}>
       {/* Top Left Logo */}
       <div className="res-auth-logo" style={{ position: 'absolute', top: '40px', left: '40px' }}>
-        <h1 style={{ color: '#ffffff', fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>Logo</h1>
+        {logoUrl ? (
+          <img src={logoUrl} alt="Logo" style={{ height: '40px', objectFit: 'contain' }} />
+        ) : (
+          <img src={dinelyLogo} alt="Dinely" style={{ height: '32px', objectFit: 'contain', filter: 'brightness(0) invert(1)' }} />
+        )}
       </div>
 
       {/* Login Box */}
@@ -221,7 +265,7 @@ export default function Login() {
 
         <p style={{ textAlign: 'center', color: '#8b949e', fontSize: '0.875rem', margin: '24px 0 0 0' }}>
           Don't have an account?{' '}
-          <Link to="/customer-signup" style={{ color: '#6B9E78', textDecoration: 'none', fontWeight: 500 }}>
+          <Link to={`/customer-signup?restaurant=${defaultSlug}`} style={{ color: '#6B9E78', textDecoration: 'none', fontWeight: 500 }}>
             Sign Up
           </Link>
         </p>

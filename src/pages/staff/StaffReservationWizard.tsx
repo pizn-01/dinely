@@ -16,6 +16,8 @@ export interface ReservationData {
   tableName: string
   tableCapacity: number
   tableLocation: string
+  isPremium: boolean
+  premiumPrice: number
   firstName: string
   lastName: string
   email: string
@@ -31,6 +33,8 @@ const initialData: ReservationData = {
   tableName: '',
   tableCapacity: 0,
   tableLocation: '',
+  isPremium: false,
+  premiumPrice: 0,
   firstName: '',
   lastName: '',
   email: '',
@@ -190,21 +194,28 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
               {(tables as any[]).map(table => (
                 <div
                   key={table.id}
-                  onClick={() => updateData({ tableId: table.id, tableName: table.name || `Table ${table.tableNumber}`, tableCapacity: table.capacity, tableLocation: area })}
+                  onClick={() => updateData({ tableId: table.id, tableName: table.name || `Table ${table.tableNumber}`, tableCapacity: table.capacity, tableLocation: area, isPremium: table.isPremium, premiumPrice: table.premiumPrice })}
                   style={{
                     padding: '16px',
                     borderRadius: '12px',
-                    border: `2px solid ${data.tableId === table.id ? '#111827' : '#E5E7EB'}`,
-                    backgroundColor: data.tableId === table.id ? '#F9FAFB' : '#ffffff',
+                    border: `2px solid ${data.tableId === table.id ? (table.isPremium ? '#C99C63' : '#111827') : (table.isPremium ? '#FDE68A' : '#E5E7EB')}`,
+                    backgroundColor: data.tableId === table.id ? (table.isPremium ? '#FEF3C7' : '#F9FAFB') : '#ffffff',
                     cursor: 'pointer',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
+                    position: 'relative',
                     transition: 'all 0.2s'
                   }}
                 >
-                  <span style={{ fontSize: '1.25rem', fontWeight: 700, color: '#111827' }}>{table.name || `Table ${table.tableNumber}`}</span>
-                  <span style={{ fontSize: '0.75rem', color: '#6B7280', marginTop: '4px' }}>Up to {table.capacity} Guests</span>
+                  {table.isPremium && (
+                    <span style={{ position: 'absolute', top: '-10px', backgroundColor: '#C99C63', color: '#fff', fontSize: '0.625rem', padding: '2px 8px', borderRadius: '100px', fontWeight: 800 }}>PREMIUM</span>
+                  )}
+                  <span style={{ fontSize: '1.25rem', fontWeight: 700, color: table.isPremium ? '#92400E' : '#111827', marginTop: table.isPremium ? '8px' : '0' }}>{table.name || `Table ${table.tableNumber}`}</span>
+                  <span style={{ fontSize: '0.75rem', color: table.isPremium ? '#B45309' : '#6B7280', marginTop: '4px' }}>Up to {table.capacity} Guests</span>
+                  {table.isPremium && (
+                    <span style={{ fontSize: '0.75rem', color: '#D97706', fontWeight: 700, marginTop: '4px' }}>£{table.premiumPrice?.toFixed(2) || '0.00'}</span>
+                  )}
                 </div>
               ))}
             </div>
@@ -265,6 +276,18 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
             <span style={{ fontWeight: 600, color: '#111827' }}>{data.firstName} {data.lastName}</span>
           </div>
         </div>
+        
+        {data.isPremium && (
+          <div style={{ marginTop: '24px', backgroundColor: '#FEF3C7', padding: '16px', borderRadius: '12px', border: '1px solid #FDE68A', display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+            <span style={{ fontSize: '1.25rem' }}>⭐</span>
+            <div>
+              <h4 style={{ margin: '0 0 4px 0', color: '#92400E', fontSize: '0.9375rem', fontWeight: 700 }}>Premium Table Selected</h4>
+              <p style={{ margin: 0, color: '#B45309', fontSize: '0.875rem', lineHeight: 1.4 }}>
+                This is a premium table requiring a supplementary payment of £{(data.premiumPrice || 0).toFixed(2)}. Please collect payment via your POS system or ensure the guest holds an active VIP membership before seating.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

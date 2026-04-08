@@ -8,6 +8,7 @@ interface Table {
   name: string
   capacity: number
   area: { id: string; name: string } | null
+  reservationFee?: number
 }
 
 interface UserStepTableSelectProps {
@@ -66,6 +67,7 @@ export default function UserStepTableSelect({ data, updateData, restaurantSlug }
       tableName: table.name,
       tableCapacity: table.capacity,
       tableLocation: table.area?.name || 'General',
+      tableFee: table.reservationFee || 0,
     })
   }
 

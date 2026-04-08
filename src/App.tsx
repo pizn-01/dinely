@@ -12,6 +12,7 @@ import LoggedInTabRes from './pages/LoggedInTabRes'
 import Welcome from './pages/Welcome'
 import PremiumReservation from './pages/PremiumReservation'
 import PremiumBookingConfirmed from './pages/reservation/PremiumBookingConfirmed'
+import SuperAdminDashboard from './pages/superadmin/SuperAdminDashboard'
 import UserReservationWizard from './pages/user-reservation/UserReservationWizard'
 import UserBookingConfirmed from './pages/user-reservation/UserBookingConfirmed'
 import BookATableWizard from './pages/public-reservation/BookATableWizard'
@@ -19,21 +20,29 @@ import PublicBookingConfirmed from './pages/public-reservation/PublicBookingConf
 import CustomerSignUp from './pages/CustomerSignUp'
 import ForgotPassword from './pages/ForgotPassword'
 import StaffForgotPassword from './pages/StaffForgotPassword'
+import ResetPassword from './pages/ResetPassword'
 import AcceptInvite from './pages/AcceptInvite'
+import UnifiedLanding from './pages/UnifiedLanding'
+import SaaSLanding from './pages/SaaSLanding'
+import SubscriptionSuccess from './pages/SubscriptionSuccess'
 
 function App() {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/signup" replace />} />
+      <Route path="/" element={<SaaSLanding />} />
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<SignUp />} />
       <Route path="/customer-signup" element={<CustomerSignUp />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/staff-forgot-password" element={<StaffForgotPassword />} />
+      <Route path="/staff-forgot-password/:slug" element={<StaffForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/reset-password/:slug" element={<ResetPassword />} />
       <Route path="/reserve" element={<ReservationWizard />} />
       <Route path="/booking-confirmed" element={<BookingConfirmed />} />
       <Route path="/dashboard" element={<CustomerDashboard />} />
       <Route path="/admin" element={<AdminDashboard />} />
+      <Route path="/super-admin" element={<SuperAdminDashboard />} />
       <Route path="/setup" element={<SetupWizard />} />
       <Route path="/staff-login" element={<StaffLogin />} />
       <Route path="/staff-login/:slug" element={<StaffLogin />} />
@@ -47,6 +56,8 @@ function App() {
       <Route path="/user-booking-confirmed" element={<UserBookingConfirmed />} />
       <Route path="/book-a-table" element={<BookATableWizard />} />
       <Route path="/public-booking-confirmed" element={<PublicBookingConfirmed />} />
+      <Route path="/subscription-success" element={<SubscriptionSuccess />} />
+      <Route path="/:slug" element={<UnifiedLanding />} />
     </Routes>
   )
 }

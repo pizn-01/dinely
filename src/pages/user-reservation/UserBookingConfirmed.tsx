@@ -133,7 +133,7 @@ export default function UserBookingConfirmed() {
           {/* Footer Button */}
           <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <button
-              onClick={() => navigate('/welcome')}
+              onClick={() => navigate(data.restaurantSlug ? `/welcome?restaurant=${data.restaurantSlug}` : '/welcome')}
               style={{
                 backgroundColor: '#C99C63',
                 color: '#ffffff',

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Upload, Download, Save, Grid, Plus, X } from 'lucide-react'
 import Draggable, { DraggableData, DraggableEvent } from 'react-draggable'
 import { api } from '../../../services/api'
+import { toast } from 'react-hot-toast'
 
 interface FloorMapTabProps {
   theme: 'dark' | 'light'
@@ -17,6 +18,8 @@ interface TablePosition {
   type: string
   positionX: number
   positionY: number
+  isMerged?: boolean
+  parentTableId?: string
 }
 
 interface Area {
@@ -58,6 +61,11 @@ export default function FloorMapTab({ theme, orgId }: FloorMapTabProps) {
   const [form, setForm] = useState<TableForm>(emptyForm)
   const [creating, setCreating] = useState(false)
 
+  // Merge State
+  const [mergeMode, setMergeMode] = useState(false)
+  const [selectedTables, setSelectedTables] = useState<string[]>([])
+  const [merging, setMerging] = useState(false)
+
   // Inline area creation
   const [showNewArea, setShowNewArea] = useState(false)
   const [newAreaName, setNewAreaName] = useState('')
@@ -79,9 +87,12 @@ export default function FloorMapTab({ theme, orgId }: FloorMapTabProps) {
             shape: t.shape,
             type: t.type,
             positionX: t.positionX || 0,
-            positionY: t.positionY || 0
+            positionY: t.positionY || 0,
+            isMerged: t.isMerged,
+            parentTableId: t.parentTableId
           }))
-          setTables(mapped)
+          // Only show active tables or merged tables that are not parented (children should be hidden)
+          setTables(mapped.filter((t: any) => !t.parentTableId))
           setHasChanges(false)
         }
       } catch (err) {
@@ -107,11 +118,11 @@ export default function FloorMapTab({ theme, orgId }: FloorMapTabProps) {
 
   const handleSaveTable = async () => {
     if (!form.tableNumber.trim()) {
-      alert('Please enter a Table Number')
+      toast.error('Please enter a Table Number')
       return
     }
     if (!form.capacity || form.capacity < 1) {
-      alert('Capacity must be at least 1')
+      toast.error('Capacity must be at least 1')
       return
     }
     
@@ -150,7 +161,7 @@ export default function FloorMapTab({ theme, orgId }: FloorMapTabProps) {
       const errorMsg = err.response?.data?.details
         ? err.response.data.details.map((d: any) => `${d.field}: ${d.message}`).join('\n')
         : err.response?.data?.error || 'Failed to create table'
-      alert(errorMsg)
+      toast.error(errorMsg)
     } finally {
       setCreating(false)
     }
@@ -168,10 +179,10 @@ export default function FloorMapTab({ theme, orgId }: FloorMapTabProps) {
       
       await api.put(`/organizations/${orgId}/tables/positions`, { tables: payload })
       setHasChanges(false)
-      alert('Floor plan saved successfully!')
+      toast.success('Floor plan saved successfully!')
     } catch (err) {
       console.error('Failed to save floor plan:', err)
-      alert('Failed to save floor plan.')
+      toast.error('Failed to save floor plan.')
     } finally {
       setSaving(false)
     }
@@ -203,13 +214,68 @@ export default function FloorMapTab({ theme, orgId }: FloorMapTabProps) {
       await api.post(`/organizations/${orgId}/tables/import`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       })
-      alert('Floor plan CSV uploaded successfully! Refreshing tables...')
+      toast.success('Floor plan CSV uploaded successfully! Refreshing tables...')
       window.location.reload()
     } catch (error) {
       console.error('Failed to upload CSV:', error)
-      alert('Failed to upload floor plan CSV.')
+      toast.error('Failed to upload floor plan CSV.')
     } finally {
       setUploading(false)
+    }
+  }
+
+  // Handle Merge Actions
+  const toggleTableSelection = (id: string, isMerged: boolean = false) => {
+    if (!mergeMode) return
+    if (isMerged) {
+      if (window.confirm('Do you want to un-merge this table back to its original pieces?')) {
+        unmergeTable(id)
+      }
+      return
+    }
+
+    setSelectedTables(prev => 
+      prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]
+    )
+  }
+
+  const handleMergeSubmit = async () => {
+    if (selectedTables.length < 2) return
+    const tablesToMerge = tables.filter(t => selectedTables.includes(t.id))
+    const totalCapacity = tablesToMerge.reduce((sum, t) => sum + (Number(t.capacity) || 0), 0)
+    
+    const newName = window.prompt(`Merging ${selectedTables.length} tables. Enter name for the new Merged Table:`, 'Merged Table')
+    if (!newName) return
+
+    try {
+      setMerging(true)
+      const payload = {
+        sourceTableIds: selectedTables,
+        mergedTable: { name: newName, capacity: totalCapacity }
+      }
+      const { data } = await api.post(`/organizations/${orgId}/tables/merge`, payload)
+      if (data.success) {
+        // Reload tables to get the fresh snapshot
+        window.location.reload()
+      }
+    } catch (err: any) {
+      console.error('Failed to merge tables:', err)
+      toast.error(err?.response?.data?.error || 'Failed to merge tables')
+    } finally {
+      setMerging(false)
+    }
+  }
+
+  const unmergeTable = async (mergedId: string) => {
+    try {
+      setMerging(true)
+      await api.post(`/organizations/${orgId}/tables/${mergedId}/unmerge`)
+      window.location.reload()
+    } catch (err: any) {
+      console.error('Failed to unmerge table:', err)
+      toast.error(err?.response?.data?.error || 'Failed to unmerge table')
+    } finally {
+      setMerging(false)
     }
   }
 
@@ -241,6 +307,7 @@ export default function FloorMapTab({ theme, orgId }: FloorMapTabProps) {
   // Subcomponent to provide a guaranteed local ref for React 19 compatibility
   const DraggableTable = ({ table }: { table: TablePosition }) => {
     const nodeRef = useRef<HTMLDivElement>(null)
+    const isSelected = selectedTables.includes(table.id)
     
     return (
       <Draggable
@@ -248,13 +315,23 @@ export default function FloorMapTab({ theme, orgId }: FloorMapTabProps) {
         defaultPosition={{ x: table.positionX, y: table.positionY }}
         bounds="parent"
         grid={[20, 20]} // Snap to background grid
+        disabled={mergeMode}
         onStop={(e, data) => handleDragStop(table.id, e, data)}
       >
         <div 
           ref={nodeRef}
+          onClick={() => toggleTableSelection(table.id, table.isMerged)}
           style={{
             ...getShapeStyle(table.shape),
             position: 'absolute',
+            width: table.isMerged ? '140px' : getShapeStyle(table.shape).width,
+            height: table.isMerged ? '100px' : getShapeStyle(table.shape).height,
+            border: isSelected ? '2px solid #C99C63' : getShapeStyle(table.shape).border,
+            boxShadow: isSelected ? '0 0 0 4px rgba(201, 156, 99, 0.2)' : getShapeStyle(table.shape).boxShadow,
+            backgroundColor: table.isMerged ? (isDark ? 'rgba(201, 156, 99, 0.1)' : '#fef3c7') : getShapeStyle(table.shape).backgroundColor,
+            cursor: mergeMode ? 'pointer' : 'move',
+            transition: 'all 0.2s',
+            zIndex: isSelected ? 10 : 1
           }}
         >
           <span style={{ fontWeight: 700, fontSize: '1.125rem' }}>
@@ -285,7 +362,7 @@ export default function FloorMapTab({ theme, orgId }: FloorMapTabProps) {
             onClick={() => setShowModal(true)}
             style={{
               display: 'flex', alignItems: 'center', gap: '8px',
-              padding: '8px 16px', backgroundColor: isDark ? '#238636' : '#10b981',
+              padding: '8px 16px', backgroundColor: '#C99C63',
               color: '#ffffff', border: 'none', borderRadius: '6px',
               cursor: 'pointer', fontWeight: 500
             }}
@@ -307,6 +384,26 @@ export default function FloorMapTab({ theme, orgId }: FloorMapTabProps) {
           >
             <Upload size={16} />
             {uploading ? 'Uploading...' : 'Import CSV'}
+          </button>
+
+          <div style={{ width: '1px', backgroundColor: isDark ? '#30363d' : '#d1d5db', margin: '0 8px' }} />
+
+          <button
+            onClick={() => {
+              setMergeMode(!mergeMode)
+              setSelectedTables([])
+            }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '8px',
+              padding: '8px 16px', 
+              backgroundColor: mergeMode ? '#C99C63' : 'transparent',
+              border: `1px solid ${isDark ? '#4B5563' : '#D1D5DB'}`,
+              color: mergeMode ? '#ffffff' : (isDark ? '#E5E7EB' : '#374151'), 
+              borderRadius: '6px', cursor: 'pointer', fontWeight: 500,
+              transition: 'all 0.2s'
+            }}
+          >
+            {mergeMode ? 'Exit Merge Mode' : 'Merge Tables'}
           </button>
           
           <button
@@ -357,9 +454,46 @@ export default function FloorMapTab({ theme, orgId }: FloorMapTabProps) {
             <p style={{ fontSize: '0.875rem' }}>Add tables via the Tables tab or Import CSV.</p>
           </div>
         ) : (
-          tables.map(table => (
-            <DraggableTable key={table.id} table={table} />
-          ))
+          <>
+            {tables.map(table => (
+              <DraggableTable key={table.id} table={table} />
+            ))}
+
+            {/* Merge Mode Active Overlay */}
+            {mergeMode && tables.length > 0 && (
+              <div style={{
+                position: 'absolute', bottom: '24px', left: '50%', transform: 'translateX(-50%)',
+                backgroundColor: isDark ? '#161B22' : '#ffffff', 
+                padding: '16px 24px', borderRadius: '12px',
+                border: `1px solid ${isDark ? '#30363d' : '#e5e7eb'}`,
+                boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)',
+                display: 'flex', alignItems: 'center', gap: '16px', zIndex: 100
+              }}>
+                <div>
+                  <div style={{ fontWeight: 600, color: isDark ? '#ffffff' : '#1f2937' }}>Merge Mode Active</div>
+                  <div style={{ fontSize: '0.875rem', color: isDark ? '#9ca3af' : '#6b7280' }}>
+                    Select multiple adjacent tables to merge into one.<br/>
+                    Click an already merged table to un-merge it.
+                  </div>
+                </div>
+                
+                <button
+                  onClick={handleMergeSubmit}
+                  disabled={selectedTables.length < 2 || merging}
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: selectedTables.length >= 2 ? '#C99C63' : (isDark ? '#374151' : '#e5e7eb'),
+                    color: selectedTables.length >= 2 ? '#ffffff' : (isDark ? '#9ca3af' : '#9ca3af'),
+                    border: 'none', borderRadius: '6px', fontWeight: 600,
+                    cursor: selectedTables.length >= 2 && !merging ? 'pointer' : 'not-allowed',
+                    transition: 'all 0.2s', whiteSpace: 'nowrap'
+                  }}
+                >
+                  {merging ? 'Merging...' : `Merge ${selectedTables.length} Tables`}
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -502,14 +636,14 @@ export default function FloorMapTab({ theme, orgId }: FloorMapTabProps) {
                           setShowNewArea(false)
                           setNewAreaName('')
                         } catch (areaErr: any) {
-                          alert(areaErr?.response?.data?.error || 'Failed to create area')
+                          toast.error(areaErr?.response?.data?.error || 'Failed to create area')
                         } finally {
                           setCreatingArea(false)
                         }
                       }}
                       disabled={creatingArea || !newAreaName.trim()}
                       style={{
-                        padding: '10px 14px', backgroundColor: isDark ? '#238636' : '#10b981',
+                        padding: '10px 14px', backgroundColor: '#C99C63',
                         color: '#ffffff', border: 'none', borderRadius: '6px',
                         fontWeight: 600, cursor: creatingArea ? 'wait' : 'pointer', fontSize: '0.8rem', whiteSpace: 'nowrap'
                       }}
@@ -547,7 +681,7 @@ export default function FloorMapTab({ theme, orgId }: FloorMapTabProps) {
                 onClick={handleSaveTable}
                 disabled={creating}
                 style={{
-                  padding: '10px 20px', backgroundColor: isDark ? '#238636' : '#10b981',
+                  padding: '10px 20px', backgroundColor: '#C99C63',
                   color: '#ffffff', border: 'none', borderRadius: '6px',
                   cursor: creating ? 'wait' : 'pointer', fontWeight: 600
                 }}

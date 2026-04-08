@@ -11,6 +11,11 @@ export const createTableSchema = z.object({
   isMergeable: z.boolean().optional(),
   positionX: z.number().optional(),
   positionY: z.number().optional(),
+  isPremium: z.boolean().optional(),
+  premiumPrice: z.number().min(0).nullable().optional(),
+  parentTableId: z.string().uuid().optional().nullable(),
+  isMerged: z.boolean().optional(),
+  mergedTableIds: z.array(z.string().uuid()).optional(),
 });
 
 export const updateTableSchema = createTableSchema.partial().extend({
@@ -34,4 +39,12 @@ export const createAreaSchema = z.object({
 
 export const updateAreaSchema = createAreaSchema.partial().extend({
   isActive: z.boolean().optional(),
+});
+
+export const mergeTablesSchema = z.object({
+  sourceTableIds: z.array(z.string().uuid()).min(2),
+  mergedTable: z.object({
+    name: z.string().min(1).max(50),
+    capacity: z.number().int().min(1)
+  })
 });

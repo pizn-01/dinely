@@ -22,7 +22,7 @@ export default function Navbar({ variant = 'public', logoUrl, onSignOut }: Navba
       onSignOut()
     } else {
       logout()
-      navigate('/login')
+      navigate('/')
     }
   }
 

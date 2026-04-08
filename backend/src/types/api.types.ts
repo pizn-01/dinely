@@ -70,6 +70,7 @@ export interface UpdateOrganizationDto {
   cancellationPolicy?: string;
   setupCompleted?: boolean;
   logoUrl?: string;
+  vipMembershipFee?: number;
 }
 
 // ─── Table Types ───────────────────────────────────────
@@ -85,6 +86,9 @@ export interface CreateTableDto {
   isMergeable?: boolean;
   positionX?: number;
   positionY?: number;
+  isPremium?: boolean;
+  premiumPrice?: number;
+  parentTableId?: string | null;
 }
 
 export interface UpdateTableDto extends Partial<CreateTableDto> {
@@ -209,6 +213,9 @@ export interface AuthResponse {
     slug: string;
     setupCompleted: boolean;
     openingTime?: string;
+    stripeAccountId?: string;
+    stripeOnboardingComplete?: boolean;
+    vipMembershipFee?: number;
   };
 }
 

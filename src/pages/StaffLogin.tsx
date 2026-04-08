@@ -3,6 +3,7 @@ import { useNavigate, Link, useParams } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
 import { api } from '../services/api'
 import { useAuth } from '../context/AuthContext'
+import dinelyLogo from '../assets/dinely-logo.png'
 
 export default function StaffLogin() {
   const navigate = useNavigate()
@@ -14,15 +15,17 @@ export default function StaffLogin() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [restaurantName, setRestaurantName] = useState('')
+  const [logoUrl, setLogoUrl] = useState('')
 
   // Fetch restaurant name from slug for display
   useEffect(() => {
     if (!slug) return
     const fetchRestaurant = async () => {
       try {
-        const { data } = await api.get(`/public/restaurants/${slug}`)
+        const { data } = await api.get(`/public/${slug}/info`)
         if (data.data?.name) {
           setRestaurantName(data.data.name)
+          if (data.data.logoUrl) setLogoUrl(data.data.logoUrl)
         }
       } catch {
         // Slug might not resolve — that's okay, show generic login
@@ -69,7 +72,11 @@ export default function StaffLogin() {
     }}>
       {/* Top Left Logo */}
       <div className="res-auth-logo" style={{ position: 'absolute', top: '40px', left: '40px' }}>
-        <h1 style={{ color: '#111827', fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>Logo</h1>
+        {logoUrl ? (
+          <img src={logoUrl} alt="Logo" style={{ height: '40px', objectFit: 'contain' }} />
+        ) : (
+          <img src={dinelyLogo} alt="Dinely" style={{ height: '32px', objectFit: 'contain' }} />
+        )}
       </div>
 
       {/* Login Box */}
@@ -193,7 +200,7 @@ export default function StaffLogin() {
 
           {/* Forgot Password */}
           <div style={{ textAlign: 'right', marginBottom: '24px' }}>
-            <Link to="/staff-forgot-password" style={{ fontSize: '0.875rem', color: '#4A9E6B', textDecoration: 'none', fontWeight: 500 }}>
+            <Link to={slug ? `/staff-forgot-password/${slug}` : "/staff-forgot-password"} style={{ fontSize: '0.875rem', color: '#4A9E6B', textDecoration: 'none', fontWeight: 500 }}>
               Forgot Password?
             </Link>
           </div>

@@ -38,6 +38,8 @@ router.get('/:slug/info', async (req: Request, res: Response, next: NextFunction
         closingTime: org.closingTime,
         maxPartySize: org.maxPartySize,
         allowWalkIns: org.allowWalkIns,
+        stripeAccountId: org.stripeAccountId,
+        logoUrl: org.logoUrl || null,
       },
     });
   } catch (error) {

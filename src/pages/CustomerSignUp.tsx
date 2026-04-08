@@ -1,10 +1,12 @@
-import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
 import { api } from '../services/api'
+import dinelyLogo from '../assets/dinely-logo.png'
 
 export default function CustomerSignUp() {
   const navigate = useNavigate()
+
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
@@ -12,6 +14,26 @@ export default function CustomerSignUp() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const location = useLocation()
+  
+  const searchParams = new URLSearchParams(location.search)
+  const defaultSlug = searchParams.get('restaurant') || 'demo-restaurant'
+  const [logoUrl, setLogoUrl] = useState('')
+
+  useEffect(() => {
+    if (!defaultSlug || defaultSlug === 'demo-restaurant') return
+    const fetchRestaurant = async () => {
+      try {
+        const { data } = await api.get(`/public/${defaultSlug}/info`)
+        if (data.data?.logoUrl) {
+          setLogoUrl(data.data.logoUrl)
+        }
+      } catch (err) {
+        console.error('Failed to fetch restaurant info:', err)
+      }
+    }
+    fetchRestaurant()
+  }, [defaultSlug])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -20,7 +42,7 @@ export default function CustomerSignUp() {
 
     try {
       // Typically /auth/customer-signup or similar depending on the exact backend route
-      await api.post('/auth/register', {
+      await api.post('/auth/customer-signup', {
         email,
         password,
         firstName,
@@ -28,8 +50,8 @@ export default function CustomerSignUp() {
         role: 'customer' // ensure role matches your DB schema constraints
       })
       
-      // Successfully registered, send them to login
-      navigate('/login')
+      // Successfully registered, send them to login with the preserved slug
+      navigate(`/login?restaurant=${defaultSlug}`)
     } catch (err: any) {
       setError(err.response?.data?.error || err.response?.data?.message || 'Failed to create account')
     } finally {
@@ -51,7 +73,11 @@ export default function CustomerSignUp() {
     }}>
       {/* Top Left Logo */}
       <div className="res-auth-logo" style={{ position: 'absolute', top: '40px', left: '40px' }}>
-        <h1 style={{ color: '#ffffff', fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>Logo</h1>
+        {logoUrl ? (
+          <img src={logoUrl} alt="Logo" style={{ height: '40px', objectFit: 'contain' }} />
+        ) : (
+          <img src={dinelyLogo} alt="Dinely" style={{ height: '32px', objectFit: 'contain', filter: 'brightness(0) invert(1)' }} />
+        )}
       </div>
 
       {/* SignUp Box */}
@@ -237,7 +263,7 @@ export default function CustomerSignUp() {
 
         <p style={{ textAlign: 'center', color: '#8b949e', fontSize: '0.875rem', margin: '16px 0 0 0' }}>
           Already have an account?{' '}
-          <Link to="/login" style={{ color: '#6B9E78', textDecoration: 'none', fontWeight: 500 }}>
+          <Link to={`/login?restaurant=${defaultSlug}`} style={{ color: '#6B9E78', textDecoration: 'none', fontWeight: 500 }}>
             Log in
           </Link>
         </p>

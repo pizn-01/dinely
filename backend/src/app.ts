@@ -17,6 +17,8 @@ import adminRoutes from './routes/admin.routes';
 import customerRoutes from './routes/customer.routes';
 import waitingListRoutes from './routes/waitingList.routes';
 import publicRoutes from './routes/public.routes';
+import stripeRoutes from './routes/stripe.routes';
+import subscriptionRoutes from './routes/subscription.routes';
 import { generalLimiter } from './middleware/rateLimiter';
 
 const app = express();
@@ -26,6 +28,67 @@ app.set('trust proxy', 1);
 
 app.use(helmet());
 app.use(cors(corsOptions));
+// ─── Stripe Webhook (MUST be before express.json) ──────────
+import { stripeController } from './controllers/stripe.controller';
+import { subscriptionService } from './services/subscription.service';
+
+app.post('/api/v1/stripe/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  try {
+    const sig = req.headers['stripe-signature'] as string;
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || 'whsec_test_secret';
+
+    const Stripe = require('stripe');
+    const stripeKey = process.env.STRIPE_SECRET_KEY || '';
+    const stripe = stripeKey.startsWith('sk_') ? Stripe(stripeKey, { apiVersion: '2025-02-24.acacia' }) : null;
+
+    if (!stripe) {
+      return res.status(503).json({ error: 'Stripe not configured' });
+    }
+
+    let event;
+    try {
+      event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+    } catch (err: any) {
+      // If webhook secret is empty/invalid, try parsing the raw JSON as fallback for dev
+      if (!webhookSecret || webhookSecret === 'whsec_test_secret') {
+        event = JSON.parse(req.body.toString());
+      } else {
+        console.error('[Stripe Webhook] Signature verification failed:', err.message);
+        return res.status(400).send(`Webhook Error: ${err.message}`);
+      }
+    }
+
+    // Route to subscription handler for subscription-related events
+    const subscriptionEvents = [
+      'checkout.session.completed',
+      'customer.subscription.updated',
+      'customer.subscription.deleted',
+      'invoice.payment_failed',
+    ];
+
+    if (subscriptionEvents.includes(event.type)) {
+      // Check if it's a SaaS subscription event
+      const session = event.data?.object;
+      const isSaas = session?.metadata?.type === 'saas_subscription' ||
+                     event.type.startsWith('customer.subscription') ||
+                     event.type === 'invoice.payment_failed';
+
+      if (isSaas) {
+        await subscriptionService.handleSubscriptionWebhook(event);
+      } else {
+        // Delegate VIP/other checkout events to the existing handler
+        await stripeController.handleWebhook(req as any, res, () => {});
+        return;
+      }
+    }
+
+    res.json({ received: true });
+  } catch (error) {
+    console.error('[Stripe Webhook Error]', error);
+    res.status(400).send(`Webhook Error: ${(error as Error).message}`);
+  }
+});
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
@@ -50,6 +113,7 @@ app.use(API_PREFIX, generalLimiter);
 
 app.use(`${API_PREFIX}/auth`, authRoutes);
 app.use(`${API_PREFIX}/organizations`, organizationRoutes);
+app.use(`${API_PREFIX}/organizations`, stripeRoutes);
 app.use(`${API_PREFIX}/organizations/:orgId/tables`, tableRoutes);
 app.use(`${API_PREFIX}/organizations/:orgId/reservations`, reservationRoutes);
 app.use(`${API_PREFIX}/organizations/:orgId/staff`, staffRoutes);
@@ -60,6 +124,7 @@ app.use(`${API_PREFIX}/organizations/:orgId/dashboard`, dashboardRoutes);
 app.use(`${API_PREFIX}/customers`, customerRoutes);
 app.use(`${API_PREFIX}/admin`, adminRoutes);
 app.use(`${API_PREFIX}/public`, publicRoutes);
+app.use(`${API_PREFIX}/subscriptions`, subscriptionRoutes);
 
 // ─── 404 Handler ────────────────────────────────────────
 

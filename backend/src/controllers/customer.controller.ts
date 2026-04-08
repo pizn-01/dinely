@@ -1,6 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from '../types/api.types';
 import { customerService } from '../services/customer.service';
+import { stripeService } from '../services/stripe.service';
 
 export class CustomerController {
   async getProfile(req: AuthenticatedRequest, res: Response, next: NextFunction) {
@@ -85,6 +86,24 @@ export class CustomerController {
         search
       );
       res.json({ success: true, ...result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async upgradeVip(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      if (!req.user) {
+        res.status(401).json({ success: false, error: 'Not authenticated' });
+        return;
+      }
+      const { organizationId, returnUrl } = req.body;
+      const result = await stripeService.createCustomerVipCheckoutSession(
+        req.user.sub,
+        organizationId,
+        returnUrl
+      );
+      res.json({ success: true, data: result });
     } catch (error) {
       next(error);
     }

@@ -44,19 +44,21 @@ export class CustomerService {
   async getUpcomingReservations(userId: string) {
     const today = getTodayDate();
 
-    // First get the customer ID from user_id
+    // Get the customer record from user_id
     const { data: customer } = await supabaseAdmin
       .from('customers')
-      .select('id')
+      .select('id, email')
       .eq('user_id', userId)
       .single();
 
     if (!customer) return [];
 
+    // Query by customer_id OR by guest_email (fallback for reservations
+    // created via the public endpoint where customer_id may not be set)
     const { data, error } = await supabaseAdmin
       .from('reservations')
       .select('*, tables(id, table_number, name), organizations!inner(id, name, slug, address)')
-      .eq('customer_id', customer.id)
+      .or(`customer_id.eq.${customer.id},guest_email.eq.${customer.email}`)
       .gte('reservation_date', today)
       .not('status', 'in', '(cancelled,completed,no_show)')
       .order('reservation_date', { ascending: true })
@@ -64,7 +66,16 @@ export class CustomerService {
       .limit(20);
 
     if (error) throw new AppError('Failed to fetch reservations', 500);
-    return (data || []).map(this.formatCustomerReservation);
+
+    // Deduplicate (in case both customer_id and guest_email matched the same row)
+    const seen = new Set<string>();
+    const unique = (data || []).filter(r => {
+      if (seen.has(r.id)) return false;
+      seen.add(r.id);
+      return true;
+    });
+
+    return unique.map(this.formatCustomerReservation);
   }
 
   /**
@@ -76,7 +87,7 @@ export class CustomerService {
 
     const { data: customer } = await supabaseAdmin
       .from('customers')
-      .select('id')
+      .select('id, email')
       .eq('user_id', userId)
       .single();
 
@@ -85,7 +96,7 @@ export class CustomerService {
     const { data, error, count } = await supabaseAdmin
       .from('reservations')
       .select('*, tables(id, table_number, name), organizations!inner(id, name, slug, address)', { count: 'exact' })
-      .eq('customer_id', customer.id)
+      .or(`customer_id.eq.${customer.id},guest_email.eq.${customer.email}`)
       .or(`status.in.(completed,cancelled,no_show),reservation_date.lt.${today}`)
       .order('reservation_date', { ascending: false })
       .range(offset, offset + limit - 1);

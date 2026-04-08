@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../services/api'
+import dinelyLogo from '../assets/dinely-logo.png'
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('')
@@ -38,7 +39,7 @@ export default function ForgotPassword() {
     }}>
       {/* Top Left Logo */}
       <div className="res-auth-logo" style={{ position: 'absolute', top: '40px', left: '40px' }}>
-        <h1 style={{ color: '#ffffff', fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>Logo</h1>
+        <img src={dinelyLogo} alt="Dinely" style={{ height: '32px', objectFit: 'contain', filter: 'brightness(0) invert(1)' }} />
       </div>
 
       {/* Forgot Password Box */}

@@ -3,7 +3,7 @@ import { tableController } from '../controllers/table.controller';
 import { authenticate } from '../middleware/auth';
 import { requireMinRole, requireRestaurantAccess } from '../middleware/rbac';
 import { validate } from '../middleware/validator';
-import { createTableSchema, updateTableSchema, createAreaSchema, updateAreaSchema, bulkUpdatePositionsSchema } from '../validators/table.validator';
+import { createTableSchema, updateTableSchema, createAreaSchema, updateAreaSchema, bulkUpdatePositionsSchema, mergeTablesSchema } from '../validators/table.validator';
 import { UserRole } from '../types/enums';
 import multer from 'multer';
 
@@ -71,6 +71,17 @@ router.put('/positions',
   requireMinRole(UserRole.MANAGER),
   validate(bulkUpdatePositionsSchema),
   (req, res, next) => tableController.bulkUpdatePositions(req, res, next)
+);
+
+router.post('/merge',
+  requireMinRole(UserRole.MANAGER),
+  validate(mergeTablesSchema),
+  (req, res, next) => tableController.mergeTables(req, res, next)
+);
+
+router.post('/:id/unmerge',
+  requireMinRole(UserRole.MANAGER),
+  (req, res, next) => tableController.unmergeTable(req, res, next)
 );
 
 router.put('/:id',

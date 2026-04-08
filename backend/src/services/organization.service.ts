@@ -66,6 +66,7 @@ export class OrganizationService {
     if (dto.cancellationPolicy !== undefined) updateData.cancellation_policy = dto.cancellationPolicy;
     if (dto.setupCompleted !== undefined) updateData.setup_completed = dto.setupCompleted;
     if (dto.logoUrl !== undefined) updateData.logo_url = dto.logoUrl;
+    if (dto.vipMembershipFee !== undefined) updateData.vip_membership_fee = dto.vipMembershipFee;
 
     const { data, error } = await supabaseAdmin
       .from('organizations')
@@ -262,6 +263,9 @@ export class OrganizationService {
       cancellationPolicy: row.cancellation_policy,
       setupCompleted: row.setup_completed,
       setupStep: row.setup_step,
+      stripeAccountId: row.stripe_account_id,
+      stripeOnboardingComplete: row.stripe_onboarding_complete,
+      vipMembershipFee: row.vip_membership_fee,
       isActive: row.is_active,
       createdAt: row.created_at,
       updatedAt: row.updated_at,

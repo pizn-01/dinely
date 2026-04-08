@@ -1,30 +1,46 @@
 import { useState, useEffect } from 'react'
-import { Calendar, Table, Settings, LogOut, CheckCircle2, Users, MapPin, Clock } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { Calendar, Table, Settings, LogOut, CheckCircle2, Users, MapPin, Clock, Star } from 'lucide-react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { api } from '../services/api'
+import { toast } from 'react-hot-toast'
 import PoweredByFooter from '../components/PoweredByFooter'
+import dinelyLogo from '../assets/dinely-logo.png'
 
 export default function Welcome() {
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { user, logout } = useAuth()
   const [activeTab, setActiveTab] = useState<'upcoming' | 'history'>('upcoming')
   const [upcomingList, setUpcomingList] = useState<any[]>([])
   const [historyList, setHistoryList] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
+  const [orgData, setOrgData] = useState<any>(null)
+  const [checkoutLoading, setCheckoutLoading] = useState(false)
+  const [customerProfile, setCustomerProfile] = useState<any>(null)
+
+  const location = useLocation()
+  const searchParams = new URLSearchParams(location.search)
+  const slug = searchParams.get('restaurant') || 'demo-restaurant'
 
   useEffect(() => {
     const fetchReservations = async () => {
-      if (!user?.id) return
       try {
         setLoading(true)
-        const { data } = await api.get(`/reservations?customerId=${user.id}`)
-        if (data.data) {
-          const now = new Date()
-          const upcoming = data.data.filter((r: any) => new Date(r.startTime) >= now && r.status !== 'cancelled')
-          const history = data.data.filter((r: any) => new Date(r.startTime) < now || r.status === 'completed' || r.status === 'cancelled')
-          setUpcomingList(upcoming)
-          setHistoryList(history)
+        const [upcomingRes, historyRes, orgRes, profileRes] = await Promise.all([
+          api.get('/customers/me/reservations/upcoming'),
+          api.get('/customers/me/reservations/history'),
+          api.get(`/public/${slug}/info`),
+          api.get('/customers/me').catch(() => null)
+        ])
+
+        let upcoming = upcomingRes.data.data || []
+        let history = historyRes.data.reservations || historyRes.data.data || []
+
+        setUpcomingList(upcoming)
+        setHistoryList(history)
+        setOrgData(orgRes.data.data)
+        if (profileRes?.data?.data) {
+          setCustomerProfile(profileRes.data.data)
         }
       } catch (err) {
         console.error('Failed to load reservations:', err)
@@ -33,7 +49,27 @@ export default function Welcome() {
       }
     }
     fetchReservations()
-  }, [user?.id])
+  }, [slug])
+
+  const handleUpgradeVip = async () => {
+    if (!orgData?.id) return
+    try {
+      setCheckoutLoading(true)
+      const returnUrl = `${window.location.origin}/welcome?restaurant=${slug}`
+      const { data } = await api.post('/customers/me/upgrade-vip', {
+        organizationId: orgData.id,
+        returnUrl
+      })
+      if (data.data?.url) {
+        window.location.href = data.data.url
+      }
+    } catch (err: any) {
+      console.error('Failed to create VIP checkout session', err)
+      toast.error(err.response?.data?.error || 'Failed to initiate payment')
+    } finally {
+      setCheckoutLoading(false)
+    }
+  }
 
   return (
     <div className="res-welcome-container" style={{
@@ -45,16 +81,25 @@ export default function Welcome() {
     }}>
       {/* Header */}
       <div className="res-welcome-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>Logo</h1>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          {orgData?.logoUrl ? (
+            <img src={orgData.logoUrl} alt="Logo" style={{ height: '40px', objectFit: 'contain' }} />
+          ) : (
+            <img src={dinelyLogo} alt="Dinely" style={{ height: '32px', objectFit: 'contain', filter: 'brightness(0) invert(1)' }} />
+          )}
+        </div>
         <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
           <Settings size={20} style={{ cursor: 'pointer', color: '#8b949e' }} />
-          <LogOut size={20} style={{ cursor: 'pointer', color: '#8b949e' }} onClick={() => navigate('/logged-in-tab-res')} />
+          <LogOut size={20} style={{ cursor: 'pointer', color: '#8b949e' }} onClick={() => {
+            logout()
+            navigate(`/${slug}`)
+          }} />
         </div>
       </div>
 
       {/* Greeting */}
       <div className="res-welcome-greeting" style={{ marginBottom: '40px' }}>
-        <h2 className="res-welcome-title" style={{ fontSize: '2.5rem', fontWeight: 700, margin: '0 0 8px 0' }}>Welcome back, John</h2>
+        <h2 className="res-welcome-title" style={{ fontSize: '2.5rem', fontWeight: 700, margin: '0 0 8px 0' }}>Welcome back, {customerProfile?.firstName || user?.name?.split(' ')[0] || 'Guest'}!</h2>
         <p style={{ fontSize: '1.125rem', color: '#8b949e', margin: 0 }}>Manage your reservations and book your next visit</p>
       </div>
 
@@ -74,13 +119,13 @@ export default function Welcome() {
             <div style={{ fontSize: '0.875rem', color: '#8b949e', marginBottom: '8px' }}>Upcoming</div>
             <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>{upcomingList.length}</div>
           </div>
-          <div style={{ 
-            width: '48px', 
-            height: '48px', 
-            backgroundColor: 'rgba(255, 255, 255, 0.05)', 
-            borderRadius: '50%', 
-            display: 'flex', 
-            justifyContent: 'center', 
+          <div style={{
+            width: '48px',
+            height: '48px',
+            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+            borderRadius: '50%',
+            display: 'flex',
+            justifyContent: 'center',
             alignItems: 'center',
             color: '#8b949e'
           }}>
@@ -101,13 +146,13 @@ export default function Welcome() {
             <div style={{ fontSize: '0.875rem', color: '#8b949e', marginBottom: '8px' }}>Past Visits</div>
             <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>{historyList.length}</div>
           </div>
-          <div style={{ 
-            width: '48px', 
-            height: '48px', 
-            backgroundColor: 'rgba(255, 255, 255, 0.05)', 
-            borderRadius: '50%', 
-            display: 'flex', 
-            justifyContent: 'center', 
+          <div style={{
+            width: '48px',
+            height: '48px',
+            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+            borderRadius: '50%',
+            display: 'flex',
+            justifyContent: 'center',
             alignItems: 'center'
           }}>
             <img src="/Group 1597888803.svg" alt="Past Visits" width={24} height={16} style={{ opacity: 0.7 }} />
@@ -130,45 +175,94 @@ export default function Welcome() {
           <h3 style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0 0 8px 0' }}>Ready For Your Next Visit?</h3>
           <p style={{ color: '#8b949e', margin: 0 }}>Your preferences are saved - booking takes seconds.</p>
         </div>
-        <button 
+        <button
           className="res-welcome-cta-btn"
-          onClick={() => navigate('/user-reserve')}
+          onClick={() => navigate((customerProfile?.isVip || user?.isVip) ? `/premium-reserve/${slug}` : `/user-reserve?restaurant=${slug}`)}
           style={{
-          backgroundColor: '#C99C63',
-          color: '#ffffff',
-          border: 'none',
-          borderRadius: '8px',
-          padding: '12px 24px',
-          fontSize: '1rem',
-          fontWeight: 600,
-          cursor: 'pointer'
-        }}>
+            backgroundColor: '#C99C63',
+            color: '#ffffff',
+            border: 'none',
+            borderRadius: '8px',
+            padding: '12px 24px',
+            fontSize: '1rem',
+            fontWeight: 600,
+            cursor: 'pointer'
+          }}>
           Book A Table
         </button>
       </div>
 
+      {/* Premium Promotional Banner */}
+      {!(customerProfile?.isVip || user?.isVip) && (
+        <div style={{
+          backgroundColor: 'rgba(201, 156, 99, 0.05)',
+          border: '1px solid rgba(201, 156, 99, 0.3)',
+          borderRadius: '16px',
+          padding: '24px 32px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '40px',
+          position: 'relative',
+          overflow: 'hidden'
+        }}>
+          {/* Subtle glow / gradient */}
+          <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '300px', background: 'linear-gradient(90deg, transparent, rgba(201, 156, 99, 0.15))', zIndex: 0 }} />
+
+          <div style={{ position: 'relative', zIndex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+              <Star size={20} color="#C99C63" fill="#C99C63" />
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, color: '#C99C63' }}>Unlock the Premium Experience at {orgData?.name || 'our restaurant'}</h3>
+            </div>
+            <p style={{ color: '#d1d5db', margin: 0, maxWidth: '600px', lineHeight: 1.5, fontSize: '0.95rem' }}>
+              Elevate your dining with priority bookings, complimentary welcome drinks, customized chef menus, and exclusive access to the best premium tables in the house.
+            </p>
+          </div>
+          <button style={{
+            backgroundColor: 'transparent',
+            color: '#C99C63',
+            border: '1px solid #C99C63',
+            borderRadius: '8px',
+            padding: '12px 28px',
+            fontSize: '1rem',
+            fontWeight: 600,
+            cursor: checkoutLoading ? 'wait' : 'pointer',
+            transition: 'all 0.2s',
+            whiteSpace: 'nowrap',
+            opacity: checkoutLoading ? 0.7 : 1
+          }}
+            onClick={handleUpgradeVip}
+            disabled={checkoutLoading}
+            onMouseOver={(e) => { e.currentTarget.style.backgroundColor = '#C99C63'; e.currentTarget.style.color = '#101A1C' }}
+            onMouseOut={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#C99C63' }}
+          >
+            {checkoutLoading ? 'Redirecting...' : 'Upgrade to Premium'}
+          </button>
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="res-welcome-tabs" style={{ display: 'flex', gap: '32px', borderBottom: '1px solid #30363d', marginBottom: '24px' }}>
-        <div 
+        <div
           onClick={() => setActiveTab('upcoming')}
-          style={{ 
-            padding: '0 0 16px 0', 
-            borderBottom: activeTab === 'upcoming' ? '2px solid #4a9e6b' : 'none', 
-            color: activeTab === 'upcoming' ? '#ffffff' : '#8b949e', 
-            fontWeight: activeTab === 'upcoming' ? 600 : 400, 
-            cursor: 'pointer' 
+          style={{
+            padding: '0 0 16px 0',
+            borderBottom: activeTab === 'upcoming' ? '2px solid #C99C63' : 'none',
+            color: activeTab === 'upcoming' ? '#ffffff' : '#8b949e',
+            fontWeight: activeTab === 'upcoming' ? 600 : 400,
+            cursor: 'pointer'
           }}
         >
           Upcoming Reservation
         </div>
-        <div 
+        <div
           onClick={() => setActiveTab('history')}
-          style={{ 
-            padding: '0 0 16px 0', 
-            borderBottom: activeTab === 'history' ? '2px solid #4a9e6b' : 'none', 
-            color: activeTab === 'history' ? '#ffffff' : '#8b949e', 
-            fontWeight: activeTab === 'history' ? 600 : 400, 
-            cursor: 'pointer' 
+          style={{
+            padding: '0 0 16px 0',
+            borderBottom: activeTab === 'history' ? '2px solid #C99C63' : 'none',
+            color: activeTab === 'history' ? '#ffffff' : '#8b949e',
+            fontWeight: activeTab === 'history' ? 600 : 400,
+            cursor: 'pointer'
           }}
         >
           Visit History
@@ -195,14 +289,14 @@ export default function Welcome() {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
                   <h4 style={{ fontSize: '1rem', fontWeight: 600, margin: 0 }}>{res.table?.name || 'Table Pending'}</h4>
-                  <div style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    gap: '4px', 
-                    fontSize: '0.75rem', 
-                    color: '#4a9e6b', 
-                    backgroundColor: 'rgba(74, 158, 107, 0.1)', 
-                    padding: '2px 8px', 
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    fontSize: '0.75rem',
+                    color: '#4a9e6b',
+                    backgroundColor: 'rgba(74, 158, 107, 0.1)',
+                    padding: '2px 8px',
                     borderRadius: '12px',
                     textTransform: 'capitalize'
                   }}>
@@ -212,9 +306,9 @@ export default function Welcome() {
                 </div>
                 <div className="res-welcome-res-meta" style={{ fontSize: '0.875rem', color: '#8b949e', display: 'flex', gap: '16px' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Users size={14} /> Capacity: {res.partySize} seats</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><MapPin size={14} /> {res.table?.table_type || 'Main Dining'}</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Calendar size={14} /> {new Date(res.startTime).toLocaleDateString('en-GB')}</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Clock size={14} /> {new Date(res.startTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><MapPin size={14} /> {res.restaurant?.name || 'Restaurant'}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Calendar size={14} /> {res.reservationDate ? new Date(res.reservationDate + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : ''}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Clock size={14} /> {res.startTime || ''}</span>
                 </div>
               </div>
             </div>
@@ -248,13 +342,13 @@ export default function Welcome() {
             border: '1px solid #30363d'
           }}>
             <div className="res-welcome-res-details" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-              <div style={{ 
-                width: '48px', 
-                height: '48px', 
-                backgroundColor: 'rgba(255, 255, 255, 0.05)', 
-                borderRadius: '50%', 
-                display: 'flex', 
-                justifyContent: 'center', 
+              <div style={{
+                width: '48px',
+                height: '48px',
+                backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                borderRadius: '50%',
+                display: 'flex',
+                justifyContent: 'center',
                 alignItems: 'center'
               }}>
                 <img src="/Group 1597888803.svg" alt="Table" width={24} height={16} style={{ opacity: 0.6 }} />
@@ -262,14 +356,14 @@ export default function Welcome() {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
                   <h4 style={{ fontSize: '1rem', fontWeight: 600, margin: 0 }}>{res.table?.name || 'Table Pending'}</h4>
-                  <div style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    gap: '4px', 
-                    fontSize: '0.75rem', 
-                    color: '#4a9e6b', 
-                    backgroundColor: 'rgba(74, 158, 107, 0.1)', 
-                    padding: '2px 8px', 
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    fontSize: '0.75rem',
+                    color: '#4a9e6b',
+                    backgroundColor: 'rgba(74, 158, 107, 0.1)',
+                    padding: '2px 8px',
                     borderRadius: '12px',
                     textTransform: 'capitalize'
                   }}>
@@ -278,9 +372,9 @@ export default function Welcome() {
                 </div>
                 <div className="res-welcome-res-meta" style={{ fontSize: '0.875rem', color: '#8b949e', display: 'flex', gap: '16px' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Users size={14} /> Capacity: {res.partySize} seats</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><MapPin size={14} /> {res.table?.table_type || 'Main Dining'}</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Calendar size={14} /> {new Date(res.startTime).toLocaleDateString('en-GB')}</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Clock size={14} /> {new Date(res.startTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><MapPin size={14} /> {res.restaurant?.name || 'Restaurant'}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Calendar size={14} /> {res.reservationDate ? new Date(res.reservationDate + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : ''}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Clock size={14} /> {res.startTime || ''}</span>
                 </div>
               </div>
             </div>

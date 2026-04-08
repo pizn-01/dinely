@@ -18,6 +18,8 @@ interface TableData {
   area: { id: string; name: string } | null;
   type?: string;
   shape?: string;
+  isPremium?: boolean;
+  premiumPrice?: number;
 }
 
 interface RestaurantInfo {
@@ -27,6 +29,8 @@ interface RestaurantInfo {
   openingTime: string;
   closingTime: string;
   maxPartySize: number;
+  requirePayment?: boolean;
+  currency?: string;
 }
 
 export default function PremiumReservation() {
@@ -82,6 +86,20 @@ export default function PremiumReservation() {
       }
     }
     fetchInfo()
+
+    // Auto-fill contact info from customer profile if logged in
+    api.get('/customers/me').then(res => {
+      const profile = res.data.data
+      if (profile) {
+        setContact(prev => ({
+          ...prev,
+          firstName: profile.firstName || prev.firstName,
+          lastName: profile.lastName || prev.lastName,
+          email: profile.email || prev.email,
+          phone: profile.phone || prev.phone,
+        }))
+      }
+    }).catch(() => {/* Not logged in or not a customer — leave contact empty */})
   }, [slug])
 
   // Fetch time slots when date or party size changes
@@ -134,39 +152,55 @@ export default function PremiumReservation() {
   const selectedTableObj = tables.find(t => t.id === selectedTable)
 
   const handleNext = async () => {
-    if (step < 5) {
+    // Determine if payment is required
+    const requiresPayment = selectedTableObj?.isPremium && (restaurantInfo?.requirePayment !== false);
+
+    if (step < 4) {
       setStep(step + 1)
-    } else if (step === 5) {
-      try {
-        setLoading(true)
-        setError(null)
-
-        await api.post(`/public/${slug}/reserve`, {
-          reservationDate: date,
-          startTime: selectedTime || '17:30',
-          partySize: guests,
-          tableId: selectedTable || null,
-          guestFirstName: contact.firstName || 'Premium',
-          guestLastName: contact.lastName || 'Member',
-          guestEmail: contact.email || 'premium@example.com',
-          guestPhone: contact.phone || '',
-          specialRequests: contact.specialRequest || '',
-          source: 'website'
-        })
-
-        navigate('/premium-booking-confirmed', {
-          state: {
-            selectedTime,
-            guests,
-            tableName: selectedTableObj?.name || selectedTableObj?.tableNumber,
-            restaurantName: restaurantInfo?.name,
-          }
-        })
-      } catch (err: any) {
-        setError(err.response?.data?.error || 'Failed to process premium reservation.')
-      } finally {
-        setLoading(false)
+    } else if (step === 4) {
+      if (requiresPayment) {
+        setStep(5)
+      } else {
+        submitReservation()
       }
+    } else if (step === 5) {
+      // Simulate payment processing then submit
+      setLoading(true)
+      setTimeout(() => {
+        submitReservation()
+      }, 1500)
+    }
+  }
+
+  const submitReservation = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      await api.post(`/public/${slug}/reserve`, {
+        reservationDate: date,
+        startTime: selectedTime || '17:30',
+        partySize: guests,
+        tableId: selectedTable || null,
+        guestFirstName: contact.firstName || 'Premium',
+        guestLastName: contact.lastName || 'Member',
+        guestEmail: contact.email || 'premium@example.com',
+        guestPhone: contact.phone || '',
+        specialRequests: contact.specialRequest || '',
+        source: 'website'
+      })
+
+      navigate('/premium-booking-confirmed', {
+        state: {
+          selectedTime,
+          guests,
+          tableName: selectedTableObj?.name || selectedTableObj?.tableNumber,
+          restaurantName: restaurantInfo?.name,
+        }
+      })
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to process premium reservation.')
+      setLoading(false)
     }
   }
 
@@ -508,16 +542,26 @@ export default function PremiumReservation() {
                           <div style={{ flex: 1 }}>
                             <div className="res-prem-table-header" style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
                               <h3 style={{ fontSize: '1.125rem', fontWeight: 600, margin: 0 }}>{table.name || `Table ${table.tableNumber}`}</h3>
-                              {table.type && table.type !== 'standard' && (
-                                <div style={{
-                                  display: 'flex', alignItems: 'center', gap: '4px',
-                                  backgroundColor: 'rgba(45, 122, 138, 0.15)', color: '#38bdf8',
-                                  padding: '4px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 500
-                                }}>
-                                  <Lock size={12} />
-                                  <span>{table.type}</span>
-                                </div>
-                              )}
+                                {table.type && table.type !== 'standard' && (
+                                  <div style={{
+                                    display: 'flex', alignItems: 'center', gap: '4px',
+                                    backgroundColor: 'rgba(45, 122, 138, 0.15)', color: '#38bdf8',
+                                    padding: '4px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 500
+                                  }}>
+                                    <Lock size={12} />
+                                    <span>{table.type}</span>
+                                  </div>
+                                )}
+                                {table.isPremium && (
+                                  <div style={{
+                                    display: 'flex', alignItems: 'center', gap: '4px',
+                                    backgroundColor: 'rgba(201, 156, 99, 0.15)', color: '#C99C63',
+                                    padding: '4px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 600
+                                  }}>
+                                    <span>Premium</span>
+                                    {table.premiumPrice ? ` (${restaurantInfo?.currency === 'USD' ? '$' : restaurantInfo?.currency === 'EUR' ? '€' : '£'}${table.premiumPrice})` : ''}
+                                  </div>
+                                )}
                             </div>
 
                             <div style={{ display: 'flex', alignItems: 'center', gap: '24px', color: '#8b949e', fontSize: '0.875rem' }}>
@@ -751,17 +795,21 @@ export default function PremiumReservation() {
                     backgroundColor: loading ? '#9ca3af' : '#161F21',
                     border: '1px solid rgba(255,255,255,0.05)', borderRadius: '8px', padding: '24px',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    cursor: loading ? 'not-allowed' : 'pointer', color: '#ffffff', fontSize: '1.25rem', fontWeight: 600
-                  }}>
-                    {loading ? 'Processing...' : '💳 Confirm & Reserve'}
+                    cursor: loading ? 'not-allowed' : 'pointer', color: '#ffffff', fontSize: '1.25rem', fontWeight: 600,
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseOver={(e) => { if (!loading) e.currentTarget.style.backgroundColor = '#1e2b2e' }}
+                  onMouseOut={(e) => { if (!loading) e.currentTarget.style.backgroundColor = '#161F21' }}
+                  >
+                    {loading ? 'Processing Payment...' : '💳 Pay with Card (Mock)'}
                   </button>
 
                   <div style={{ marginTop: '24px', color: '#8b949e', fontSize: '0.75rem', lineHeight: '1.6' }}>
-                    <p style={{ margin: '0 0 8px 0' }}>
-                      Payment integration coming soon. Your reservation will be confirmed immediately.
+                    <p style={{ margin: '0 0 8px 0', color: '#C99C63', fontWeight: 500 }}>
+                      This is a simulated payment flow.
                     </p>
                     <p style={{ margin: 0 }}>
-                      Premium table deposits will be processed via Stripe once configured by the restaurant.
+                      Click the button above to process a test payment. Once Stripe is fully integrated, a real secure checkout form will appear here.
                     </p>
                   </div>
                 </div>
@@ -793,6 +841,17 @@ export default function PremiumReservation() {
                         {selectedTableObj?.name || selectedTableObj?.tableNumber || 'Auto-assigned'}
                       </span>
                     </div>
+
+                    {selectedTableObj?.isPremium && selectedTableObj?.premiumPrice && (
+                      <div style={{ padding: '16px 0', borderTop: '1px solid rgba(255,255,255,0.1)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontWeight: 600, color: '#C99C63' }}>Premium Table Fee</span>
+                          <span style={{ fontWeight: 600, color: '#C99C63' }}>
+                            {restaurantInfo?.currency === 'USD' ? '$' : restaurantInfo?.currency === 'EUR' ? '€' : '£'}{selectedTableObj.premiumPrice.toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontWeight: 500 }}>Guest</span>
                       <span style={{ color: '#cfcfcf', fontSize: '0.875rem' }}>
@@ -844,6 +903,7 @@ export default function PremiumReservation() {
           <button
             onClick={handleNext}
             disabled={
+              loading ||
               (step === 1 && (!selectedTime || !date)) ||
               (step === 2 && !selectedTable) ||
               (step === 3 && (!contact.firstName || !contact.email))
@@ -853,15 +913,18 @@ export default function PremiumReservation() {
               backgroundColor: '#C99C63',
               border: 'none', borderRadius: '8px',
               color: '#ffffff', fontSize: '1rem', fontWeight: 600,
-              cursor: 'pointer',
+              cursor: loading ? 'wait' : 'pointer',
               opacity: (
+                loading ||
                 (step === 1 && (!selectedTime || !date)) ||
                 (step === 2 && !selectedTable) ||
                 (step === 3 && (!contact.firstName || !contact.email))
               ) ? 0.5 : 1,
             }}
           >
-            {step === 5 ? 'Pay And Confirm Reservation' : step === 4 ? 'Confirm Reservation' : step === 3 ? 'Review Booking' : 'Next'}
+            {step === 5 ? 'Process Mock Payment' : 
+             step === 4 ? (selectedTableObj?.isPremium && restaurantInfo?.requirePayment !== false ? 'Proceed to Payment' : 'Confirm Reservation') : 
+             step === 3 ? 'Review Booking' : 'Next'}
           </button>
         </div>
 
