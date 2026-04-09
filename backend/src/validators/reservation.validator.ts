@@ -2,10 +2,15 @@ import { z } from 'zod';
 
 export const createReservationSchema = z.object({
   tableId: z.string().uuid().optional(),
-  reservationDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format'),
+  reservationDate: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format')
+    .refine(d => {
+      const today = new Date().toISOString().split('T')[0];
+      return d >= today;
+    }, { message: 'Reservation date cannot be in the past' }),
   startTime: z.string().regex(/^\d{2}:\d{2}$/, 'Time must be in HH:MM format'),
   endTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
-  partySize: z.number().int().min(1).max(100),
+  partySize: z.number().int().min(1).max(50), // Org-specific maxPartySize enforced in service layer
   guestFirstName: z.string().min(1).max(100),
   guestLastName: z.string().max(100).optional(),
   guestEmail: z.string().email(),

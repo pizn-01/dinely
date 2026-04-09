@@ -3,6 +3,7 @@ import { AppError, NotFoundError } from '../middleware/errorHandler';
 import { InviteStaffDto, UpdateStaffDto } from '../types/api.types';
 import { UserRole } from '../types/enums';
 import { generateToken, generateRefreshToken } from '../middleware/auth';
+import { sanitizeSearch } from '../utils/sanitize';
 import { emailService } from './email.service';
 
 export class StaffService {
@@ -338,12 +339,13 @@ export class StaffService {
    * Search staff by name, email, or phone.
    */
   async search(restaurantId: string, query: string) {
+    const safe = sanitizeSearch(query);
     const { data, error } = await supabaseAdmin
       .from('staff_members')
       .select('*')
       .eq('restaurant_id', restaurantId)
       .eq('is_active', true)
-      .or(`name.ilike.%${query}%,email.ilike.%${query}%,phone.ilike.%${query}%`);
+      .or(`name.ilike.%${safe}%,email.ilike.%${safe}%,phone.ilike.%${safe}%`);
 
     if (error) throw new AppError('Failed to search staff', 500);
     return (data || []).map(this.formatStaff);

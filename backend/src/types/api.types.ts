@@ -8,6 +8,7 @@ export interface JwtPayload {
   email: string;
   role: UserRole;
   restaurantId?: string;
+  jti?: string;         // unique token ID for revocation
   iat?: number;
   exp?: number;
 }

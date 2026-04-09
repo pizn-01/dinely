@@ -1,6 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from '../types/api.types';
 import { authService } from '../services/auth.service';
+import { revokeToken } from '../middleware/auth';
 
 export class AuthController {
   async signup(req: AuthenticatedRequest, res: Response, next: NextFunction) {
@@ -61,7 +62,11 @@ export class AuthController {
     }
   }
 
-  async logout(_req: AuthenticatedRequest, res: Response) {
+  async logout(req: AuthenticatedRequest, res: Response) {
+    // Server-side token invalidation: add the token's unique ID to the blocklist
+    if (req.user?.jti) {
+      revokeToken(req.user.jti);
+    }
     res.json({ success: true, message: 'Logged out successfully' });
   }
 

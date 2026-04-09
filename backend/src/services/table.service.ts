@@ -75,6 +75,28 @@ export class TableService {
     return (data || []).map(this.formatTable);
   }
 
+  /**
+   * Public-safe table listing — exposes only non-sensitive fields.
+   * Used by the public reservation widget; hides premium pricing,
+   * floor plan positions, and merge status.
+   */
+  async listPublicTables(restaurantId: string) {
+    const { data, error } = await supabaseAdmin
+      .from('tables')
+      .select('id, name, capacity, floor_areas(id, name)')
+      .eq('restaurant_id', restaurantId)
+      .eq('is_active', true)
+      .order('table_number', { ascending: true });
+
+    if (error) throw new AppError('Failed to fetch tables', 500);
+    return (data || []).map((t: any) => ({
+      id: t.id,
+      name: t.name,
+      capacity: t.capacity,
+      area: t.floor_areas ? { id: t.floor_areas.id, name: t.floor_areas.name } : null,
+    }));
+  }
+
   async getTable(tableId: string, restaurantId: string) {
     const { data, error } = await supabaseAdmin
       .from('tables')

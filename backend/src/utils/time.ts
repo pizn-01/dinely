@@ -25,6 +25,8 @@ export const addMinutesToTime = (time: string, minutesToAdd: number): string => 
 
 /**
  * Check if two time ranges overlap.
+ * Handles overnight ranges (e.g., 23:00 → 01:00) by normalizing
+ * end times that are less than or equal to their start times.
  */
 export const timeRangesOverlap = (
   start1: string,
@@ -33,9 +35,13 @@ export const timeRangesOverlap = (
   end2: string
 ): boolean => {
   const s1 = timeToMinutes(start1);
-  const e1 = timeToMinutes(end1);
+  let e1 = timeToMinutes(end1);
   const s2 = timeToMinutes(start2);
-  const e2 = timeToMinutes(end2);
+  let e2 = timeToMinutes(end2);
+
+  // Handle overnight ranges (e.g., 23:00 → 01:00)
+  if (e1 <= s1) e1 += 24 * 60;
+  if (e2 <= s2) e2 += 24 * 60;
 
   return s1 < e2 && s2 < e1;
 };

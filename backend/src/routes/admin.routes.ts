@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { adminController } from '../controllers/admin.controller';
 import { authenticate } from '../middleware/auth';
 import { requireMinRole } from '../middleware/rbac';
+import { validate } from '../middleware/validator';
+import { adminUpdateOrgSchema, adminToggleOrgStatusSchema } from '../validators/admin.validator';
 import { UserRole } from '../types/enums';
 
 const router = Router();
@@ -20,13 +22,15 @@ router.get('/organizations/:id',
   (req, res, next) => adminController.getOrganization(req, res, next)
 );
 
-// PUT /admin/organizations/:id
+// PUT /admin/organizations/:id — validated with strict field whitelist
 router.put('/organizations/:id',
+  validate(adminUpdateOrgSchema),
   (req, res, next) => adminController.updateOrganization(req, res, next)
 );
 
-// PATCH /admin/organizations/:id/status
+// PATCH /admin/organizations/:id/status — validated to ensure boolean
 router.patch('/organizations/:id/status',
+  validate(adminToggleOrgStatusSchema),
   (req, res, next) => adminController.toggleOrgStatus(req, res, next)
 );
 

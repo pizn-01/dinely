@@ -2,6 +2,7 @@ import { supabaseAdmin } from '../config/database';
 import { AppError, NotFoundError } from '../middleware/errorHandler';
 import { getTodayDate } from '../utils/time';
 import { parsePagination, buildPaginationMeta } from '../utils/pagination';
+import { sanitizeSearch } from '../utils/sanitize';
 
 export class CustomerService {
   /**
@@ -115,18 +116,18 @@ export class CustomerService {
   async cancelOwnReservation(userId: string, reservationId: string) {
     const { data: customer } = await supabaseAdmin
       .from('customers')
-      .select('id')
+      .select('id, email')
       .eq('user_id', userId)
       .single();
 
     if (!customer) throw new NotFoundError('Customer profile');
 
-    // Verify the reservation belongs to this customer
+    // Match by customer_id OR guest_email to cover reservations made before signup
     const { data: reservation, error: fetchErr } = await supabaseAdmin
       .from('reservations')
       .select('id, status')
       .eq('id', reservationId)
-      .eq('customer_id', customer.id)
+      .or(`customer_id.eq.${customer.id},guest_email.eq.${customer.email}`)
       .single();
 
     if (fetchErr || !reservation) throw new NotFoundError('Reservation');
@@ -167,8 +168,9 @@ export class CustomerService {
       .eq('is_blacklisted', false);
 
     if (search) {
+      const safe = sanitizeSearch(search);
       query = query.or(
-        `customers.first_name.ilike.%${search}%,customers.last_name.ilike.%${search}%,customers.email.ilike.%${search}%`,
+        `customers.first_name.ilike.%${safe}%,customers.last_name.ilike.%${safe}%,customers.email.ilike.%${safe}%`,
       );
     }
 

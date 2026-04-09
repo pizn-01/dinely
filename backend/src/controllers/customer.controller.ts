@@ -97,6 +97,14 @@ export class CustomerController {
         res.status(401).json({ success: false, error: 'Not authenticated' });
         return;
       }
+
+      // Idempotency check: prevent double-charging already-VIP customers
+      const profile = await customerService.getProfileByUserId(req.user.sub);
+      if (profile.isVip) {
+        res.status(400).json({ success: false, error: 'You are already a Premium member.' });
+        return;
+      }
+
       const { organizationId, returnUrl } = req.body;
       const result = await stripeService.createCustomerVipCheckoutSession(
         req.user.sub,

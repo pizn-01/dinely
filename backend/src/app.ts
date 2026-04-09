@@ -49,8 +49,14 @@ app.post('/api/v1/stripe/webhook', express.raw({ type: 'application/json' }), as
     try {
       event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
     } catch (err: any) {
-      // If webhook secret is empty/invalid, try parsing the raw JSON as fallback for dev
+      // In production, NEVER bypass signature verification
+      if (process.env.NODE_ENV === 'production') {
+        console.error('[Stripe Webhook] Signature verification failed:', err.message);
+        return res.status(400).json({ success: false, error: `Webhook signature verification failed` });
+      }
+      // Dev-only fallback: parse raw JSON without verification
       if (!webhookSecret || webhookSecret === 'whsec_test_secret') {
+        console.warn('[Stripe Webhook] DEV MODE: Bypassing signature verification');
         event = JSON.parse(req.body.toString());
       } else {
         console.error('[Stripe Webhook] Signature verification failed:', err.message);
@@ -85,7 +91,7 @@ app.post('/api/v1/stripe/webhook', express.raw({ type: 'application/json' }), as
     res.json({ received: true });
   } catch (error) {
     console.error('[Stripe Webhook Error]', error);
-    res.status(400).send(`Webhook Error: ${(error as Error).message}`);
+    res.status(400).json({ success: false, error: `Webhook processing failed` });
   }
 });
 

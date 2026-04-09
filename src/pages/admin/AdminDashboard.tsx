@@ -9,6 +9,7 @@ import StatsCard from '../../components/StatsCard'
 import ReservationTab from './tabs/ReservationTab'
 import TablesManagementTab from './tabs/TablesManagementTab'
 import StaffManagementTab from './tabs/StaffManagementTab'
+import WaitingListTab from './tabs/WaitingListTab'
 import FloorMapTab from './tabs/FloorMapTab'
 import PoweredByFooter from '../../components/PoweredByFooter'
 import SettingsTab from './tabs/SettingsTab'
@@ -17,6 +18,7 @@ const tabs = [
   { id: 'reservation', label: 'Reservation' },
   { id: 'tables', label: 'Tables Management' },
   { id: 'staff', label: 'Staff Management' },
+  { id: 'waitinglist', label: 'Waiting List' },
   { id: 'floormap', label: 'Floor Map' },
   { id: 'settings', label: 'Settings' },
 ]
@@ -190,6 +192,7 @@ export default function AdminDashboard() {
             {activeTab === 'reservation' && <ReservationTab theme={isDark ? 'dark' : 'light'} orgId={orgId} serverToday={stats.serverToday} openingTime={stats.openingTime} closingTime={stats.closingTime} />}
             {activeTab === 'tables' && <TablesManagementTab theme={isDark ? 'dark' : 'light'} orgId={orgId} />}
             {activeTab === 'staff' && <StaffManagementTab theme={isDark ? 'dark' : 'light'} orgId={orgId} />}
+            {activeTab === 'waitinglist' && <WaitingListTab theme={isDark ? 'dark' : 'light'} orgId={orgId} serverToday={stats.serverToday} />}
             {activeTab === 'floormap' && <FloorMapTab theme={isDark ? 'dark' : 'light'} orgId={orgId} />}
             {activeTab === 'settings' && <SettingsTab theme={isDark ? 'dark' : 'light'} orgId={orgId} />}
           </div>

@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '../config/database';
 import { AppError, NotFoundError } from '../middleware/errorHandler';
 import { parsePagination, buildPaginationMeta } from '../utils/pagination';
+import { sanitizeSearch } from '../utils/sanitize';
 import { auditService } from './audit.service';
 
 export class AdminService {
@@ -17,7 +18,8 @@ export class AdminService {
       .range(offset, offset + limit - 1);
 
     if (search) {
-      query = query.or(`name.ilike.%${search}%,slug.ilike.%${search}%,email.ilike.%${search}%`);
+      const safe = sanitizeSearch(search);
+      query = query.or(`name.ilike.%${safe}%,slug.ilike.%${safe}%,email.ilike.%${safe}%`);
     }
 
     const { data, error, count } = await query;
@@ -153,7 +155,8 @@ export class AdminService {
       .range(offset, offset + limit - 1);
 
     if (search) {
-      query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%`);
+      const safe = sanitizeSearch(search);
+      query = query.or(`name.ilike.%${safe}%,email.ilike.%${safe}%`);
     }
 
     const { data, error, count } = await query;

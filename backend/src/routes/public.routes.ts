@@ -38,7 +38,6 @@ router.get('/:slug/info', async (req: Request, res: Response, next: NextFunction
         closingTime: org.closingTime,
         maxPartySize: org.maxPartySize,
         allowWalkIns: org.allowWalkIns,
-        stripeAccountId: org.stripeAccountId,
         logoUrl: org.logoUrl || null,
       },
     });
@@ -107,7 +106,7 @@ router.get('/:slug/slots', async (req: Request, res: Response, next: NextFunctio
 router.get('/:slug/tables', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const org = await organizationService.getBySlug(param(req, 'slug'));
-    const tables = await tableService.listTables(org.id);
+    const tables = await tableService.listPublicTables(org.id);
     res.json({ success: true, data: tables });
   } catch (error) {
     next(error);

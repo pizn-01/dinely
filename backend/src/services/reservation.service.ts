@@ -4,6 +4,7 @@ import { CreateReservationDto, UpdateReservationDto, ReservationFilterQuery } fr
 import { ReservationStatus } from '../types/enums';
 import { addMinutesToTime, timeRangesOverlap, getTodayDate } from '../utils/time';
 import { parsePagination, buildPaginationMeta } from '../utils/pagination';
+import { sanitizeSearch } from '../utils/sanitize';
 import { emailService } from './email.service';
 
 // Valid status transitions
@@ -40,8 +41,9 @@ export class ReservationService {
       query = query.eq('table_id', filters.tableId);
     }
     if (filters.search) {
+      const safe = sanitizeSearch(filters.search);
       query = query.or(
-        `guest_first_name.ilike.%${filters.search}%,guest_last_name.ilike.%${filters.search}%,guest_email.ilike.%${filters.search}%`
+        `guest_first_name.ilike.%${safe}%,guest_last_name.ilike.%${safe}%,guest_email.ilike.%${safe}%`
       );
     }
 
@@ -105,14 +107,16 @@ export class ReservationService {
       throw new AppError(`Party size cannot exceed ${maxParty}`, 400);
     }
 
-    // Enforce booking window
+    // Enforce booking window — only for public/customer bookings.
+    // Staff-created reservations (walk-ins, POS, phone) bypass these rules.
+    const isStaffCreated = !!createdBy;
     const minAdvanceHours = org?.min_advance_booking_hours || 0;
     const maxAdvanceDays = org?.max_advance_booking_days || 365;
     const now = new Date();
     const reservationDateTime = new Date(`${dto.reservationDate}T${dto.startTime}:00`);
     const hoursUntilReservation = (reservationDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
 
-    if (hoursUntilReservation < minAdvanceHours) {
+    if (!isStaffCreated && hoursUntilReservation < minAdvanceHours) {
       throw new AppError(
         `Reservations must be made at least ${minAdvanceHours} hour(s) in advance`,
         400
@@ -120,7 +124,7 @@ export class ReservationService {
     }
 
     const daysUntilReservation = hoursUntilReservation / 24;
-    if (daysUntilReservation > maxAdvanceDays) {
+    if (!isStaffCreated && daysUntilReservation > maxAdvanceDays) {
       throw new AppError(
         `Reservations cannot be made more than ${maxAdvanceDays} day(s) in advance`,
         400

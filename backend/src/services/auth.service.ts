@@ -41,7 +41,7 @@ export class AuthService {
 
     const userId = authData.user.id;
 
-    const slug = generateUniqueSlug(dto.businessName);
+    const slug = await generateUniqueSlug(dto.businessName);
     const { data: org, error: orgError } = await supabaseAdmin
       .from('organizations')
       .insert({
@@ -117,12 +117,16 @@ export class AuthService {
 
     const userId = authData.user.id;
 
-    const { data: staffMember, error: staffError } = await supabaseAdmin
+    // Use .limit(1) instead of .single() to avoid errors when a user
+    // has staff memberships at multiple restaurants
+    const { data: staffMembers, error: staffError } = await supabaseAdmin
       .from('staff_members')
       .select('*, organizations(*)')
       .eq('user_id', userId)
       .eq('is_active', true)
-      .single();
+      .limit(1);
+
+    const staffMember = staffMembers?.[0] || null;
 
     if (staffError || !staffMember) {
       const { data: superAdmin } = await supabaseAdmin
@@ -198,12 +202,114 @@ export class AuthService {
 
   /**
    * Staff-specific login (can specify restaurant slug).
+   * When a slug is provided, scopes the staff membership lookup
+   * to that specific restaurant. This prevents crashes when a
+   * user has staff memberships at multiple restaurants.
    */
   async staffLogin(dto: StaffLoginDto): Promise<AuthResponse> {
-    return this.login({
+    // Authenticate credentials first
+    const tempClient = createClient(process.env.SUPABASE_URL as string, process.env.SUPABASE_ANON_KEY as string, {
+      auth: { persistSession: false },
+    });
+
+    const { data: authData, error: authError } = await tempClient.auth.signInWithPassword({
       email: dto.email,
       password: dto.password,
     });
+
+    if (authError || !authData.user) {
+      throw new AppError('Invalid email or password', 401);
+    }
+
+    const userId = authData.user.id;
+
+    // Build staff lookup query, optionally scoped to a specific restaurant slug
+    let query = supabaseAdmin
+      .from('staff_members')
+      .select('*, organizations(*)')
+      .eq('user_id', userId)
+      .eq('is_active', true);
+
+    if (dto.restaurantSlug) {
+      // Filter by the organization's slug via the joined organizations table
+      query = query.eq('organizations.slug', dto.restaurantSlug);
+    }
+
+    const { data: staffMembers } = await query.limit(1);
+    const staffMember = staffMembers?.[0] || null;
+
+    if (!staffMember) {
+      // Fall back to super admin check
+      const { data: superAdmins } = await supabaseAdmin
+        .from('super_admins')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .limit(1);
+
+      const superAdmin = superAdmins?.[0] || null;
+
+      if (superAdmin) {
+        const token = generateToken({
+          sub: userId,
+          email: dto.email,
+          role: UserRole.SUPER_ADMIN,
+        });
+        return {
+          user: {
+            id: userId,
+            email: dto.email,
+            role: UserRole.SUPER_ADMIN,
+            name: superAdmin.name,
+          },
+          token,
+        };
+      }
+
+      throw new AppError('No active staff account found for this email', 401);
+    }
+
+    const roleMap: Record<string, UserRole> = {
+      admin: UserRole.RESTAURANT_ADMIN,
+      manager: UserRole.MANAGER,
+      host: UserRole.HOST,
+      viewer: UserRole.VIEWER,
+    };
+
+    const role = roleMap[staffMember.role] || UserRole.VIEWER;
+    const org = staffMember.organizations;
+
+    await supabaseAdmin
+      .from('staff_members')
+      .update({ last_active_at: new Date().toISOString() })
+      .eq('id', staffMember.id);
+
+    const token = generateToken({
+      sub: userId,
+      email: dto.email,
+      role,
+      restaurantId: org.id,
+    });
+
+    const refreshToken = generateRefreshToken(userId);
+
+    return {
+      user: {
+        id: userId,
+        email: dto.email,
+        role,
+        name: staffMember.name,
+      },
+      token,
+      refreshToken,
+      restaurant: {
+        id: org.id,
+        name: org.name,
+        slug: org.slug,
+        setupCompleted: org.setup_completed,
+        openingTime: org.opening_time,
+      },
+    };
   }
 
   /**
@@ -401,13 +507,16 @@ export class AuthService {
    * Register a new customer member.
    */
   async customerSignup(dto: CustomerSignupDto): Promise<AuthResponse> {
+    // Check for existing customer records:
+    // - If a linked customer (with user_id) exists → conflict, can't re-register
+    // - If an un-linked guest record exists → merge it with the new user
     const { data: existingCustomer } = await supabaseAdmin
       .from('customers')
-      .select('id')
+      .select('id, user_id')
       .eq('email', dto.email)
-      .single();
+      .maybeSingle();
 
-    if (existingCustomer) {
+    if (existingCustomer?.user_id) {
       throw new ConflictError('A customer account with this email already exists');
     }
 
@@ -426,23 +535,47 @@ export class AuthService {
     }
 
     const userId = authData.user.id;
+    let customer: any;
 
-    const { data: customer, error: customerError } = await supabaseAdmin
-      .from('customers')
-      .insert({
-        user_id: userId,
-        first_name: dto.firstName,
-        last_name: dto.lastName || null,
-        email: dto.email,
-        phone: dto.phone || null,
-        is_vip: false, // Default to non-premium member
-      })
-      .select()
-      .single();
+    if (existingCustomer) {
+      // Merge: adopt the existing guest record by linking it to the new user
+      const { data: merged, error: mergeError } = await supabaseAdmin
+        .from('customers')
+        .update({
+          user_id: userId,
+          first_name: dto.firstName,
+          last_name: dto.lastName || null,
+          phone: dto.phone || null,
+        })
+        .eq('id', existingCustomer.id)
+        .select()
+        .single();
 
-    if (customerError || !customer) {
-      await supabaseAdmin.auth.admin.deleteUser(userId);
-      throw new AppError('Failed to create customer profile', 500);
+      if (mergeError || !merged) {
+        await supabaseAdmin.auth.admin.deleteUser(userId);
+        throw new AppError('Failed to link existing customer profile', 500);
+      }
+      customer = merged;
+    } else {
+      // Create a fresh customer record
+      const { data: newCustomer, error: customerError } = await supabaseAdmin
+        .from('customers')
+        .insert({
+          user_id: userId,
+          first_name: dto.firstName,
+          last_name: dto.lastName || null,
+          email: dto.email,
+          phone: dto.phone || null,
+          is_vip: false,
+        })
+        .select()
+        .single();
+
+      if (customerError || !newCustomer) {
+        await supabaseAdmin.auth.admin.deleteUser(userId);
+        throw new AppError('Failed to create customer profile', 500);
+      }
+      customer = newCustomer;
     }
 
     const token = generateToken({
