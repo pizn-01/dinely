@@ -20,9 +20,21 @@ export default function Landing() {
   useEffect(() => {
     const fetchOrg = async () => {
       try {
-        let slug = window.location.hostname.split('.')[0]
-        if (slug === 'localhost' || slug === '127') {
-          slug = 'demo-restaurant'
+        const hostname = window.location.hostname;
+        let slug: string;
+
+        if (hostname === 'localhost' || hostname.startsWith('127.')) {
+          // Local development
+          slug = 'demo-restaurant';
+        } else if (hostname.endsWith('.dinely.co.uk')) {
+          // Production subdomain: <slug>.dinely.co.uk
+          slug = hostname.replace('.dinely.co.uk', '');
+          if (slug === 'www') {
+            slug = 'demo-restaurant'; // www is not a restaurant slug
+          }
+        } else {
+          // Fallback: use the first part of the hostname
+          slug = hostname.split('.')[0];
         }
         const { data } = await api.get(`/public/${slug}`)
         if (data.organization?.name) {

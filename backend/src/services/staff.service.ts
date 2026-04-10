@@ -93,7 +93,7 @@ export class StaffService {
       throw new AppError('Failed to create staff record', 500);
     }
 
-    const FRONTEND_URL = origin || process.env.FRONTEND_URL || 'http://localhost:5173';
+    const FRONTEND_URL = origin || process.env.FRONTEND_URL || 'https://www.dinely.co.uk';
     const inviteToken = staffRecord.id;
     const redirectTo = `${FRONTEND_URL}/accept-invite?token=${inviteToken}`;
 

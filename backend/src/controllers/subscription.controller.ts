@@ -20,7 +20,7 @@ export class SubscriptionController {
         });
       }
 
-      const origin = (req.headers.origin as string) || process.env.FRONTEND_URL || 'http://localhost:5173';
+      const origin = (req.headers.origin as string) || process.env.FRONTEND_URL || 'https://www.dinely.co.uk';
       const finalSuccessUrl = successUrl || `${origin}/subscription-success?session_id={CHECKOUT_SESSION_ID}`;
       const finalCancelUrl = cancelUrl || `${origin}/signup?plan=${plan}&cancelled=true`;
 
@@ -54,7 +54,7 @@ export class SubscriptionController {
         });
       }
 
-      const origin = (req.headers.origin as string) || process.env.FRONTEND_URL || 'http://localhost:5173';
+      const origin = (req.headers.origin as string) || process.env.FRONTEND_URL || 'https://www.dinely.co.uk';
       const returnUrl = `${origin}/admin`;
 
       const result = await subscriptionService.createBillingPortalSession(organizationId, returnUrl);

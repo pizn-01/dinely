@@ -53,7 +53,7 @@ export class StripeService {
 
     // Now create an AccountLink for onboarding
     // Dynamic refresh & return URLs depending on environment
-    const frontendUrl = frontendUrlOrOrigin || process.env.FRONTEND_URL || 'http://localhost:5173';
+    const frontendUrl = frontendUrlOrOrigin || process.env.FRONTEND_URL || 'https://www.dinely.co.uk';
 
     const accountLink = await stripe.accountLinks.create({
       account: accountId,
