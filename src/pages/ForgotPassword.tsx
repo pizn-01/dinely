@@ -38,7 +38,8 @@ export default function ForgotPassword() {
     try {
       await api.post('/auth/forgot-password', { 
         email,
-        slug: defaultSlug || undefined 
+        slug: defaultSlug || undefined,
+        origin: window.location.origin
       })
       setSuccess(true)
     } catch (err: any) {

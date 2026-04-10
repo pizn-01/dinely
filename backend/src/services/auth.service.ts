@@ -358,7 +358,14 @@ export class AuthService {
    * Request a password reset — sends reset link via Resend.
    */
   async forgotPassword(email: string, slug?: string, origin?: string) {
-    const frontendUrl = origin || process.env.FRONTEND_URL || 'https://dinely-ashy.vercel.app';
+    // If in production, always prefer the explicitly configured FRONTEND_URL to avoid proxy localhost leaks,
+    // otherwise fallback to origin (for local dev) or a static default.
+    let frontendUrl = process.env.FRONTEND_URL || origin || 'https://www.dinely.co.uk';
+    if (process.env.NODE_ENV === 'production') {
+      frontendUrl = process.env.FRONTEND_URL || 'https://www.dinely.co.uk';
+    }
+    
+    // Ensure slug-based routing is strictly enforced if a slug exists
     const redirectUrl = `${frontendUrl}/reset-password${slug ? `/${slug}` : ''}`;
     
     // Generate a recovery link through Supabase Admin without sending Supabase's default email

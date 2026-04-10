@@ -20,7 +20,10 @@ export class SubscriptionController {
         });
       }
 
-      const origin = (req.headers.origin as string) || process.env.FRONTEND_URL || 'https://www.dinely.co.uk';
+      let origin = process.env.FRONTEND_URL || (req.headers.origin as string) || 'https://www.dinely.co.uk';
+      if (process.env.NODE_ENV === 'production') {
+        origin = process.env.FRONTEND_URL || 'https://www.dinely.co.uk';
+      }
       const finalSuccessUrl = successUrl || `${origin}/subscription-success?session_id={CHECKOUT_SESSION_ID}`;
       const finalCancelUrl = cancelUrl || `${origin}/signup?plan=${plan}&cancelled=true`;
 
