@@ -381,11 +381,27 @@ export class AuthService {
       // Don't reveal if email exists or not
       console.error('Password reset generation error:', error.message);
     } else if (data?.properties?.action_link) {
+      let finalResetUrl = data.properties.action_link;
+      
+      try {
+        // Supabase might return http://localhost:3000/#access_token=... if the redirectUrl
+        // is not in the allowed list. We force the host and path to strictly use our config.
+        const returnedUrl = new URL(finalResetUrl);
+        const intendedUrl = new URL(redirectUrl);
+        
+        returnedUrl.protocol = intendedUrl.protocol;
+        returnedUrl.host = intendedUrl.host;
+        returnedUrl.pathname = intendedUrl.pathname;
+        
+        finalResetUrl = returnedUrl.toString();
+      } catch (e) {
+        console.error('Failed to parse final reset URL, using raw action_link');
+      }
+
       // Send the exact verification link from Supabase via Resend. 
-      // Supabase will automatically redirect to the redirectTo URL above with the token hash appended.
       await emailService.sendPasswordReset({
         to: email,
-        resetUrl: data.properties.action_link
+        resetUrl: finalResetUrl
       });
     }
 
