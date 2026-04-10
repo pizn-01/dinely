@@ -21,9 +21,18 @@ export default function ResetPassword() {
   useEffect(() => {
     // Extract access_token from URL hash: #access_token=...&type=recovery
     const hash = window.location.hash
+    const search = window.location.search
+    
+    // Check hash first (for traditional implicit flow #access_token=...)
     if (hash) {
       const params = new URLSearchParams(hash.replace('#', '?'))
-      const token = params.get('access_token')
+      const token = params.get('access_token') || params.get('token')
+      if (token) setAccessToken(token)
+    } 
+    // Fallback to query params (for server-side direct link generation ?token=...)
+    else if (search) {
+      const params = new URLSearchParams(search)
+      const token = params.get('token') || params.get('access_token')
       if (token) setAccessToken(token)
     }
   }, [])

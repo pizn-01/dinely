@@ -384,16 +384,23 @@ export class AuthService {
       let finalResetUrl = data.properties.action_link;
       
       try {
-        // Supabase might return http://localhost:3000/#access_token=... if the redirectUrl
-        // is not in the allowed list. We force the host and path to strictly use our config.
+        // Supabase often overrides our requested redirectTo with its default Site URL (localhost:3000) 
+        // if the custom production URL hasn't been added to its internal allow-list. 
+        // We ensure the link still hits the Supabase verify endpoint but force the post-verification redirect.
         const returnedUrl = new URL(finalResetUrl);
-        const intendedUrl = new URL(redirectUrl);
         
-        returnedUrl.protocol = intendedUrl.protocol;
-        returnedUrl.host = intendedUrl.host;
-        returnedUrl.pathname = intendedUrl.pathname;
-        
-        finalResetUrl = returnedUrl.toString();
+        // Only modify if it's a Supabase verification link with a redirect_to param
+        if (returnedUrl.searchParams.has('redirect_to')) {
+          returnedUrl.searchParams.set('redirect_to', redirectUrl);
+          finalResetUrl = returnedUrl.toString();
+        } else if (returnedUrl.hostname === 'localhost' || returnedUrl.hostname.startsWith('127.')) {
+          // If it returned a direct hash link to localhost instead of a verify endpoint
+          const intendedUrl = new URL(redirectUrl);
+          returnedUrl.protocol = intendedUrl.protocol;
+          returnedUrl.host = intendedUrl.host;
+          returnedUrl.pathname = intendedUrl.pathname;
+          finalResetUrl = returnedUrl.toString();
+        }
       } catch (e) {
         console.error('Failed to parse final reset URL, using raw action_link');
       }
@@ -413,11 +420,21 @@ export class AuthService {
    * Reset password using token from Supabase Auth email link.
    */
   async resetPassword(accessToken: string, newPassword: string) {
-    // Verify the token with Supabase and get the user
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(accessToken);
+    let user;
 
-    if (authError || !user) {
-      throw new AppError('Invalid or expired token', 400);
+    // A JWT access_token always starts with 'eyJ'
+    if (accessToken.startsWith('eyJ')) {
+      const { data, error: authError } = await supabaseAdmin.auth.getUser(accessToken);
+      if (authError || !data.user) throw new AppError('Invalid or expired token', 400);
+      user = data.user;
+    } else {
+      // It's an OTP / PKCE token hash
+      const { data, error: authError } = await supabaseAdmin.auth.verifyOtp({ 
+        token_hash: accessToken, 
+        type: 'recovery' 
+      });
+      if (authError || !data.user) throw new AppError('Invalid or expired reset token', 400);
+      user = data.user;
     }
 
     // Update the password using the resolved user ID
