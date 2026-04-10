@@ -1,6 +1,7 @@
 import { Link, useParams } from 'react-router-dom'
 import { LogIn, User, ArrowRight, Star } from 'lucide-react'
 import mainBg from '../assets/main-bg.png'
+import dinelyLogo from '../assets/dinely-logo.png'
 
 export default function UnifiedLanding() {
   const { slug } = useParams()
@@ -45,11 +46,9 @@ export default function UnifiedLanding() {
       }} />
 
       {/* Navbar */}
-      <nav style={{ padding: '32px 48px', position: 'relative', zIndex: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 style={{ margin: 0, fontSize: '1.75rem', fontWeight: 800, color: '#C99C63', letterSpacing: '-0.02em' }}>
-          Dinely.
-        </h1>
-        <div style={{ display: 'flex', gap: '16px' }}>
+      <nav className="res-unified-nav" style={{ padding: '32px 48px', position: 'relative', zIndex: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <img src={dinelyLogo} alt="Dinely" style={{ height: '36px', objectFit: 'contain' }} />
+        <div className="res-unified-nav-btns" style={{ display: 'flex', gap: '16px' }}>
           <Link to={loginLink} style={{ color: '#8b949e', textDecoration: 'none', fontSize: '0.875rem', fontWeight: 500, padding: '8px 16px', borderRadius: '8px', transition: 'all 0.2s' }}>
             Staff Login
           </Link>
@@ -65,16 +64,16 @@ export default function UnifiedLanding() {
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '6px 16px', backgroundColor: 'rgba(201, 156, 99, 0.1)', color: '#C99C63', borderRadius: '100px', fontSize: '0.875rem', fontWeight: 600, marginBottom: '24px' }}>
             <Star size={16} /> Premium Dining Experience
           </div>
-          <h2 style={{ fontSize: '4rem', fontWeight: 800, margin: '0 0 24px 0', lineHeight: 1.1, letterSpacing: '-0.03em', maxWidth: '800px' }}>
+          <h2 className="res-unified-hero-title" style={{ fontSize: '4rem', fontWeight: 800, margin: '0 0 24px 0', lineHeight: 1.1, letterSpacing: '-0.03em', maxWidth: '800px' }}>
             Exceptional culinary <br/>moments await.
           </h2>
           <p style={{ fontSize: '1.25rem', color: '#8b949e', maxWidth: '600px', margin: '0 auto 48px auto', lineHeight: 1.6 }}>
             Reserve your table seamlessly. Discover exclusive menus, priority seating, and unmatched hospitality.
           </p>
 
-          <div style={{ display: 'flex', gap: '20px', justifyContent: 'center' }}>
+          <div className="res-unified-cta-row" style={{ display: 'flex', gap: '20px', justifyContent: 'center' }}>
             {/* Guest Flow */}
-            <Link to={guestLink} style={{
+            <Link to={guestLink} className="res-unified-cta-btn" style={{
               display: 'flex', alignItems: 'center', gap: '12px',
               padding: '16px 32px', backgroundColor: '#0B1517', border: '1px solid #30363d',
               borderRadius: '100px', textDecoration: 'none', color: '#ffffff', transition: 'all 0.3s',
@@ -94,7 +93,7 @@ export default function UnifiedLanding() {
             </Link>
 
             {/* Member Flow */}
-            <Link to={loginLink} style={{
+            <Link to={loginLink} className="res-unified-cta-btn" style={{
               display: 'flex', alignItems: 'center', gap: '12px',
               padding: '16px 32px', backgroundColor: '#C99C63', border: '1px solid #C99C63',
               borderRadius: '100px', textDecoration: 'none', color: '#101A1C', transition: 'all 0.3s',

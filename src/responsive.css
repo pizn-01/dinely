@@ -451,7 +451,154 @@
 }
 
 /* ========================================= */
-/* Section 7: Print / Accessibility          */
+/* Section 7: Unified Landing Page           */
+/* ========================================= */
+
+@media (max-width: 768px) {
+  .res-unified-nav {
+    padding: 20px 24px !important;
+  }
+  .res-unified-nav-btns {
+    gap: 8px !important;
+  }
+  .res-unified-hero-title {
+    font-size: 2.5rem !important;
+  }
+  .res-unified-cta-row {
+    flex-direction: column !important;
+    gap: 12px !important;
+    width: 100% !important;
+    padding: 0 16px !important;
+  }
+  .res-unified-cta-btn {
+    min-width: unset !important;
+    width: 100% !important;
+    padding: 14px 24px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .res-unified-nav {
+    padding: 16px 16px !important;
+  }
+  .res-unified-hero-title {
+    font-size: 2rem !important;
+  }
+  .res-unified-cta-btn {
+    padding: 12px 20px !important;
+  }
+}
+
+/* ========================================= */
+/* Section 8: SaaS Landing Page              */
+/* ========================================= */
+
+@media (max-width: 1024px) {
+  .res-saas-hero {
+    padding: 20px 24px !important;
+    gap: 24px !important;
+  }
+  .res-saas-features {
+    padding: 60px 24px !important;
+    gap: 40px !important;
+  }
+  .res-saas-hero-title {
+    font-size: 2.8rem !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .res-saas-nav {
+    padding: 16px 20px !important;
+  }
+  .res-saas-nav-links {
+    display: none !important;
+  }
+  .res-saas-hero {
+    flex-direction: column !important;
+    padding: 20px 20px !important;
+    text-align: center !important;
+  }
+  .res-saas-hero-title {
+    font-size: 2.2rem !important;
+  }
+  .res-saas-cta-btns {
+    flex-direction: column !important;
+    gap: 12px !important;
+    width: 100% !important;
+  }
+  .res-saas-cta-btns a {
+    width: 100% !important;
+    text-align: center !important;
+    box-sizing: border-box !important;
+  }
+  .res-saas-features {
+    flex-direction: column !important;
+    padding: 48px 20px !important;
+    gap: 32px !important;
+  }
+  .res-saas-pricing {
+    grid-template-columns: 1fr !important;
+    gap: 24px !important;
+    padding: 0 8px !important;
+  }
+  .res-saas-footer {
+    flex-direction: column !important;
+    gap: 12px !important;
+    padding: 20px 20px !important;
+    text-align: center !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .res-saas-nav {
+    padding: 12px 16px !important;
+  }
+  .res-saas-hero-title {
+    font-size: 1.75rem !important;
+  }
+  .res-saas-features {
+    padding: 32px 16px !important;
+  }
+}
+
+/* ========================================= */
+/* Section 9: Settings Tab Grids             */
+/* ========================================= */
+
+@media (max-width: 768px) {
+  .res-settings-link-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+  .res-settings-link-row input {
+    width: 100% !important;
+    font-size: 0.75rem !important;
+  }
+  .res-settings-link-row button {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+}
+
+/* ========================================= */
+/* Section 10: Floor Map                     */
+/* ========================================= */
+
+@media (max-width: 768px) {
+  .res-floormap-toolbar {
+    gap: 8px !important;
+    flex-wrap: wrap !important;
+  }
+  .res-floormap-toolbar button {
+    padding: 6px 12px !important;
+    font-size: 0.8125rem !important;
+  }
+}
+
+/* ========================================= */
+/* Section 11: Print / Accessibility         */
 /* ========================================= */
 
 @media (prefers-reduced-motion: reduce) {

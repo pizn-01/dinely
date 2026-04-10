@@ -347,7 +347,7 @@ export default function FloorMapTab({ theme, orgId }: FloorMapTabProps) {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+      <div className="res-admin-tab-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: isDark ? '#ffffff' : '#111827', margin: 0 }}>
             Floor Map Editor
@@ -357,7 +357,7 @@ export default function FloorMapTab({ theme, orgId }: FloorMapTabProps) {
           </p>
         </div>
         
-        <div style={{ display: 'flex', gap: '12px' }}>
+        <div className="res-floormap-toolbar" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
           <button
             onClick={() => setShowModal(true)}
             style={{
@@ -499,15 +499,16 @@ export default function FloorMapTab({ theme, orgId }: FloorMapTabProps) {
 
       {/* Add Table Modal */}
       {showModal && (
-        <div style={{
+        <div className="res-modal-overlay" style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
           backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex',
           alignItems: 'center', justifyContent: 'center', zIndex: 1000,
-          backdropFilter: 'blur(4px)'
+          backdropFilter: 'blur(4px)', padding: '16px'
         }}>
-          <div style={{
+          <div className="res-modal-content" style={{
             backgroundColor: isDark ? '#161B22' : '#ffffff',
             borderRadius: '12px', width: '100%', maxWidth: '500px',
+            maxHeight: '90vh', overflowY: 'auto',
             padding: '24px', border: `1px solid ${isDark ? '#30363d' : '#e5e7eb'}`,
             boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)'
           }}>

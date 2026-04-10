@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import { api } from '../services/api'
 import dinelyLogo from '../assets/dinely-logo.png'
 
@@ -9,6 +9,26 @@ export default function ForgotPassword() {
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState('')
 
+  const location = useLocation()
+  const searchParams = new URLSearchParams(location.search)
+  const defaultSlug = searchParams.get('restaurant') || ''
+  const [logoUrl, setLogoUrl] = useState('')
+
+  useEffect(() => {
+    if (!defaultSlug || defaultSlug === 'demo-restaurant') return
+    const fetchRestaurant = async () => {
+      try {
+        const { data } = await api.get(`/public/${defaultSlug}/info`)
+        if (data.data?.logoUrl) {
+          setLogoUrl(data.data.logoUrl)
+        }
+      } catch (err) {
+        console.error('Failed to fetch restaurant info:', err)
+      }
+    }
+    fetchRestaurant()
+  }, [defaultSlug])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
@@ -16,7 +36,10 @@ export default function ForgotPassword() {
     setSuccess(false)
 
     try {
-      await api.post('/auth/forgot-password', { email })
+      await api.post('/auth/forgot-password', { 
+        email,
+        slug: defaultSlug || undefined 
+      })
       setSuccess(true)
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to send reset link.')
@@ -39,7 +62,11 @@ export default function ForgotPassword() {
     }}>
       {/* Top Left Logo */}
       <div className="res-auth-logo" style={{ position: 'absolute', top: '40px', left: '40px' }}>
-        <img src={dinelyLogo} alt="Dinely" style={{ height: '32px', objectFit: 'contain', filter: 'brightness(0) invert(1)' }} />
+        {logoUrl ? (
+          <img src={logoUrl} alt="Logo" style={{ height: '40px', objectFit: 'contain' }} />
+        ) : (
+          <img src={dinelyLogo} alt="Dinely" style={{ height: '32px', objectFit: 'contain', filter: 'brightness(0) invert(1)' }} />
+        )}
       </div>
 
       {/* Forgot Password Box */}
@@ -125,7 +152,7 @@ export default function ForgotPassword() {
 
         <p style={{ textAlign: 'center', color: '#8b949e', fontSize: '0.875rem', margin: '24px 0 0 0' }}>
           Remember your password?{' '}
-          <Link to="/login" style={{ color: '#6B9E78', textDecoration: 'none', fontWeight: 500 }}>
+          <Link to={defaultSlug && defaultSlug !== 'demo-restaurant' ? `/login?restaurant=${defaultSlug}` : '/login'} style={{ color: '#6B9E78', textDecoration: 'none', fontWeight: 500 }}>
             Back to login
           </Link>
         </p>

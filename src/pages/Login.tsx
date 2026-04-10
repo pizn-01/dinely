@@ -237,7 +237,7 @@ export default function Login() {
 
           {/* Forgot Password */}
           <div style={{ textAlign: 'right', marginBottom: '16px' }}>
-            <Link to="/forgot-password" style={{ color: '#6B9E78', fontSize: '0.875rem', textDecoration: 'none', fontWeight: 500 }}>
+            <Link to={defaultSlug !== 'demo-restaurant' ? `/forgot-password?restaurant=${defaultSlug}` : '/forgot-password'} style={{ color: '#6B9E78', fontSize: '0.875rem', textDecoration: 'none', fontWeight: 500 }}>
               Forgot Password?
             </Link>
           </div>

@@ -471,19 +471,22 @@ export default function WaitingListTab({ theme, orgId, serverToday }: WaitingLis
 
       {/* Add Modal */}
       {showAddModal && (
-        <div style={{
+        <div className="res-modal-overlay" style={{
           position: 'fixed', inset: 0,
           backgroundColor: 'rgba(0,0,0,0.6)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           zIndex: 50,
+          padding: '16px'
         }}>
-          <div style={{
+          <div className="res-modal-content" style={{
             backgroundColor: isDark ? '#101A1C' : '#ffffff',
             border: `1px solid ${borderColor}`,
             borderRadius: '12px',
             padding: '32px',
             width: '100%',
             maxWidth: '480px',
+            maxHeight: '90vh',
+            overflowY: 'auto',
             boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.15)',
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
@@ -607,13 +610,14 @@ export default function WaitingListTab({ theme, orgId, serverToday }: WaitingLis
 
       {/* Delete Confirmation Modal */}
       {confirmDelete && (
-        <div style={{
+        <div className="res-modal-overlay" style={{
           position: 'fixed', inset: 0,
           backgroundColor: 'rgba(0,0,0,0.5)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           zIndex: 60,
+          padding: '16px'
         }}>
-          <div style={{
+          <div className="res-modal-content" style={{
             backgroundColor: isDark ? '#101A1C' : '#ffffff',
             border: `1px solid ${borderColor}`,
             borderRadius: '12px',
@@ -625,7 +629,7 @@ export default function WaitingListTab({ theme, orgId, serverToday }: WaitingLis
             <p style={{ margin: '0 0 24px 0', fontSize: '0.875rem', color: mutedColor, lineHeight: 1.5 }}>
               Are you sure you want to remove <strong>{confirmDelete.customerName}</strong> (party of {confirmDelete.partySize}) from the waiting list?
             </p>
-            <div style={{ display: 'flex', gap: '12px' }}>
+            <div className="res-modal-actions" style={{ display: 'flex', gap: '12px' }}>
               <button
                 onClick={() => setConfirmDelete(null)}
                 style={{

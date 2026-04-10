@@ -326,7 +326,7 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
           <div style={cardStyle}>
             <h3 style={sectionTitleStyle}><Clock size={16} style={{ color: '#C99C63' }} /> Operating Hours</h3>
             <p style={sectionDescStyle}>Set when your restaurant accepts reservations.</p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div className="res-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
               <div>
                 <label style={labelStyle}>Opening Time</label>
                 <input
@@ -352,7 +352,7 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
           <div style={cardStyle}>
             <h3 style={sectionTitleStyle}><CalendarDays size={16} style={{ color: '#C99C63' }} /> Booking Policy</h3>
             <p style={sectionDescStyle}>Control reservation size, duration, and advance booking windows.</p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+            <div className="res-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
               <div>
                 <label style={labelStyle}>Max Party Size</label>
                 <input
@@ -394,7 +394,7 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
                 </select>
               </div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginTop: '16px' }}>
+            <div className="res-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginTop: '16px' }}>
               <div>
                 <label style={labelStyle}>Min Advance Booking (hours)</label>
                 <input
@@ -676,7 +676,7 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
             <p style={{ color: isDark ? '#8b949e' : '#6b7280', fontSize: '0.875rem', marginBottom: '16px' }}>
               Provide this link to your team members so they can log into their POS/Management dashboard.
             </p>
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <div className="res-settings-link-row" style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
               <input
                 type="text"
                 readOnly
@@ -720,7 +720,7 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
             <p style={{ color: isDark ? '#8b949e' : '#6b7280', fontSize: '0.875rem', marginBottom: '16px' }}>
               Link the "Reserve a Table" button on your main website to this URL.
             </p>
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <div className="res-settings-link-row" style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
               <input
                 type="text"
                 readOnly

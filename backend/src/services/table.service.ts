@@ -110,12 +110,45 @@ export class TableService {
   }
 
   async createTable(restaurantId: string, dto: CreateTableDto) {
+    // ── Uniqueness check: table_number ──────────────────
+    const { data: existingByNumber } = await supabaseAdmin
+      .from('tables')
+      .select('id, name')
+      .eq('restaurant_id', restaurantId)
+      .eq('table_number', dto.tableNumber)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (existingByNumber) {
+      throw new AppError(
+        `A table with number "${dto.tableNumber}" already exists. Please use a different table number.`,
+        409
+      );
+    }
+
+    // ── Uniqueness check: name (if provided) ────────────
+    const tableName = dto.name || `Table ${dto.tableNumber}`;
+    const { data: existingByName } = await supabaseAdmin
+      .from('tables')
+      .select('id, table_number')
+      .eq('restaurant_id', restaurantId)
+      .ilike('name', tableName)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (existingByName) {
+      throw new AppError(
+        `A table with the name "${tableName}" already exists. Please choose a different name.`,
+        409
+      );
+    }
+
     const { data, error } = await supabaseAdmin
       .from('tables')
       .insert({
         restaurant_id: restaurantId,
         table_number: dto.tableNumber,
-        name: dto.name || `Table ${dto.tableNumber}`,
+        name: tableName,
         capacity: dto.capacity,
         min_capacity: dto.minCapacity || 1,
         area_id: dto.areaId || null,

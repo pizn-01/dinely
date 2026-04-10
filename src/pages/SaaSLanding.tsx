@@ -17,12 +17,12 @@ export default function SaaSLanding() {
     <div style={{ backgroundColor: '#ffffff', minHeight: '100vh', fontFamily: 'var(--font-sans)', color: textDark }}>
       
       {/* Navigation */}
-      <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 48px', borderBottom: '1px solid #f1f5f9' }}>
+      <nav className="res-saas-nav" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 48px', borderBottom: '1px solid #f1f5f9' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <img src={dinelyLogo} alt="Dinely" style={{ height: '28px' }} />
         </div>
         
-        <div style={{ gap: '32px', display: 'none', '@media(min-width: 768px)': { display: 'flex' } } as any}>
+        <div className="res-saas-nav-links" style={{ gap: '32px', display: 'none', '@media(min-width: 768px)': { display: 'flex' } } as any}>
            <a href="#features" style={{ color: textDark, textDecoration: 'none', fontSize: '0.9rem', fontWeight: 500 }}>Features</a>
            <a href="#how-it-works" style={{ color: textDark, textDecoration: 'none', fontSize: '0.9rem', fontWeight: 500 }}>How it Works</a>
            <a href="#pricing" style={{ color: textDark, textDecoration: 'none', fontSize: '0.9rem', fontWeight: 500 }}>Pricing</a>
@@ -40,15 +40,15 @@ export default function SaaSLanding() {
       </nav>
 
       {/* Hero Section */}
-      <section style={{ padding: '20px 48px', display: 'flex', alignItems: 'center', justifyContent: 'center', maxWidth: '1200px', margin: '0 auto', gap: '20px', flexWrap: 'wrap' }}>
+      <section className="res-saas-hero" style={{ padding: '20px 48px', display: 'flex', alignItems: 'center', justifyContent: 'center', maxWidth: '1200px', margin: '0 auto', gap: '20px', flexWrap: 'wrap' }}>
         <div style={{ flex: '1 1 400px', maxWidth: '480px' }}>
-          <h1 style={{ fontSize: '3.4rem', fontWeight: 800, color: '#162b47', lineHeight: 1.1, marginBottom: '24px', letterSpacing: '-0.02em' }}>
+          <h1 className="res-saas-hero-title" style={{ fontSize: '3.4rem', fontWeight: 800, color: '#162b47', lineHeight: 1.1, marginBottom: '24px', letterSpacing: '-0.02em' }}>
             Smart Table<br/>Reservation Software<br/>for Modern Restaurants
           </h1>
           <p style={{ fontSize: '1.15rem', color: textMuted, lineHeight: 1.6, marginBottom: '40px', maxWidth: '440px' }}>
             Manage bookings, optimize tables, and deliver better dining experiences — all in one platform.
           </p>
-          <div style={{ display: 'flex', gap: '16px' }}>
+          <div className="res-saas-cta-btns" style={{ display: 'flex', gap: '16px' }}>
             <Link to="/signup" style={{ 
                 backgroundColor: primaryNavy, color: '#ffffff', padding: '14px 30px', borderRadius: '8px', 
                 textDecoration: 'none', fontSize: '1.05rem', fontWeight: 600
@@ -89,7 +89,7 @@ export default function SaaSLanding() {
       </section>
 
       {/* Features I */}
-      <section id="features" style={{ padding: '100px 48px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '80px', flexWrap: 'wrap', maxWidth: '1200px', margin: '0 auto' }}>
+      <section id="features" className="res-saas-features" style={{ padding: '100px 48px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '80px', flexWrap: 'wrap', maxWidth: '1200px', margin: '0 auto' }}>
          {/* Features I Mockup */}
          <div style={{ flex: '1 1 400px', display: 'flex', justifyContent: 'center' }}>
             <img src={feat1Img} alt="Features I Mockup" style={{ width: '100%', maxWidth: '500px', height: 'auto', borderRadius: '12px', boxShadow: '0 10px 30px -10px rgba(0,0,0,0.1)' }} />
@@ -166,7 +166,7 @@ export default function SaaSLanding() {
       </section>
 
       {/* Features II */}
-      <section style={{ padding: '100px 48px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '80px', flexWrap: 'wrap', maxWidth: '1200px', margin: '0 auto' }}>
+      <section className="res-saas-features" style={{ padding: '100px 48px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '80px', flexWrap: 'wrap', maxWidth: '1200px', margin: '0 auto' }}>
          <div style={{ flex: '1 1 400px' }}>
             <h2 style={{ fontSize: '2rem', fontWeight: 800, color: '#162b47', marginBottom: '32px', lineHeight: 1.2 }}>
               Designed for Smooth Dining<br/>Experiences
@@ -232,7 +232,7 @@ export default function SaaSLanding() {
            Try any plan free for 30 days. Continue only if it fits your needs.
          </p>
          
-         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '32px', maxWidth: '1100px', margin: '0 auto', alignItems: 'center' }}>
+         <div className="res-saas-pricing" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '32px', maxWidth: '1100px', margin: '0 auto', alignItems: 'center' }}>
            {/* Starter */}
            <div style={{ border: '1px solid #e2e8f0', borderRadius: '16px', padding: '40px 32px', textAlign: 'left', backgroundColor: '#ffffff', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
              <div style={{ display: 'inline-block', backgroundColor: '#f1f5f9', padding: '6px 12px', borderRadius: '100px', fontSize: '0.8rem', fontWeight: 600, color: textMuted, marginBottom: '16px' }}>14 Days Free Trial</div>
@@ -321,7 +321,7 @@ export default function SaaSLanding() {
          </Link>
 
          {/* Standard Footer */}
-         <footer style={{ backgroundColor: '#ffffff', padding: '24px 48px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #e2e8f0' }}>
+         <footer className="res-saas-footer" style={{ backgroundColor: '#ffffff', padding: '24px 48px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #e2e8f0' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <img src={dinelyLogo} alt="Dinely" style={{ height: '24px' }} />
             </div>
