@@ -229,7 +229,7 @@ export default function SaaSLanding() {
       <section id="pricing" style={{ padding: '80px 24px', textAlign: 'center' }}>
          <h2 style={{ fontSize: '2.5rem', fontWeight: 800, color: '#162b47', marginBottom: '12px' }}>Simple, Flexible Pricing</h2>
          <p style={{ fontSize: '1.05rem', color: textMuted, marginBottom: '64px' }}>
-           Try any plan free for 30 days. Continue only if it fits your needs.
+           Try any plan free for 14 days. Continue only if it fits your needs.
          </p>
          
          <div className="res-saas-pricing" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '32px', maxWidth: '1100px', margin: '0 auto', alignItems: 'center' }}>
@@ -275,7 +275,7 @@ export default function SaaSLanding() {
                <li style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.95rem' }}><Check size={18} color={primaryNavy} /> Dedicated account manager</li>
                <li style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.95rem' }}><Check size={18} color={primaryNavy} /> Custom SLA</li>
              </ul>
-             <Link to="/signup" style={{ display: 'block', textAlign: 'center', backgroundColor: primaryNavy, color: '#ffffff', padding: '14px', borderRadius: '8px', textDecoration: 'none', fontWeight: 600 }}>Get Started</Link>
+             <a href="mailto:hello@dinely.co.uk?subject=Enterprise Plan Inquiry" style={{ display: 'block', textAlign: 'center', backgroundColor: primaryNavy, color: '#ffffff', padding: '14px', borderRadius: '8px', textDecoration: 'none', fontWeight: 600 }}>Contact Us</a>
            </div>
          </div>
       </section>

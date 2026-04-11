@@ -1,5 +1,7 @@
-import { Edit3, Users, Calendar, Clock, Mail, Phone } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Edit3, Users, Calendar, Clock, Mail, Phone, Info } from 'lucide-react'
 import type { ReservationData } from './UserReservationWizard'
+import { api } from '../../services/api'
 
 interface UserStepConfirmReviewProps {
   data: ReservationData
@@ -7,6 +9,15 @@ interface UserStepConfirmReviewProps {
 }
 
 export default function UserStepConfirmReview({ data, onEdit }: UserStepConfirmReviewProps) {
+  const [cancellationPolicy, setCancellationPolicy] = useState<string | null>(null)
+
+  useEffect(() => {
+    const slug = new URLSearchParams(window.location.search).get('restaurant') || 'default-restaurant'
+    api.get(`/public/${slug}/info`)
+      .then(res => setCancellationPolicy(res.data.data.cancellationPolicy))
+      .catch(console.error)
+  }, [])
+
   const cardStyle = {
     border: '1px solid #30363d',
     borderRadius: '12px',
@@ -147,6 +158,28 @@ export default function UserStepConfirmReview({ data, onEdit }: UserStepConfirmR
           </div>
         </div>
       </div>
+
+      {/* Cancellation Policy rendering */}
+      {cancellationPolicy && (
+        <div style={{
+          marginTop: '24px',
+          backgroundColor: 'rgba(201, 156, 99, 0.05)',
+          border: '1px solid rgba(201, 156, 99, 0.2)',
+          borderRadius: '12px',
+          padding: '16px',
+          display: 'flex',
+          gap: '12px',
+          alignItems: 'flex-start'
+        }}>
+          <Info size={20} style={{ color: '#C99C63', flexShrink: 0, marginTop: '2px' }} />
+          <div>
+            <h4 style={{ margin: '0 0 4px 0', color: '#C99C63', fontSize: '0.875rem', fontWeight: 600 }}>Cancellation Policy</h4>
+            <p style={{ margin: 0, color: '#c9d1d9', fontSize: '0.875rem', lineHeight: '1.5' }}>
+              {cancellationPolicy}
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

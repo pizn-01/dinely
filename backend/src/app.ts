@@ -19,6 +19,7 @@ import waitingListRoutes from './routes/waitingList.routes';
 import publicRoutes from './routes/public.routes';
 import stripeRoutes from './routes/stripe.routes';
 import subscriptionRoutes from './routes/subscription.routes';
+import integrationRoutes from './routes/integration.routes';
 import { generalLimiter } from './middleware/rateLimiter';
 
 const app = express();
@@ -131,6 +132,7 @@ app.use(`${API_PREFIX}/customers`, customerRoutes);
 app.use(`${API_PREFIX}/admin`, adminRoutes);
 app.use(`${API_PREFIX}/public`, publicRoutes);
 app.use(`${API_PREFIX}/subscriptions`, subscriptionRoutes);
+app.use(`${API_PREFIX}/integration`, integrationRoutes);
 
 // ─── 404 Handler ────────────────────────────────────────
 

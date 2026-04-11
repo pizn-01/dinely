@@ -213,10 +213,10 @@ export class ReservationService {
     const guestEmail = dto.guestEmail || createdRes.guest_email;
     if (guestEmail) {
       try {
-        // Get restaurant name and phone for the email
+        // Get restaurant name, phone and cancellation policy for the email
         const { data: orgData } = await supabaseAdmin
           .from('organizations')
-          .select('name, phone')
+          .select('name, phone, cancellation_policy')
           .eq('id', restaurantId)
           .single();
 
@@ -230,6 +230,7 @@ export class ReservationService {
           confirmationId: rpcData.id,
           tableName: createdRes.tables?.name || createdRes.tables?.table_number || undefined,
           restaurantPhone: orgData?.phone || undefined,
+          cancellationPolicy: orgData?.cancellation_policy || undefined,
         });
       } catch (emailErr: any) {
         console.error('[ReservationService] Confirmation email failed:', emailErr.message);

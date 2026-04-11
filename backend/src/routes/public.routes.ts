@@ -39,6 +39,7 @@ router.get('/:slug/info', async (req: Request, res: Response, next: NextFunction
         maxPartySize: org.maxPartySize,
         allowWalkIns: org.allowWalkIns,
         logoUrl: org.logoUrl || null,
+        cancellationPolicy: org.cancellationPolicy || null,
       },
     });
   } catch (error) {
