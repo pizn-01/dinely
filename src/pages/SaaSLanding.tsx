@@ -68,7 +68,7 @@ export default function SaaSLanding() {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
            <Link to="/login" style={{ color: textDark, textDecoration: 'none', fontSize: '0.9rem', fontWeight: 600 }}>Log In</Link>
-           <Link to="/signup" style={{ 
+           <Link to="/signup?plan=professional" style={{ 
               backgroundColor: primaryNavy, color: '#ffffff', padding: '10px 20px', borderRadius: '6px', 
               textDecoration: 'none', fontSize: '0.9rem', fontWeight: 600, transition: 'opacity 0.2s' 
            }}>
