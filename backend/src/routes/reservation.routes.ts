@@ -3,7 +3,7 @@ import { reservationController } from '../controllers/reservation.controller';
 import { authenticate } from '../middleware/auth';
 import { requireMinRole, requireRestaurantAccess } from '../middleware/rbac';
 import { validate } from '../middleware/validator';
-import { createReservationSchema, updateReservationSchema, updateReservationStatusSchema, reservationFilterSchema } from '../validators/reservation.validator';
+import { createReservationSchema, updateReservationSchema, updateReservationStatusSchema, reservationFilterSchema, updateTotalAmountSchema, tableReportFilterSchema } from '../validators/reservation.validator';
 import { UserRole } from '../types/enums';
 
 const router = Router({ mergeParams: true });
@@ -62,6 +62,20 @@ router.patch('/:id/status',
 router.delete('/:id',
   requireMinRole(UserRole.HOST),
   (req, res, next) => reservationController.cancel(req, res, next)
+);
+
+// PATCH /organizations/:orgId/reservations/:id/total — Manual total amount update
+router.patch('/:id/total',
+  requireMinRole(UserRole.HOST),
+  validate(updateTotalAmountSchema),
+  (req, res, next) => reservationController.updateTotalAmount(req, res, next)
+);
+
+// GET /organizations/:orgId/reservations/reports/table-revenue — Table revenue report
+router.get('/reports/table-revenue',
+  requireMinRole(UserRole.VIEWER),
+  validate(tableReportFilterSchema, 'query'),
+  (req, res, next) => reservationController.getTableRevenueReport(req, res, next)
 );
 
 export default router;

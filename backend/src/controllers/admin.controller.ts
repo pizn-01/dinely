@@ -94,6 +94,15 @@ export class AdminController {
       next(error);
     }
   }
+
+  async getOrganizationSubscription(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const result = await adminService.getSubscriptionDetails(param(req, 'id'));
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const adminController = new AdminController();

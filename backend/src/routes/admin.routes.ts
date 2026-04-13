@@ -59,4 +59,9 @@ router.get('/audit-log',
   (req, res, next) => adminController.getAuditLog(req, res, next)
 );
 
+// GET /admin/organizations/:id/subscription
+router.get('/organizations/:id/subscription',
+  (req, res, next) => adminController.getOrganizationSubscription(req, res, next)
+);
+
 export default router;

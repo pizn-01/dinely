@@ -7,7 +7,9 @@ import {
   createReservationSchema, 
   updateReservationSchema,
   updateReservationStatusSchema,
-  reservationFilterSchema 
+  reservationFilterSchema,
+  updateTotalAmountSchema,
+  tableReportFilterSchema,
 } from '../validators/reservation.validator';
 import {
   createTableSchema,
@@ -255,6 +257,26 @@ router.get('/settings',
 router.put('/settings',
   validate(updateOrganizationSchema),
   (req, res, next) => integrationController.updateSettings(req, res, next)
+);
+
+// ═══════════════════════════════════════════════════════════
+// REVENUE / TOTAL AMOUNT
+// ═══════════════════════════════════════════════════════════
+
+// PATCH /api/v1/integration/reservations/:id/total — Push final sale amount from ePOS
+router.patch('/reservations/:id/total',
+  validate(updateTotalAmountSchema),
+  (req, res, next) => integrationController.updateReservationTotalAmount(req, res, next)
+);
+
+// ═══════════════════════════════════════════════════════════
+// REPORTS
+// ═══════════════════════════════════════════════════════════
+
+// GET /api/v1/integration/reports/table-revenue?startDate=...&endDate=...
+router.get('/reports/table-revenue',
+  validate(tableReportFilterSchema, 'query'),
+  (req, res, next) => integrationController.getTableRevenueReport(req, res, next)
 );
 
 export default router;

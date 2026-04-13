@@ -39,3 +39,14 @@ export const reservationFilterSchema = z.object({
   sortBy: z.string().optional().default('start_time'),
   sortOrder: z.enum(['asc', 'desc']).optional().default('asc'),
 });
+
+export const updateTotalAmountSchema = z.object({
+  totalAmount: z.number().min(0, 'Total amount must be zero or positive'),
+});
+
+export const tableReportFilterSchema = z.object({
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Start date must be YYYY-MM-DD'),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'End date must be YYYY-MM-DD'),
+  tableId: z.string().uuid().optional(),
+});
+

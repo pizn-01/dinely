@@ -247,6 +247,52 @@ export class AdminService {
     });
   }
 
+  // ─── Subscription Details (Read-Only) ───────────────────
+
+  /**
+   * Get detailed subscription for a specific organization.
+   */
+  async getSubscriptionDetails(orgId: string) {
+    const { data: org, error: orgError } = await supabaseAdmin
+      .from('organizations')
+      .select('id, name, slug, subscription_plan, subscription_status, stripe_customer_id')
+      .eq('id', orgId)
+      .single();
+
+    if (orgError || !org) throw new NotFoundError('Organization');
+
+    // Fetch the latest subscription record
+    const { data: sub } = await supabaseAdmin
+      .from('subscriptions')
+      .select('*')
+      .eq('organization_id', orgId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    return {
+      organization: {
+        id: org.id,
+        name: org.name,
+        slug: org.slug,
+      },
+      plan: org.subscription_plan || 'free',
+      status: org.subscription_status || 'none',
+      stripeCustomerId: org.stripe_customer_id || null,
+      subscription: sub ? {
+        id: sub.id,
+        stripeSubscriptionId: sub.stripe_subscription_id,
+        plan: sub.plan,
+        status: sub.status,
+        currentPeriodStart: sub.current_period_start,
+        currentPeriodEnd: sub.current_period_end,
+        cancelAtPeriodEnd: sub.cancel_at_period_end,
+        createdAt: sub.created_at,
+        updatedAt: sub.updated_at,
+      } : null,
+    };
+  }
+
   // ─── Formatter ────────────────────────────────────────
 
   private formatOrganization(row: any) {
@@ -265,6 +311,8 @@ export class AdminService {
       closingTime: row.closing_time,
       currency: row.currency,
       isActive: row.is_active,
+      subscriptionPlan: row.subscription_plan || 'free',
+      subscriptionStatus: row.subscription_status || 'none',
       setupCompleted: row.setup_completed,
       setupStep: row.setup_step,
       createdAt: row.created_at,

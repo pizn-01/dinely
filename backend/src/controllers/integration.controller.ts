@@ -504,6 +504,44 @@ export class IntegrationController {
       next(error);
     }
   }
+
+  // ─── Revenue / Total Amount ───────────────────────────
+
+  /**
+   * Push the final sale amount from the ePOS when a table is closed.
+   * Also used by staff to manually update the total from the Dinely dashboard.
+   */
+  async updateReservationTotalAmount(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const restaurantId = req.restaurantId!;
+      const reservationId = req.params.id as string;
+      const { totalAmount } = req.body;
+      const result = await reservationService.updateTotalAmount(reservationId, restaurantId, totalAmount);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Retrieves a per-table revenue report for a date range.
+   * Shows booking count (online vs walk-in split), total revenue per table, and grand totals.
+   */
+  async getTableRevenueReport(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const restaurantId = req.restaurantId!;
+      const { startDate, endDate, tableId } = req.query;
+      const result = await reservationService.getTableRevenueReport(
+        restaurantId,
+        startDate as string,
+        endDate as string,
+        tableId as string | undefined
+      );
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const integrationController = new IntegrationController();

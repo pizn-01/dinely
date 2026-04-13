@@ -1,9 +1,41 @@
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { CheckCircle2, ChevronRight, Check, Table, Building2, Globe } from 'lucide-react'
 import dinelyLogo from '../assets/dinely-logo.png'
 import heroImg from '../assets/image 33.png'
 import feat1Img from '../assets/image 32.png'
 import feat2Img from '../assets/Mask group.png'
+
+// ─── Currency Geo-Detection ─────────────────────────────
+interface CurrencyInfo {
+  symbol: string;
+  code: string;
+  starterPrice: number;
+  proPrice: number;
+}
+
+function detectCurrency(): CurrencyInfo {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+    const locale = navigator.language || '';
+
+    // UK detection: timezone or locale
+    if (tz.startsWith('Europe/London') || tz.startsWith('Europe/Belfast') || locale.startsWith('en-GB')) {
+      return { symbol: '£', code: 'GBP', starterPrice: 29, proPrice: 79 };
+    }
+
+    // European detection
+    const euroTimezones = ['Europe/Paris', 'Europe/Berlin', 'Europe/Madrid', 'Europe/Rome', 'Europe/Amsterdam', 'Europe/Brussels', 'Europe/Vienna', 'Europe/Lisbon', 'Europe/Dublin', 'Europe/Helsinki', 'Europe/Athens', 'Europe/Warsaw', 'Europe/Prague', 'Europe/Budapest', 'Europe/Bucharest', 'Europe/Stockholm', 'Europe/Oslo', 'Europe/Copenhagen'];
+    if (euroTimezones.some(t => tz.startsWith(t)) || locale.match(/^(de|fr|es|it|nl|pt|el|pl|cs|hu|ro|sv|da|fi|no)/)) {
+      return { symbol: '€', code: 'EUR', starterPrice: 29, proPrice: 79 };
+    }
+
+    // Default: USD
+    return { symbol: '$', code: 'USD', starterPrice: 29, proPrice: 79 };
+  } catch {
+    return { symbol: '£', code: 'GBP', starterPrice: 29, proPrice: 79 };
+  }
+}
 
 
 export default function SaaSLanding() {
@@ -12,6 +44,12 @@ export default function SaaSLanding() {
   const goldAccent = '#E5A96A'; // lighter orange-gold to match image
   const textDark = '#1e293b';
   const textMuted = '#64748b';
+
+  const [currency, setCurrency] = useState<CurrencyInfo>(detectCurrency);
+
+  useEffect(() => {
+    setCurrency(detectCurrency());
+  }, []);
 
   return (
     <div style={{ backgroundColor: '#ffffff', minHeight: '100vh', fontFamily: 'var(--font-sans)', color: textDark }}>
@@ -49,7 +87,7 @@ export default function SaaSLanding() {
             Manage bookings, optimize tables, and deliver better dining experiences — all in one platform.
           </p>
           <div className="res-saas-cta-btns" style={{ display: 'flex', gap: '16px' }}>
-            <Link to="/signup" style={{ 
+            <Link to="/signup?plan=professional" style={{ 
                 backgroundColor: primaryNavy, color: '#ffffff', padding: '14px 30px', borderRadius: '8px', 
                 textDecoration: 'none', fontSize: '1.05rem', fontWeight: 600
             }}>
@@ -237,7 +275,7 @@ export default function SaaSLanding() {
            <div style={{ border: '1px solid #e2e8f0', borderRadius: '16px', padding: '40px 32px', textAlign: 'left', backgroundColor: '#ffffff', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
              <div style={{ display: 'inline-block', backgroundColor: '#f1f5f9', padding: '6px 12px', borderRadius: '100px', fontSize: '0.8rem', fontWeight: 600, color: textMuted, marginBottom: '16px' }}>14 Days Free Trial</div>
              <h3 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '16px' }}>Starter</h3>
-             <div style={{ fontSize: '2.5rem', fontWeight: 800, marginBottom: '24px' }}>$29 <span style={{ fontSize: '1rem', color: textMuted, fontWeight: 500 }}>/ month</span></div>
+             <div style={{ fontSize: '2.5rem', fontWeight: 800, marginBottom: '24px' }}>{currency.symbol}{currency.starterPrice} <span style={{ fontSize: '1rem', color: textMuted, fontWeight: 500 }}>/ month</span></div>
              <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 32px 0', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                <li style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.95rem' }}><Check size={18} color={primaryNavy} /> Basic reservation system</li>
                <li style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.95rem' }}><Check size={18} color={primaryNavy} /> Unlimited bookings</li>
@@ -252,7 +290,7 @@ export default function SaaSLanding() {
              <div style={{ position: 'absolute', top: '-16px', left: '50%', transform: 'translateX(-50%)', backgroundColor: goldAccent, color: '#ffffff', padding: '6px 16px', borderRadius: '100px', fontSize: '0.85rem', fontWeight: 700 }}>Most Popular</div>
              <div style={{ display: 'inline-block', backgroundColor: 'rgba(255,255,255,0.1)', padding: '6px 12px', borderRadius: '100px', fontSize: '0.8rem', fontWeight: 600, color: '#ffffff', marginBottom: '16px' }}>14 Days Free Trial</div>
              <h3 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '16px' }}>Professional</h3>
-             <div style={{ fontSize: '2.5rem', fontWeight: 800, marginBottom: '24px' }}>$79 <span style={{ fontSize: '1rem', color: 'rgba(255,255,255,0.8)', fontWeight: 500 }}>/ month</span></div>
+             <div style={{ fontSize: '2.5rem', fontWeight: 800, marginBottom: '24px' }}>{currency.symbol}{currency.proPrice} <span style={{ fontSize: '1rem', color: 'rgba(255,255,255,0.8)', fontWeight: 500 }}>/ month</span></div>
              <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 32px 0', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                <li style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.95rem' }}><Check size={18} color={goldAccent} /> Unlimited bookings</li>
                <li style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.95rem' }}><Check size={18} color={goldAccent} /> All reservation flows</li>

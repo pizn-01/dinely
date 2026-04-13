@@ -668,6 +668,7 @@ export class ReservationService {
       internalNotes: row.internal_notes,
       paymentMethod: row.payment_method,
       paymentStatus: row.payment_status,
+      totalAmount: row.total_amount ?? null,
       confirmedAt: row.confirmed_at,
       seatedAt: row.seated_at,
       completedAt: row.completed_at,
@@ -683,6 +684,153 @@ export class ReservationService {
             area: row.tables.floor_areas?.name || null,
           }
         : null,
+    };
+  }
+
+  // ─── Total Amount (ePOS Sale Push) ───────────────────
+
+  /**
+   * Update the total sale amount for a reservation.
+   * Called by the ePOS system when a table is closed, or manually by staff.
+   */
+  async updateTotalAmount(reservationId: string, restaurantId: string, totalAmount: number) {
+    const { data, error } = await supabaseAdmin
+      .from('reservations')
+      .update({
+        total_amount: totalAmount,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', reservationId)
+      .eq('restaurant_id', restaurantId)
+      .select('*, tables(id, table_number, name, floor_areas(name))')
+      .single();
+
+    if (error || !data) throw new NotFoundError('Reservation');
+    return this.formatReservation(data);
+  }
+
+  // ─── Table Revenue Report ────────────────────────────
+
+  /**
+   * Generate a per-table revenue report for a date range.
+   * Returns booking count (online vs walk-in split), total revenue,
+   * and grand totals. Sorted by revenue descending (busiest first).
+   */
+  async getTableRevenueReport(
+    restaurantId: string,
+    startDate: string,
+    endDate: string,
+    tableId?: string
+  ) {
+    // 1. Fetch all completed/active reservations in the date range
+    let query = supabaseAdmin
+      .from('reservations')
+      .select('id, table_id, reservation_date, start_time, end_time, party_size, status, source, total_amount, seated_at, completed_at, created_at, tables(id, table_number, name, floor_areas(name))')
+      .eq('restaurant_id', restaurantId)
+      .gte('reservation_date', startDate)
+      .lte('reservation_date', endDate)
+      .not('status', 'in', '(cancelled,no_show)');
+
+    if (tableId) {
+      query = query.eq('table_id', tableId);
+    }
+
+    const { data: reservations, error } = await query.order('reservation_date', { ascending: true });
+
+    if (error) throw new AppError('Failed to fetch report data', 500);
+
+    // 2. Group by table
+    const tableMap: Record<string, {
+      tableId: string;
+      tableNumber: string;
+      tableName: string;
+      area: string | null;
+      totalBookings: number;
+      onlineBookings: number;
+      walkInBookings: number;
+      posBookings: number;
+      totalRevenue: number;
+      totalCovers: number;
+      reservations: any[];
+    }> = {};
+
+    let grandTotalBookings = 0;
+    let grandTotalRevenue = 0;
+    let grandTotalCovers = 0;
+    let grandOnline = 0;
+    let grandWalkIn = 0;
+    let grandPos = 0;
+
+    for (const r of (reservations || []) as any[]) {
+      const tid = r.table_id || 'unassigned';
+      if (!tableMap[tid]) {
+        tableMap[tid] = {
+          tableId: tid,
+          tableNumber: (r.tables as any)?.table_number || 'N/A',
+          tableName: (r.tables as any)?.name || 'Unassigned',
+          area: (r.tables as any)?.floor_areas?.name || null,
+          totalBookings: 0,
+          onlineBookings: 0,
+          walkInBookings: 0,
+          posBookings: 0,
+          totalRevenue: 0,
+          totalCovers: 0,
+          reservations: [],
+        };
+      }
+
+      const entry = tableMap[tid];
+      entry.totalBookings++;
+      entry.totalCovers += r.party_size || 0;
+      entry.totalRevenue += parseFloat(r.total_amount) || 0;
+
+      // Classify source
+      const src = (r.source || 'app').toLowerCase();
+      if (src === 'walk_in') {
+        entry.walkInBookings++;
+        grandWalkIn++;
+      } else if (src === 'pos') {
+        entry.posBookings++;
+        grandPos++;
+      } else {
+        entry.onlineBookings++;
+        grandOnline++;
+      }
+
+      entry.reservations.push({
+        id: r.id,
+        date: r.reservation_date,
+        startTime: r.start_time,
+        endTime: r.end_time,
+        partySize: r.party_size,
+        status: r.status,
+        source: r.source,
+        totalAmount: parseFloat(r.total_amount) || null,
+        bookedAt: r.created_at,
+        seatedAt: r.seated_at,
+        closedAt: r.completed_at,
+      });
+
+      grandTotalBookings++;
+      grandTotalRevenue += parseFloat(r.total_amount) || 0;
+      grandTotalCovers += r.party_size || 0;
+    }
+
+    // 3. Convert map to sorted array (busiest/highest revenue first)
+    const tables = Object.values(tableMap)
+      .sort((a, b) => b.totalRevenue - a.totalRevenue || b.totalBookings - a.totalBookings);
+
+    return {
+      dateRange: { startDate, endDate },
+      tables,
+      grandTotals: {
+        totalBookings: grandTotalBookings,
+        onlineBookings: grandOnline,
+        walkInBookings: grandWalkIn,
+        posBookings: grandPos,
+        totalRevenue: Math.round(grandTotalRevenue * 100) / 100,
+        totalCovers: grandTotalCovers,
+      },
     };
   }
 }

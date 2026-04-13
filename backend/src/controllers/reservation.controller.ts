@@ -133,6 +133,43 @@ export class ReservationController {
       next(error);
     }
   }
+
+  async updateTotalAmount(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const { totalAmount } = req.body;
+      const result = await reservationService.updateTotalAmount(
+        param(req, 'id'),
+        param(req, 'orgId'),
+        totalAmount
+      );
+      
+      // Broadcast state change
+      supabaseAdmin.channel(`restaurant_${param(req, 'orgId')}`).send({
+        type: 'broadcast',
+        event: 'RESERVATION_UPDATED',
+        payload: result
+      });
+      
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getTableRevenueReport(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const { startDate, endDate, tableId } = req.query;
+      const result = await reservationService.getTableRevenueReport(
+        param(req, 'orgId'),
+        startDate as string,
+        endDate as string,
+        tableId as string | undefined
+      );
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const reservationController = new ReservationController();
