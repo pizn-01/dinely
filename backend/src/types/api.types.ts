@@ -72,6 +72,7 @@ export interface UpdateOrganizationDto {
   setupCompleted?: boolean;
   logoUrl?: string;
   vipMembershipFee?: number;
+  weeklyHours?: Record<string, { open: string; close: string; closed: boolean }>;
 }
 
 // ─── Table Types ───────────────────────────────────────

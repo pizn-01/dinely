@@ -170,6 +170,20 @@ export class ReservationController {
       next(error);
     }
   }
+
+  async getMonthlyReservationCounts(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const year = parseInt(req.query.year as string, 10);
+      const month = parseInt(req.query.month as string, 10);
+      if (!year || !month || month < 1 || month > 12) {
+        return res.status(400).json({ success: false, error: 'Valid year and month (1-12) are required' });
+      }
+      const result = await reservationService.getMonthlyReservationCounts(param(req, 'orgId'), year, month);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const reservationController = new ReservationController();

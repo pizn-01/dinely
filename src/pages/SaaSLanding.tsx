@@ -68,7 +68,7 @@ export default function SaaSLanding() {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
            <Link to="/login" style={{ color: textDark, textDecoration: 'none', fontSize: '0.9rem', fontWeight: 600 }}>Log In</Link>
-           <Link to="/signup?plan=professional" style={{ 
+           <Link to="/get-started?plan=professional" style={{ 
               backgroundColor: primaryNavy, color: '#ffffff', padding: '10px 20px', borderRadius: '6px', 
               textDecoration: 'none', fontSize: '0.9rem', fontWeight: 600, transition: 'opacity 0.2s' 
            }}>
@@ -87,7 +87,7 @@ export default function SaaSLanding() {
             Manage bookings, optimize tables, and deliver better dining experiences — all in one platform.
           </p>
           <div className="res-saas-cta-btns" style={{ display: 'flex', gap: '16px' }}>
-            <Link to="/signup?plan=professional" style={{ 
+            <Link to="/get-started?plan=professional" style={{ 
                 backgroundColor: primaryNavy, color: '#ffffff', padding: '14px 30px', borderRadius: '8px', 
                 textDecoration: 'none', fontSize: '1.05rem', fontWeight: 600
             }}>
@@ -282,7 +282,7 @@ export default function SaaSLanding() {
                <li style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.95rem' }}><Check size={18} color={primaryNavy} /> Guest + user booking</li>
                <li style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.95rem' }}><Check size={18} color={primaryNavy} /> Email notifications</li>
              </ul>
-             <Link to="/signup?plan=starter" style={{ display: 'block', textAlign: 'center', backgroundColor: primaryNavy, color: '#ffffff', padding: '14px', borderRadius: '8px', textDecoration: 'none', fontWeight: 600 }}>Get Started</Link>
+             <Link to="/get-started?plan=starter" style={{ display: 'block', textAlign: 'center', backgroundColor: primaryNavy, color: '#ffffff', padding: '14px', borderRadius: '8px', textDecoration: 'none', fontWeight: 600 }}>Get Started</Link>
            </div>
            
            {/* Professional */}
@@ -298,7 +298,7 @@ export default function SaaSLanding() {
                <li style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.95rem' }}><Check size={18} color={goldAccent} /> Basic analytics</li>
                <li style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.95rem' }}><Check size={18} color={goldAccent} /> Priority support</li>
              </ul>
-             <Link to="/signup?plan=professional" style={{ display: 'block', textAlign: 'center', backgroundColor: '#ffffff', color: primaryNavy, padding: '14px', borderRadius: '8px', textDecoration: 'none', fontWeight: 700 }}>Get Started</Link>
+             <Link to="/get-started?plan=professional" style={{ display: 'block', textAlign: 'center', backgroundColor: '#ffffff', color: primaryNavy, padding: '14px', borderRadius: '8px', textDecoration: 'none', fontWeight: 700 }}>Get Started</Link>
            </div>
 
            {/* Enterprise */}
@@ -351,7 +351,7 @@ export default function SaaSLanding() {
       <div style={{ backgroundColor: primaryNavy, color: '#ffffff', textAlign: 'center', paddingTop: '80px' }}>
          <h2 style={{ fontSize: '2.5rem', fontWeight: 800, marginBottom: '16px' }}>Start Free. Upgrade When You're Ready.</h2>
          <p style={{ fontSize: '1.1rem', color: 'rgba(255,255,255,0.8)', marginBottom: '40px' }}>Test the platform with a short trial and continue only if it works for you.</p>
-         <Link to="/signup" style={{ 
+         <Link to="/get-started" style={{ 
             backgroundColor: '#ffffff', color: primaryNavy, padding: '16px 36px', borderRadius: '8px', 
             textDecoration: 'none', fontSize: '1.05rem', fontWeight: 700, display: 'inline-block', marginBottom: '80px'
          }}>

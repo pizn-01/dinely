@@ -33,6 +33,21 @@ router.post('/accept-invite', validate(acceptInviteSchema), async (req, res, nex
   }
 });
 
+// Validate a setup token (used after Stripe purchase to gate /setup access)
+router.post('/validate-setup-token', async (req, res, next) => {
+  try {
+    const { token } = req.body;
+    if (!token) {
+      return res.status(400).json({ success: false, error: 'Token is required' });
+    }
+    const { setupTokenService } = await import('../services/setupToken.service');
+    const organizationId = await setupTokenService.validateAndConsumeToken(token);
+    res.json({ success: true, data: { organizationId } });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Protected routes
 router.get('/me', authenticate, (req, res, next) => authController.getProfile(req, res, next));
 router.post('/logout', authenticate, (req, res) => authController.logout(req, res));

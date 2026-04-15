@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import Navbar from '../../components/Navbar'
 import ProgressBar from '../../components/ProgressBar'
 import { X, Upload, Download, Eye, EyeOff, ChefHat, MapPin, Clock } from 'lucide-react'
@@ -11,7 +11,43 @@ const TOTAL_STEPS = 4
 
 export default function SetupWizard() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { user } = useAuth()
+  const [tokenValidated, setTokenValidated] = useState(false)
+  const [tokenError, setTokenError] = useState('')
+  const [validatingToken, setValidatingToken] = useState(true)
+
+  // Validate setup token on mount
+  useEffect(() => {
+    const token = searchParams.get('token')
+    
+    // If user is already logged in with a restaurant ID, allow access (returning user)
+    if (user?.restaurantId && !token) {
+      setTokenValidated(true)
+      setValidatingToken(false)
+      return
+    }
+
+    if (!token) {
+      setTokenError('Access denied. A valid setup link is required. Please check your email for the setup link sent after purchase.')
+      setValidatingToken(false)
+      return
+    }
+
+    // Validate the token with backend
+    api.post('/auth/validate-setup-token', { token })
+      .then((res) => {
+        if (res.data?.success) {
+          setTokenValidated(true)
+        } else {
+          setTokenError('Invalid or expired setup link.')
+        }
+      })
+      .catch((err) => {
+        setTokenError(err?.response?.data?.error || 'Invalid or expired setup link. Please request a new one.')
+      })
+      .finally(() => setValidatingToken(false))
+  }, [searchParams, user])
   const [currentStep, setCurrentStep] = useState(1)
 
   // Step 1: Restaurant Details
@@ -333,8 +369,6 @@ export default function SetupWizard() {
                     }}
                   >
                     <option>Manager</option>
-                    <option>Host</option>
-                    <option>Server</option>
                   </select>
                 </div>
               </div>
@@ -408,6 +442,43 @@ export default function SetupWizard() {
           </div>
         )
     }
+  }
+
+  // Token validation gates
+  if (validatingToken) {
+    return (
+      <div style={{ minHeight: '100vh', backgroundColor: '#EFF3F8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, system-ui, sans-serif' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ width: '48px', height: '48px', border: '3px solid #e5e7eb', borderTopColor: '#C99C63', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 16px auto' }} />
+          <p style={{ color: '#6b7280', fontSize: '0.9375rem' }}>Validating setup link...</p>
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        </div>
+      </div>
+    )
+  }
+
+  if (!tokenValidated || tokenError) {
+    return (
+      <div style={{ minHeight: '100vh', backgroundColor: '#EFF3F8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, system-ui, sans-serif', padding: '24px' }}>
+        <div style={{ maxWidth: '480px', backgroundColor: '#ffffff', borderRadius: '16px', padding: '48px 40px', textAlign: 'center', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
+          <div style={{ width: '56px', height: '56px', borderRadius: '50%', backgroundColor: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px auto' }}>
+            <X size={28} style={{ color: '#ef4444' }} />
+          </div>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#111827', marginBottom: '12px' }}>Setup Link Invalid</h2>
+          <p style={{ color: '#6b7280', fontSize: '0.875rem', lineHeight: 1.6, marginBottom: '24px' }}>
+            {tokenError || 'This setup link is invalid, expired, or has already been used.'}
+          </p>
+          <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+            <Link to="/login" style={{ padding: '12px 24px', borderRadius: '8px', backgroundColor: '#111827', color: '#ffffff', textDecoration: 'none', fontWeight: 600, fontSize: '0.875rem' }}>
+              Log In
+            </Link>
+            <Link to="/" style={{ padding: '12px 24px', borderRadius: '8px', backgroundColor: 'transparent', color: '#111827', border: '1px solid #e5e7eb', textDecoration: 'none', fontWeight: 600, fontSize: '0.875rem' }}>
+              Home
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (

@@ -8,6 +8,22 @@ interface SettingsTabProps {
   orgId: string
 }
 
+interface DayHours {
+  open: string
+  close: string
+  closed: boolean
+}
+
+interface WeeklyHours {
+  monday: DayHours
+  tuesday: DayHours
+  wednesday: DayHours
+  thursday: DayHours
+  friday: DayHours
+  saturday: DayHours
+  sunday: DayHours
+}
+
 interface OrgSettings {
   name: string
   address: string
@@ -26,6 +42,17 @@ interface OrgSettings {
   cancellationPolicy: string
   stripeOnboardingComplete?: boolean
   vipMembershipFee?: number
+  weeklyHours: WeeklyHours
+}
+
+const defaultWeeklyHours: WeeklyHours = {
+  monday:    { open: '12:00', close: '22:00', closed: false },
+  tuesday:   { open: '12:00', close: '22:00', closed: false },
+  wednesday: { open: '12:00', close: '22:00', closed: false },
+  thursday:  { open: '12:00', close: '22:00', closed: false },
+  friday:    { open: '12:00', close: '22:00', closed: false },
+  saturday:  { open: '12:00', close: '22:00', closed: false },
+  sunday:    { open: '12:00', close: '22:00', closed: false },
 }
 
 const defaultSettings: OrgSettings = {
@@ -46,6 +73,7 @@ const defaultSettings: OrgSettings = {
   cancellationPolicy: '',
   stripeOnboardingComplete: false,
   vipMembershipFee: 15,
+  weeklyHours: { ...defaultWeeklyHours },
 }
 
 export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
@@ -107,6 +135,7 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
           cancellationPolicy: org?.cancellationPolicy || '',
           stripeOnboardingComplete: isStripeComplete,
           vipMembershipFee: org?.vipMembershipFee ?? 15,
+          weeklyHours: org?.weeklyHours || { ...defaultWeeklyHours },
         }
         setSettings(loaded)
         setOriginalSettings(loaded)
@@ -174,6 +203,7 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
         requirePayment: settings.requirePayment,
         cancellationPolicy: settings.cancellationPolicy,
         vipMembershipFee: settings.vipMembershipFee,
+        weeklyHours: settings.weeklyHours,
       })
       setOriginalSettings({ ...settings })
       setSaveSuccess(true)
@@ -322,29 +352,83 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
 
         <div style={{ display: 'grid', gap: '24px', maxWidth: '900px' }}>
 
-          {/* Operating Hours */}
+          {/* Weekly Operating Hours */}
           <div style={cardStyle}>
-            <h3 style={sectionTitleStyle}><Clock size={16} style={{ color: '#C99C63' }} /> Operating Hours</h3>
-            <p style={sectionDescStyle}>Set when your restaurant accepts reservations.</p>
-            <div className="res-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-              <div>
-                <label style={labelStyle}>Opening Time</label>
-                <input
-                  type="time"
-                  value={settings.openingTime}
-                  onChange={(e) => setSettings({ ...settings, openingTime: e.target.value })}
-                  style={inputStyle}
-                />
-              </div>
-              <div>
-                <label style={labelStyle}>Closing Time</label>
-                <input
-                  type="time"
-                  value={settings.closingTime}
-                  onChange={(e) => setSettings({ ...settings, closingTime: e.target.value })}
-                  style={inputStyle}
-                />
-              </div>
+            <h3 style={sectionTitleStyle}><Clock size={16} style={{ color: '#C99C63' }} /> Weekly Operating Hours</h3>
+            <p style={sectionDescStyle}>Set opening and closing times for each day of the week.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const).map((day) => {
+                const dayData = settings.weeklyHours[day]
+                return (
+                  <div key={day} className="res-form-grid" style={{
+                    display: 'grid',
+                    gridTemplateColumns: '100px 1fr 1fr 80px',
+                    gap: '12px',
+                    alignItems: 'center',
+                    padding: '10px 16px',
+                    backgroundColor: dayData.closed
+                      ? (isDark ? 'rgba(139, 148, 158, 0.05)' : '#f9fafb')
+                      : 'transparent',
+                    borderRadius: '8px',
+                    border: `1px solid ${isDark ? '#30363d' : '#e5e7eb'}`,
+                    opacity: dayData.closed ? 0.6 : 1,
+                    transition: 'opacity 0.2s',
+                  }}>
+                    <span style={{
+                      fontSize: '0.875rem',
+                      fontWeight: 600,
+                      color: isDark ? '#ffffff' : '#111827',
+                      textTransform: 'capitalize',
+                    }}>
+                      {day}
+                    </span>
+                    <input
+                      type="time"
+                      value={dayData.open}
+                      disabled={dayData.closed}
+                      onChange={(e) => {
+                        const updated = { ...settings.weeklyHours }
+                        updated[day] = { ...updated[day], open: e.target.value }
+                        setSettings({ ...settings, weeklyHours: updated })
+                      }}
+                      style={{ ...inputStyle, opacity: dayData.closed ? 0.4 : 1 }}
+                    />
+                    <input
+                      type="time"
+                      value={dayData.close}
+                      disabled={dayData.closed}
+                      onChange={(e) => {
+                        const updated = { ...settings.weeklyHours }
+                        updated[day] = { ...updated[day], close: e.target.value }
+                        setSettings({ ...settings, weeklyHours: updated })
+                      }}
+                      style={{ ...inputStyle, opacity: dayData.closed ? 0.4 : 1 }}
+                    />
+                    <label style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      cursor: 'pointer',
+                      fontSize: '0.8125rem',
+                      fontWeight: 500,
+                      color: dayData.closed ? '#E05D5D' : (isDark ? '#8b949e' : '#6b7280'),
+                      whiteSpace: 'nowrap',
+                    }}>
+                      <input
+                        type="checkbox"
+                        checked={dayData.closed}
+                        onChange={(e) => {
+                          const updated = { ...settings.weeklyHours }
+                          updated[day] = { ...updated[day], closed: e.target.checked }
+                          setSettings({ ...settings, weeklyHours: updated })
+                        }}
+                        style={{ width: '14px', height: '14px', accentColor: '#E05D5D' }}
+                      />
+                      Closed
+                    </label>
+                  </div>
+                )
+              })}
             </div>
           </div>
 

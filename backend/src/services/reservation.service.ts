@@ -833,6 +833,37 @@ export class ReservationService {
       },
     };
   }
+
+  /**
+   * Get reservation counts per day for a given month.
+   * Returns { "2026-04-01": 3, "2026-04-02": 5, ... }
+   */
+  async getMonthlyReservationCounts(restaurantId: string, year: number, month: number) {
+    // Build date range for the month
+    const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+    const endDate = new Date(year, month, 0); // last day of the month
+    const endDateStr = `${year}-${String(month).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
+
+    const { data, error } = await supabaseAdmin
+      .from('reservations')
+      .select('reservation_date')
+      .eq('restaurant_id', restaurantId)
+      .gte('reservation_date', startDate)
+      .lte('reservation_date', endDateStr)
+      .not('status', 'in', `(${ReservationStatus.CANCELLED},${ReservationStatus.NO_SHOW})`);
+
+    if (error) throw new AppError('Failed to fetch monthly reservation counts', 500);
+
+    // Count per day
+    const counts: Record<string, number> = {};
+    for (const row of (data || [])) {
+      let d = row.reservation_date;
+      if (typeof d === 'string' && d.includes('T')) d = d.split('T')[0];
+      counts[d] = (counts[d] || 0) + 1;
+    }
+
+    return counts;
+  }
 }
 
 export const reservationService = new ReservationService();

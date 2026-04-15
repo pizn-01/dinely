@@ -38,6 +38,7 @@ export default function StaffTableManagement() {
   const { isDark, toggleTheme } = useTheme()
   const [activeTab, setActiveTab] = useState('Table View') // Default to Table View
   const [calendarMonth, setCalendarMonth] = useState(new Date())
+  const [monthlyResCounts, setMonthlyResCounts] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   
   // Dynamic State
@@ -115,6 +116,18 @@ export default function StaffTableManagement() {
   useRealtimeReservations(restaurantId, useCallback(() => {
     if (restaurantId) fetchData(selectedDate, restaurantId)
   }, [restaurantId, selectedDate, fetchData]))
+
+  // Fetch monthly reservation counts for the calendar view
+  useEffect(() => {
+    if (!restaurantId) return
+    const year = calendarMonth.getFullYear()
+    const month = calendarMonth.getMonth() + 1
+    api.get(`/organizations/${restaurantId}/reservations/monthly-counts?year=${year}&month=${month}`)
+      .then(res => {
+        if (res.data?.data) setMonthlyResCounts(res.data.data)
+      })
+      .catch(err => console.error('Failed to fetch monthly counts:', err))
+  }, [restaurantId, calendarMonth])
 
   // Redirect if not logged in
   const navigate = useNavigate()
@@ -776,7 +789,7 @@ export default function StaffTableManagement() {
                         style={{ padding: '8px', borderRadius: '8px', backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-secondary)', color: 'var(--text-secondary)', cursor: 'pointer' }}
                       ><ChevronLeft size={20} /></button>
                       <button 
-                        onClick={() => setCalendarMonth(new Date())}
+                        onClick={() => { setCalendarMonth(new Date()); setSelectedDate(new Date().toISOString().split('T')[0]); }}
                         style={{ padding: '8px 16px', borderRadius: '8px', backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-secondary)', color: 'var(--text-primary)', fontWeight: 600, cursor: 'pointer' }}
                       >Today</button>
                       <button 
@@ -838,14 +851,44 @@ export default function StaffTableManagement() {
                           >
                             <span style={{ 
                               position: 'absolute', 
-                              top: '12px', 
-                              left: '16px', 
-                              fontSize: '1.25rem', 
+                              top: '8px', 
+                              left: '12px', 
+                              fontSize: '1.1rem', 
                               fontWeight: 700,
                               color: isSelected ? '#ffffff' : (isToday ? (isDark ? '#C99C63' : '#C99C63') : 'var(--text-primary)')
                             }}>
                               {d}
                             </span>
+                            {/* Reservation count badge */}
+                            {monthlyResCounts[dateStr] && (
+                              <div style={{
+                                position: 'absolute',
+                                bottom: '8px',
+                                left: '12px',
+                                right: '12px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                              }}>
+                                <div style={{
+                                  width: '6px',
+                                  height: '6px',
+                                  borderRadius: '50%',
+                                  backgroundColor: isSelected ? '#ffffff' : '#C99C63',
+                                  flexShrink: 0,
+                                }} />
+                                <span style={{
+                                  fontSize: '0.65rem',
+                                  fontWeight: 600,
+                                  color: isSelected ? 'rgba(255,255,255,0.85)' : 'var(--text-secondary)',
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                }}>
+                                  {monthlyResCounts[dateStr]} res
+                                </span>
+                              </div>
+                            )}
                           </div>
                         )
                       }
@@ -930,6 +973,68 @@ export default function StaffTableManagement() {
                   <span style={{ color: '#C99C63', fontWeight: 800 }}>{selectedBooking.startTime?.slice(0, 5)}</span>
                 </div>
                 <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.875rem' }}>{selectedBooking.partySize} Person • Unassigned</p>
+                
+                {/* Table Re-assignment */}
+                <div style={{ marginTop: '16px', padding: '16px', backgroundColor: 'var(--bg-secondary)', borderRadius: '12px', border: '1px solid var(--border-secondary)' }}>
+                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>
+                    Assign to Table
+                  </label>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <select
+                      id="reassign-table-select"
+                      defaultValue=""
+                      style={{
+                        flex: 1,
+                        padding: '10px 14px',
+                        borderRadius: '8px',
+                        backgroundColor: 'var(--bg-tertiary)',
+                        border: '1px solid var(--border-primary)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.875rem',
+                        fontFamily: 'inherit',
+                      }}
+                    >
+                      <option value="" disabled>Select a table...</option>
+                      {dbTables
+                        .filter((t: any) => t.capacity >= (selectedBooking.partySize || 1))
+                        .map((t: any) => (
+                          <option key={t.id} value={t.id}>
+                            {t.name || `Table #${t.tableNumber}`} (capacity: {t.capacity})
+                          </option>
+                        ))
+                      }
+                    </select>
+                    <button
+                      onClick={async () => {
+                        const selectEl = document.getElementById('reassign-table-select') as HTMLSelectElement
+                        const tableId = selectEl?.value
+                        if (!tableId || !restaurantId) return
+                        try {
+                          await api.put(`/organizations/${restaurantId}/reservations/${selectedBooking.id}`, { tableId })
+                          toast.success('Reservation assigned to table')
+                          fetchData(selectedDate, restaurantId)
+                          setSelectedBooking(null)
+                        } catch (err: any) {
+                          toast.error(err?.response?.data?.message || 'Failed to assign table')
+                        }
+                      }}
+                      style={{
+                        padding: '10px 20px',
+                        borderRadius: '8px',
+                        backgroundColor: '#C99C63',
+                        color: '#ffffff',
+                        border: 'none',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        fontSize: '0.875rem',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      Assign
+                    </button>
+                  </div>
+                </div>
+
                 <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                    {['pending', 'confirmed'].includes(selectedBooking.status) && (
                      <div style={{ display: 'flex', gap: '8px' }}>

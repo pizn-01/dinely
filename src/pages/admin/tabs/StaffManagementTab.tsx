@@ -17,7 +17,7 @@ export default function StaffManagementTab({ theme, orgId }: StaffManagementTabP
   // Invite Modal State
   const [showInvite, setShowInvite] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
-  const [inviteRole, setInviteRole] = useState('host')
+  const [inviteRole, setInviteRole] = useState('manager')
   const [inviteLoading, setInviteLoading] = useState(false)
   const [demoInviteLink, setDemoInviteLink] = useState('')
   
@@ -130,8 +130,6 @@ export default function StaffManagementTab({ theme, orgId }: StaffManagementTabP
         }}>
           <option>All Roles</option>
           <option>Manager</option>
-          <option>Host</option>
-          <option>Viewer</option>
         </select>
         <button 
           onClick={() => setShowInvite(true)}
@@ -317,8 +315,6 @@ export default function StaffManagementTab({ theme, orgId }: StaffManagementTabP
                   }}
                 >
                   <option value="manager">Manager</option>
-                  <option value="host">Host</option>
-                  <option value="viewer">Viewer</option>
                 </select>
               </div>
             </div>

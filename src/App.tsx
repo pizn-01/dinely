@@ -24,6 +24,7 @@ import ResetPassword from './pages/ResetPassword'
 import AcceptInvite from './pages/AcceptInvite'
 import UnifiedLanding from './pages/UnifiedLanding'
 import SaaSLanding from './pages/SaaSLanding'
+import GetStarted from './pages/GetStarted'
 import SubscriptionSuccess from './pages/SubscriptionSuccess'
 
 function App() {
@@ -31,6 +32,7 @@ function App() {
     <Routes>
       <Route path="/" element={<SaaSLanding />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/get-started" element={<GetStarted />} />
       <Route path="/signup" element={<SignUp />} />
       <Route path="/customer-signup" element={<CustomerSignUp />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />

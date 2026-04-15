@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { api } from '../../../services/api'
 import { useRealtimeReservations } from '../../../hooks/useRealtimeReservations'
-import { Users, MapPin, AlertCircle, CalendarRange } from 'lucide-react'
+import { Users, MapPin, AlertCircle, CalendarRange, Clock } from 'lucide-react'
 
 interface ReservationTabProps {
   theme: 'dark' | 'light'
@@ -54,7 +54,7 @@ export default function ReservationTab({ theme, orgId, serverToday }: Reservatio
       const resTableId = r.table?.id || r.tableId
       return (resTableId === tableId || String(resTableId) === String(tableId)) && !terminalStatuses.includes(r.status)
     })
-    if (tableRes.length === 0) return 'available'
+    if (tableRes.length === 0) return { status: 'available' as string, nextTime: null as string | null }
 
     const now = new Date()
     const currentH = now.getHours()
@@ -62,8 +62,8 @@ export default function ReservationTab({ theme, orgId, serverToday }: Reservatio
     const currentTotalM = currentH * 60 + currentM
 
     for (const res of tableRes) {
-      if (res.status === 'seated') return 'seated'
-      if (res.status === 'arriving') return 'arriving'
+      if (res.status === 'seated') return { status: 'seated', nextTime: null }
+      if (res.status === 'arriving') return { status: 'arriving', nextTime: res.startTime?.slice(0, 5) || null }
       if (!res.startTime) continue
 
       const [startH, startM] = res.startTime.split(':').map(Number)
@@ -73,20 +73,47 @@ export default function ReservationTab({ theme, orgId, serverToday }: Reservatio
       const endTotalM = startTotalM + duration
 
       if (currentTotalM >= startTotalM && currentTotalM <= endTotalM) {
-        return 'seated' // They should be seated by now
+        return { status: 'seated', nextTime: null } // They should be seated by now
       } else if (startTotalM > currentTotalM && startTotalM - currentTotalM <= 60) {
-        return 'arriving'
+        return { status: 'arriving', nextTime: res.startTime?.slice(0, 5) || null }
+      } else if (startTotalM > currentTotalM && startTotalM - currentTotalM <= 120) {
+        return { status: 'upcoming', nextTime: res.startTime?.slice(0, 5) || null }
       }
     }
-    return 'available'
+
+    // Has reservations but none imminent — find the next one
+    const futureRes = tableRes
+      .filter(r => {
+        if (!r.startTime) return false
+        const [h, m] = r.startTime.split(':').map(Number)
+        return (h * 60 + m) > currentTotalM
+      })
+      .sort((a: any, b: any) => (a.startTime || '').localeCompare(b.startTime || ''))
+    
+    if (futureRes.length > 0) {
+      return { status: 'upcoming', nextTime: futureRes[0].startTime?.slice(0, 5) || null }
+    }
+
+    return { status: 'available', nextTime: null }
   }
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'arriving': return '#C99C63'
       case 'seated': return '#E05D5D'
+      case 'upcoming': return '#5D8FE0'
       case 'available': return '#59A673'
       default: return '#8b949e'
+    }
+  }
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'arriving': return 'Arriving Soon'
+      case 'seated': return 'Seated'
+      case 'upcoming': return 'Upcoming'
+      case 'available': return 'Available'
+      default: return status
     }
   }
 
@@ -128,7 +155,7 @@ export default function ReservationTab({ theme, orgId, serverToday }: Reservatio
 
   // Calculations for cards
   const tableStatuses = tablesList.map(t => getTableStatus(t.id))
-  const availableCount = tableStatuses.filter(s => s === 'available').length
+  const availableCount = tableStatuses.filter(s => s.status === 'available').length
   const bgColor = isDark ? '#0B1517' : '#f4f6f8'
   const cardBgColor = isDark ? '#161B22' : '#ffffff'
   const textColor = isDark ? '#ffffff' : '#111827'
@@ -137,6 +164,21 @@ export default function ReservationTab({ theme, orgId, serverToday }: Reservatio
 
   return (
     <div style={{ backgroundColor: bgColor, borderRadius: '8px', padding: '24px' }}>
+
+      {/* Legend */}
+      <div style={{ display: 'flex', gap: '20px', marginBottom: '16px', flexWrap: 'wrap' }}>
+        {[
+          { status: 'available', label: 'Available' },
+          { status: 'upcoming', label: 'Upcoming' },
+          { status: 'arriving', label: 'Arriving' },
+          { status: 'seated', label: 'Seated' },
+        ].map(item => (
+          <div key={item.status} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: getStatusColor(item.status) }} />
+            <span style={{ fontSize: '0.8125rem', color: mutedTextColor, fontWeight: 500 }}>{item.label}</span>
+          </div>
+        ))}
+      </div>
 
       {/* Main Container */}
       <div style={{
@@ -187,33 +229,40 @@ export default function ReservationTab({ theme, orgId, serverToday }: Reservatio
             gridTemplateColumns: 'repeat(2, 1fr)',
             gap: '16px'
           }}>
-              {tablesList.map(table => {
-                const status = getTableStatus(table.id)
+              {tablesList.map((table) => {
+                const { status, nextTime } = getTableStatus(table.id)
+                const statusColor = getStatusColor(status)
                 const areaName = table.area?.name || 'Unassigned'
                 return (
                   <div key={table.id} style={{
                     border: `1px solid ${borderColor}`,
+                    borderLeft: `4px solid ${statusColor}`,
                     borderRadius: '8px',
                     padding: '16px',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '12px'
+                    gap: '12px',
+                    transition: 'all 0.2s',
+                    backgroundColor: status !== 'available' 
+                      ? (isDark ? `${statusColor}08` : `${statusColor}06`) 
+                      : 'transparent'
                   }}>
                     <div style={{
-                      width: '10px',
-                      height: '10px',
-                      backgroundColor: getStatusColor(status),
+                      width: '12px',
+                      height: '12px',
+                      backgroundColor: statusColor,
                       borderRadius: '50%',
-                      flexShrink: 0
+                      flexShrink: 0,
+                      boxShadow: status !== 'available' ? `0 0 8px ${statusColor}40` : 'none'
                     }} />
-                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '24px' }}>
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '24px', flexWrap: 'wrap' }}>
                       
                       <h4 style={{ 
                         fontSize: '0.875rem', 
                         fontWeight: 600, 
                         margin: 0, 
                         color: textColor,
-                        width: '60px' // fixed width to align
+                        width: '60px'
                       }}>
                         {table.name}
                       </h4>
@@ -226,6 +275,40 @@ export default function ReservationTab({ theme, orgId, serverToday }: Reservatio
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: mutedTextColor }}>
                         <MapPin size={14} />
                         <span style={{ fontSize: '0.8125rem' }}>{areaName}</span>
+                      </div>
+
+                      {/* Status badge */}
+                      <div style={{ 
+                        marginLeft: 'auto', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '6px',
+                      }}>
+                        {nextTime && (
+                          <div style={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: '4px',
+                            fontSize: '0.75rem',
+                            color: statusColor,
+                            fontWeight: 600,
+                          }}>
+                            <Clock size={12} />
+                            {nextTime}
+                          </div>
+                        )}
+                        <span style={{
+                          fontSize: '0.625rem',
+                          fontWeight: 700,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.04em',
+                          padding: '3px 8px',
+                          borderRadius: '100px',
+                          backgroundColor: isDark ? `${statusColor}20` : `${statusColor}15`,
+                          color: statusColor,
+                        }}>
+                          {getStatusLabel(status)}
+                        </span>
                       </div>
 
                     </div>

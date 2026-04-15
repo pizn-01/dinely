@@ -25,6 +25,12 @@ router.get('/calendar',
   (req, res, next) => reservationController.getCalendarView(req, res, next)
 );
 
+// GET /organizations/:orgId/reservations/monthly-counts?year=2026&month=4
+router.get('/monthly-counts',
+  requireMinRole(UserRole.VIEWER),
+  (req, res, next) => reservationController.getMonthlyReservationCounts(req, res, next)
+);
+
 // GET /organizations/:orgId/reservations/export
 router.get('/export',
   requireMinRole(UserRole.MANAGER),

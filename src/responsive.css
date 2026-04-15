@@ -608,3 +608,112 @@
   }
 }
 
+/* ========================================= */
+/* Section 12: Weekly Hours Schedule         */
+/* ========================================= */
+
+@media (max-width: 768px) {
+  /* Settings weekly hours grid: stack time inputs under day name */
+  .res-form-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+  }
+  /* On smaller Settings forms, make the weekly hours 2-col */
+  .res-form-grid[style*="gridTemplateColumns: '100px"] {
+    grid-template-columns: 80px 1fr 1fr 70px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .res-form-grid {
+    grid-template-columns: 1fr !important;
+    gap: 6px !important;
+  }
+}
+
+/* ========================================= */
+/* Section 13: Calendar Reservation Badges   */
+/* ========================================= */
+
+@media (max-width: 768px) {
+  /* Calendar grid: make cells smaller on mobile */
+  .res-calendar-grid {
+    gap: 4px !important;
+  }
+  .res-calendar-cell {
+    min-height: 50px !important;
+    padding: 4px !important;
+  }
+}
+
+/* ========================================= */
+/* Section 14: Get Started Page              */
+/* ========================================= */
+
+@media (max-width: 768px) {
+  .res-get-started-card {
+    max-width: 100% !important;
+    border-radius: 12px !important;
+  }
+  .res-get-started-tabs button {
+    font-size: 0.8125rem !important;
+    padding: 14px 8px !important;
+    gap: 4px !important;
+  }
+  .res-get-started-body {
+    padding: 24px 20px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .res-get-started-tabs button {
+    font-size: 0.75rem !important;
+    padding: 12px 6px !important;
+  }
+  .res-get-started-body {
+    padding: 20px 16px !important;
+  }
+}
+
+/* ========================================= */
+/* Section 15: SaaS Landing Mobile           */
+/* ========================================= */
+
+@media (max-width: 768px) {
+  .res-saas-nav {
+    padding: 16px 20px !important;
+  }
+  .res-saas-nav-links {
+    display: none !important;
+  }
+  .res-saas-hero {
+    padding: 32px 20px !important;
+    flex-direction: column !important;
+    text-align: center !important;
+  }
+  .res-saas-hero-title {
+    font-size: 2.2rem !important;
+  }
+  .res-saas-cta-btns {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .res-saas-cta-btns a {
+    text-align: center !important;
+  }
+  .res-saas-pricing {
+    grid-template-columns: 1fr !important;
+  }
+  .res-saas-footer {
+    flex-direction: column !important;
+    gap: 12px !important;
+    text-align: center !important;
+    padding: 20px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .res-saas-hero-title {
+    font-size: 1.75rem !important;
+  }
+}

@@ -340,6 +340,56 @@ class EmailService {
       text: `You requested a password reset. Visit this link to set a new password: ${params.resetUrl}`,
     });
   }
+
+  /**
+   * Send a purchase confirmation email with a secure setup link.
+   */
+  async sendPurchaseConfirmation(params: {
+    to: string;
+    restaurantName: string;
+    plan: string;
+    setupUrl: string;
+  }) {
+    const planLabel = params.plan === 'professional' ? 'Professional' : 'Starter';
+    return this.send({
+      to: params.to,
+      subject: `Welcome to Dinely — ${planLabel} Plan Activated 🎉`,
+      html: `
+        <div style="font-family: 'Inter', Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #0B1517; color: #ffffff; padding: 40px; border-radius: 16px;">
+          <div style="text-align: center; margin-bottom: 32px;">
+            <h1 style="font-size: 28px; font-weight: 800; color: #ffffff; margin: 0 0 8px 0;">Welcome to Dinely!</h1>
+            <p style="color: #C99C63; font-size: 16px; font-weight: 600; margin: 0;">${planLabel} Plan — Payment Confirmed</p>
+          </div>
+          
+          <div style="background-color: #101A1C; border: 1px solid rgba(201,156,99,0.2); border-radius: 12px; padding: 24px; margin-bottom: 24px;">
+            <p style="color: #e6edf3; margin: 0 0 8px 0; font-size: 15px;">Hi there,</p>
+            <p style="color: #e6edf3; margin: 0; font-size: 15px; line-height: 1.6;">
+              Your <strong style="color: #C99C63;">${planLabel}</strong> subscription for <strong>${params.restaurantName}</strong> has been activated.
+              Click the button below to complete your restaurant setup.
+            </p>
+          </div>
+
+          <div style="text-align: center; margin-bottom: 24px;">
+            <a href="${params.setupUrl}" style="display: inline-block; padding: 16px 40px; background: linear-gradient(135deg, #C99C63, #B8864F); color: #ffffff; text-decoration: none; border-radius: 10px; font-weight: 700; font-size: 16px; letter-spacing: 0.02em;">
+              Complete Restaurant Setup
+            </a>
+          </div>
+
+          <div style="background-color: #101A1C; border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 16px; margin-bottom: 24px;">
+            <p style="color: #8b949e; font-size: 13px; margin: 0; line-height: 1.5;">
+              ⚠️ This link is <strong>single-use</strong> and expires in 48 hours. Do not share it with anyone. 
+              If you need a new link, please log in to your account or contact support.
+            </p>
+          </div>
+
+          <p style="color: #484f58; font-size: 12px; text-align: center;">
+            If you didn't make this purchase, please contact <a href="mailto:support@dinely.co.uk" style="color: #C99C63;">support@dinely.co.uk</a> immediately.
+          </p>
+        </div>
+      `,
+      text: `Welcome to Dinely! Your ${planLabel} plan for ${params.restaurantName} has been activated. Complete your setup here: ${params.setupUrl} — This link expires in 48 hours.`,
+    });
+  }
 }
 
 export const emailService = new EmailService();

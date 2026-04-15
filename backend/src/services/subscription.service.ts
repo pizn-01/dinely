@@ -1,6 +1,8 @@
 const Stripe = require('stripe');
 import { supabaseAdmin } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
+import { setupTokenService } from './setupToken.service';
+import { emailService } from './email.service';
 
 // Initialize Stripe with the platform secret key
 const stripeKey = process.env.STRIPE_SECRET_KEY || '';
@@ -200,6 +202,34 @@ export class SubscriptionService {
           .eq('id', organizationId);
 
         console.log(`[Webhook] ✅ Subscription created: org=${organizationId} plan=${plan} status=${subscription.status}`);
+
+        // Generate secure setup token and send purchase confirmation email
+        try {
+          const setupToken = await setupTokenService.generateSetupToken(organizationId);
+          const frontendUrl = process.env.FRONTEND_URL || 'https://www.dinely.co.uk';
+          const setupUrl = `${frontendUrl}/setup?token=${setupToken}`;
+
+          // Get org details for the email
+          const { data: orgData } = await supabaseAdmin
+            .from('organizations')
+            .select('name, email')
+            .eq('id', organizationId)
+            .single();
+
+          const emailTo = session.customer_email || orgData?.email;
+          if (emailTo) {
+            await emailService.sendPurchaseConfirmation({
+              to: emailTo,
+              restaurantName: orgData?.name || 'Your Restaurant',
+              plan,
+              setupUrl,
+            });
+            console.log(`[Webhook] 📧 Purchase confirmation email sent to ${emailTo}`);
+          }
+        } catch (tokenErr: any) {
+          console.error('[Webhook] Failed to generate setup token or send email:', tokenErr.message);
+        }
+
         break;
       }
 

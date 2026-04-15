@@ -67,6 +67,7 @@ export class OrganizationService {
     if (dto.setupCompleted !== undefined) updateData.setup_completed = dto.setupCompleted;
     if (dto.logoUrl !== undefined) updateData.logo_url = dto.logoUrl;
     if (dto.vipMembershipFee !== undefined) updateData.vip_membership_fee = dto.vipMembershipFee;
+    if (dto.weeklyHours !== undefined) updateData.weekly_hours = dto.weeklyHours;
 
     const { data, error } = await supabaseAdmin
       .from('organizations')
@@ -266,6 +267,7 @@ export class OrganizationService {
       stripeAccountId: row.stripe_account_id,
       stripeOnboardingComplete: row.stripe_onboarding_complete,
       vipMembershipFee: row.vip_membership_fee,
+      weeklyHours: row.weekly_hours || null,
       isActive: row.is_active,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
