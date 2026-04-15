@@ -12,7 +12,7 @@ export default function GetStarted() {
   const [searchParams] = useSearchParams()
   const selectedPlan = searchParams.get('plan') || 'professional'
   const { login } = useAuth()
-  const [activeTab, setActiveTab] = useState<TabType>('restaurant')
+  const [activeTab, setActiveTab] = useState<TabType>((searchParams.get('tab') as TabType) || 'restaurant')
 
   // ── Restaurant Registration State ──
   const [restaurantForm, setRestaurantForm] = useState({

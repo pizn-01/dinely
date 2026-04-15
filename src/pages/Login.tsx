@@ -265,7 +265,7 @@ export default function Login() {
 
         <p style={{ textAlign: 'center', color: '#8b949e', fontSize: '0.875rem', margin: '24px 0 0 0' }}>
           Don't have an account?{' '}
-          <Link to={`/customer-signup?restaurant=${defaultSlug}`} style={{ color: '#6B9E78', textDecoration: 'none', fontWeight: 500 }}>
+          <Link to="/get-started?tab=user" style={{ color: '#6B9E78', textDecoration: 'none', fontWeight: 500 }}>
             Sign Up
           </Link>
         </p>
