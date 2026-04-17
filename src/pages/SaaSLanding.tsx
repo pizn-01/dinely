@@ -60,7 +60,7 @@ export default function SaaSLanding() {
           <img src={dinelyLogo} alt="Dinely" style={{ height: '28px' }} />
         </div>
         
-        <div className="res-saas-nav-links" style={{ gap: '32px', display: 'none', '@media(min-width: 768px)': { display: 'flex' } } as any}>
+        <div className="res-saas-nav-links" style={{ gap: '32px', display: 'flex' }}>
            <a href="#features" style={{ color: textDark, textDecoration: 'none', fontSize: '0.9rem', fontWeight: 500 }}>Features</a>
            <a href="#how-it-works" style={{ color: textDark, textDecoration: 'none', fontSize: '0.9rem', fontWeight: 500 }}>How it Works</a>
            <a href="#pricing" style={{ color: textDark, textDecoration: 'none', fontSize: '0.9rem', fontWeight: 500 }}>Pricing</a>

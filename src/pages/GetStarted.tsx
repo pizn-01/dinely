@@ -152,7 +152,7 @@ export default function GetStarted() {
     }}>
       {/* Top Left Logo + Back */}
       <div style={{ position: 'fixed', top: '28px', left: '28px', display: 'flex', alignItems: 'center', gap: '16px', zIndex: 50 }}>
-        <Link to="/saas" style={{ color: '#8b949e', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.875rem' }}>
+        <Link to="/" style={{ color: '#8b949e', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.875rem' }}>
           <ArrowLeft size={16} />
           Back
         </Link>
