@@ -66,14 +66,15 @@ export class StaffService {
       throw new AppError('Staff member with this email already exists in this restaurant', 409);
     }
 
-    // Get the restaurant name for the email
+    // Get the restaurant name and slug for the email
     const { data: org } = await supabaseAdmin
       .from('organizations')
-      .select('name')
+      .select('name, slug')
       .eq('id', restaurantId)
       .single();
 
     const restaurantName = org?.name || 'Restaurant';
+    const restaurantSlug = org?.slug || '';
     const staffName = dto.name || dto.email.split('@')[0];
 
     // 2. Create the local staff tracking record
@@ -97,7 +98,7 @@ export class StaffService {
     if (process.env.NODE_ENV === 'production') {
       FRONTEND_URL = process.env.FRONTEND_URL || 'https://www.dinely.co.uk';
     }
-    const inviteToken = staffRecord.id;
+    const inviteToken = restaurantSlug ? `${staffRecord.id}&restaurant=${restaurantSlug}` : staffRecord.id;
     const redirectTo = `${FRONTEND_URL}/accept-invite?token=${inviteToken}`;
 
     // 3. Create or find the Supabase Auth user via generateLink

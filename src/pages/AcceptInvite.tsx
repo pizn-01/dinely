@@ -3,12 +3,14 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
 import { api } from '../services/api'
 import { useAuth } from '../context/AuthContext'
+import dinelyLogo from '../assets/dinely-logo.png'
 
 export default function AcceptInvite() {
   const navigate = useNavigate()
   const { login } = useAuth()
   const [searchParams] = useSearchParams()
   const token = searchParams.get('token')
+  const defaultSlug = searchParams.get('restaurant')
   
   const [form, setForm] = useState({
     name: '',
@@ -18,12 +20,28 @@ export default function AcceptInvite() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [logoUrl, setLogoUrl] = useState('')
 
   useEffect(() => {
     if (!token) {
       setError('Invalid or missing invitation token. Please check your email link.')
     }
   }, [token])
+
+  useEffect(() => {
+    if (!defaultSlug || defaultSlug === 'demo-restaurant') return
+    const fetchRestaurant = async () => {
+      try {
+        const { data } = await api.get(`/public/${defaultSlug}/info`)
+        if (data.data?.logoUrl) {
+          setLogoUrl(data.data.logoUrl)
+        }
+      } catch (err) {
+        console.error('Failed to fetch restaurant info:', err)
+      }
+    }
+    fetchRestaurant()
+  }, [defaultSlug])
 
   const handleChange = (field: string, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }))
@@ -95,14 +113,12 @@ export default function AcceptInvite() {
         top: '32px',
         left: '48px'
       }}>
-        <Link to="/" style={{
-          fontSize: '1.5rem',
-          fontWeight: 700,
-          color: '#111827',
-          textDecoration: 'none',
-          letterSpacing: '-0.02em',
-        }}>
-          Logo
+        <Link to="/" style={{ textDecoration: 'none' }}>
+        {logoUrl ? (
+          <img src={logoUrl} alt="Logo" style={{ height: '32px', objectFit: 'contain' }} />
+        ) : (
+          <img src={dinelyLogo} alt="Dinely" style={{ height: '32px', objectFit: 'contain' }} />
+        )}
         </Link>
       </div>
 
@@ -246,7 +262,7 @@ export default function AcceptInvite() {
           marginBottom: 0
         }}>
           Already accepted?{' '}
-          <Link to="/staff-login" style={{
+          <Link to={defaultSlug ? `/staff-login/${defaultSlug}` : "/staff-login"} style={{
             color: '#5E8B6A',
             textDecoration: 'none',
             fontWeight: 600,
