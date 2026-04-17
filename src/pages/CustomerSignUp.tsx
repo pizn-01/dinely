@@ -53,7 +53,11 @@ export default function CustomerSignUp() {
       // Successfully registered, send them to login with the preserved slug
       navigate(`/login?restaurant=${defaultSlug}`)
     } catch (err: any) {
-      setError(err.response?.data?.error || err.response?.data?.message || 'Failed to create account')
+      const errorMessage = err.response?.data?.details?.[0]?.message 
+        || err.response?.data?.error 
+        || err.response?.data?.message 
+        || 'Failed to create account'
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }

@@ -73,7 +73,10 @@ export default function SignUp() {
       // Default: redirect to setup wizard for free tier / fallback
       navigate('/setup')
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to sign up. Please try again.')
+      const errorMessage = err.response?.data?.details?.[0]?.message 
+        || err.response?.data?.error 
+        || 'Failed to sign up. Please try again.'
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }

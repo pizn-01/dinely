@@ -38,8 +38,8 @@ export default function AcceptInvite() {
       return
     }
 
-    if (form.password.length < 6) {
-      setError('Password must be at least 6 characters long.')
+    if (form.password.length < 8) {
+      setError('Password must be at least 8 characters long.')
       return
     }
 
@@ -69,7 +69,10 @@ export default function AcceptInvite() {
       }, 1500)
       
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to accept invitation. The link may have expired or already been used.')
+      const errorMessage = err.response?.data?.details?.[0]?.message 
+        || err.response?.data?.error 
+        || 'Failed to accept invitation. The link may have expired or already been used.'
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }
@@ -213,7 +216,7 @@ export default function AcceptInvite() {
                 </button>
               </div>
               <p style={{ marginTop: '6px', fontSize: '0.75rem', color: '#6b7280' }}>
-                Password must be at least 6 characters.
+                Password must be at least 8 characters.
               </p>
             </div>
 
