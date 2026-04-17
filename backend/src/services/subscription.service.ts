@@ -11,31 +11,45 @@ const stripe = isStripeConfigured
   ? Stripe(stripeKey, { apiVersion: '2025-02-24.acacia' })
   : null;
 
-// Plan → Price ID mapping
-const PLAN_PRICES: Record<string, string> = {
-  starter: process.env.STRIPE_PRICE_STARTER || '',
-  professional: process.env.STRIPE_PRICE_PROFESSIONAL || '',
+// Plan → Price ID mapping (multi-currency: GBP + USD)
+const PLAN_PRICES: Record<string, Record<string, string>> = {
+  starter: {
+    gbp: process.env.STRIPE_PRICE_STARTER_GBP || '',
+    usd: process.env.STRIPE_PRICE_STARTER_USD || process.env.STRIPE_PRICE_STARTER || '',
+  },
+  professional: {
+    gbp: process.env.STRIPE_PRICE_PROFESSIONAL_GBP || '',
+    usd: process.env.STRIPE_PRICE_PROFESSIONAL_USD || process.env.STRIPE_PRICE_PROFESSIONAL || '',
+  },
 };
 
 export class SubscriptionService {
 
   /**
    * Creates a Stripe Checkout Session for a SaaS subscription.
+   * @param currency - 'gbp' or 'usd' (defaults to 'gbp')
    */
   async createCheckoutSession(
     organizationId: string,
     plan: string,
     email: string,
     successUrl: string,
-    cancelUrl: string
+    cancelUrl: string,
+    currency: string = 'gbp'
   ) {
     if (!stripe || !isStripeConfigured) {
       throw new AppError('Stripe is not configured. Please add STRIPE_SECRET_KEY to your environment.', 503);
     }
 
-    const priceId = PLAN_PRICES[plan];
-    if (!priceId) {
+    const planPrices = PLAN_PRICES[plan];
+    if (!planPrices) {
       throw new AppError(`Invalid plan "${plan}". Valid plans: starter, professional.`, 400);
+    }
+
+    const currencyKey = (currency || 'gbp').toLowerCase();
+    const priceId = planPrices[currencyKey] || planPrices['gbp'] || planPrices['usd'];
+    if (!priceId) {
+      throw new AppError(`No price configured for plan "${plan}" in currency "${currencyKey}". Please set STRIPE_PRICE_${plan.toUpperCase()}_${currencyKey.toUpperCase()} in your environment.`, 400);
     }
 
     // Fetch the org to get/create a Stripe customer

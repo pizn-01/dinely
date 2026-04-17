@@ -11,7 +11,7 @@ export class SubscriptionController {
    */
   async createCheckoutSession(req: Request, res: Response, next: NextFunction) {
     try {
-      const { organizationId, plan, email, successUrl, cancelUrl } = req.body;
+      const { organizationId, plan, email, successUrl, cancelUrl, currency } = req.body;
 
       if (!organizationId || !plan || !email) {
         return res.status(400).json({
@@ -32,7 +32,8 @@ export class SubscriptionController {
         plan,
         email,
         finalSuccessUrl,
-        finalCancelUrl
+        finalCancelUrl,
+        currency || 'gbp'
       );
 
       res.json({ success: true, data: result });

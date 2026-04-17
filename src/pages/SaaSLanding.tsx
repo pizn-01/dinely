@@ -21,19 +21,19 @@ function detectCurrency(): CurrencyInfo {
 
     // UK detection: timezone or locale
     if (tz.startsWith('Europe/London') || tz.startsWith('Europe/Belfast') || locale.startsWith('en-GB')) {
-      return { symbol: '£', code: 'GBP', starterPrice: 29, proPrice: 79 };
+      return { symbol: '£', code: 'GBP', starterPrice: 49, proPrice: 79 };
     }
 
     // European detection
     const euroTimezones = ['Europe/Paris', 'Europe/Berlin', 'Europe/Madrid', 'Europe/Rome', 'Europe/Amsterdam', 'Europe/Brussels', 'Europe/Vienna', 'Europe/Lisbon', 'Europe/Dublin', 'Europe/Helsinki', 'Europe/Athens', 'Europe/Warsaw', 'Europe/Prague', 'Europe/Budapest', 'Europe/Bucharest', 'Europe/Stockholm', 'Europe/Oslo', 'Europe/Copenhagen'];
     if (euroTimezones.some(t => tz.startsWith(t)) || locale.match(/^(de|fr|es|it|nl|pt|el|pl|cs|hu|ro|sv|da|fi|no)/)) {
-      return { symbol: '€', code: 'EUR', starterPrice: 29, proPrice: 79 };
+      return { symbol: '€', code: 'EUR', starterPrice: 49, proPrice: 79 };
     }
 
     // Default: USD
-    return { symbol: '$', code: 'USD', starterPrice: 29, proPrice: 79 };
+    return { symbol: '$', code: 'USD', starterPrice: 49, proPrice: 79 };
   } catch {
-    return { symbol: '£', code: 'GBP', starterPrice: 29, proPrice: 79 };
+    return { symbol: '£', code: 'GBP', starterPrice: 49, proPrice: 79 };
   }
 }
 

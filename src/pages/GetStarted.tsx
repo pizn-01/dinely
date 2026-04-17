@@ -61,11 +61,22 @@ export default function GetStarted() {
 
       // Start Stripe checkout for the selected plan
       if (selectedPlan && restaurant?.id) {
+        // Detect currency from user's timezone/locale
+        let detectedCurrency = 'gbp';
+        try {
+          const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+          const locale = navigator.language || '';
+          if (tz.startsWith('America/') || locale.startsWith('en-US')) {
+            detectedCurrency = 'usd';
+          }
+        } catch {}
+
         try {
           const checkoutRes = await api.post('/subscriptions/checkout', {
             organizationId: restaurant.id,
             plan: selectedPlan,
             email: restaurantForm.email,
+            currency: detectedCurrency,
           })
           if (checkoutRes.data.data?.url) {
             window.location.href = checkoutRes.data.data.url
