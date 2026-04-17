@@ -25,7 +25,7 @@ export class SubscriptionController {
         origin = process.env.FRONTEND_URL || 'https://www.dinely.co.uk';
       }
       const finalSuccessUrl = successUrl || `${origin}/subscription-success?session_id={CHECKOUT_SESSION_ID}`;
-      const finalCancelUrl = cancelUrl || `${origin}/signup?plan=${plan}&cancelled=true`;
+      const finalCancelUrl = cancelUrl || `${origin}/get-started?payment_cancelled=true`;
 
       const result = await subscriptionService.createCheckoutSession(
         organizationId,

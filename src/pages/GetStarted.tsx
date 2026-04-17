@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Eye, EyeOff, Building2, User, ArrowLeft } from 'lucide-react'
 import { api } from '../services/api'
@@ -11,7 +11,7 @@ export default function GetStarted() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const selectedPlan = searchParams.get('plan') || 'professional'
-  const { login } = useAuth()
+  const { login, logout } = useAuth()
   const [activeTab, setActiveTab] = useState<TabType>((searchParams.get('tab') as TabType) || 'restaurant')
 
   // ── Restaurant Registration State ──
@@ -27,6 +27,14 @@ export default function GetStarted() {
   const [showRestaurantPassword, setShowRestaurantPassword] = useState(false)
   const [restaurantError, setRestaurantError] = useState('')
   const [restaurantLoading, setRestaurantLoading] = useState(false)
+
+  // Handle cancelled payments from Stripe
+  useEffect(() => {
+    if (searchParams.get('payment_cancelled') === 'true') {
+      logout()
+      setRestaurantError('Payment was cancelled. Your account details were saved. Please log in to complete your subscription and setup.')
+    }
+  }, [searchParams, logout])
 
   // ── User Signup State ──
   const [userForm, setUserForm] = useState({
