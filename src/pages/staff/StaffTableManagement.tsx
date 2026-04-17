@@ -103,31 +103,40 @@ export default function StaffTableManagement() {
     }
   }, [user, selectedDate, restaurantId])
 
-  // Auto-poll every 5 seconds to keep the system updated
+  const fetchMonthlyCounts = useCallback(async () => {
+    if (!restaurantId) return
+    const year = calendarMonth.getFullYear()
+    const month = calendarMonth.getMonth() + 1
+    try {
+      const res = await api.get(`/organizations/${restaurantId}/reservations/monthly-counts?year=${year}&month=${month}`)
+      if (res.data?.data) setMonthlyResCounts(res.data.data)
+    } catch (err) {
+      console.error('Failed to fetch monthly counts:', err)
+    }
+  }, [restaurantId, calendarMonth])
+
+  // Auto-poll every 15 seconds to keep the system updated
   useEffect(() => {
     if (!restaurantId) return
     const interval = setInterval(() => {
       fetchData(selectedDate, restaurantId)
+      fetchMonthlyCounts()
     }, 15_000)
     return () => clearInterval(interval)
-  }, [selectedDate, restaurantId, fetchData])
+  }, [selectedDate, restaurantId, fetchData, fetchMonthlyCounts])
 
   // Real-time sync: instant refresh on any reservation event
   useRealtimeReservations(restaurantId, useCallback(() => {
-    if (restaurantId) fetchData(selectedDate, restaurantId)
-  }, [restaurantId, selectedDate, fetchData]))
+    if (restaurantId) {
+      fetchData(selectedDate, restaurantId)
+      fetchMonthlyCounts()
+    }
+  }, [restaurantId, selectedDate, fetchData, fetchMonthlyCounts]))
 
-  // Fetch monthly reservation counts for the calendar view
+  // Fetch monthly reservation counts for the calendar view when month changes
   useEffect(() => {
-    if (!restaurantId) return
-    const year = calendarMonth.getFullYear()
-    const month = calendarMonth.getMonth() + 1
-    api.get(`/organizations/${restaurantId}/reservations/monthly-counts?year=${year}&month=${month}`)
-      .then(res => {
-        if (res.data?.data) setMonthlyResCounts(res.data.data)
-      })
-      .catch(err => console.error('Failed to fetch monthly counts:', err))
-  }, [restaurantId, calendarMonth])
+    fetchMonthlyCounts()
+  }, [fetchMonthlyCounts])
 
   // Redirect if not logged in
   const navigate = useNavigate()
@@ -966,13 +975,15 @@ export default function StaffTableManagement() {
               </div>
             )}
 
-            {selectedBooking && !selectedTable && ( // Fallback for Unassigned reservations panel
+            {selectedBooking && (!selectedTable || selectedTable.id !== (selectedBooking.table?.id || selectedBooking.tableId)) && ( // Single Booking Focus Modal
               <div style={{ backgroundColor: 'var(--bg-tertiary)', borderRadius: '24px', padding: '24px', marginBottom: '32px', border: `1px solid var(--border-primary)` }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                   <span style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary)' }}>{selectedBooking.guestFirstName} {selectedBooking.guestLastName}</span>
                   <span style={{ color: '#C99C63', fontWeight: 800 }}>{selectedBooking.startTime?.slice(0, 5)}</span>
                 </div>
-                <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.875rem' }}>{selectedBooking.partySize} Person • Unassigned</p>
+                <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+                  {selectedBooking.partySize} Guests • {selectedBooking.table?.name || selectedBooking.table?.tableNumber ? `Table ${selectedBooking.table.name || selectedBooking.table.tableNumber}` : 'Unassigned'}
+                </p>
                 
                 {/* Table Re-assignment */}
                 <div style={{ marginTop: '16px', padding: '16px', backgroundColor: 'var(--bg-secondary)', borderRadius: '12px', border: '1px solid var(--border-secondary)' }}>
@@ -982,7 +993,7 @@ export default function StaffTableManagement() {
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <select
                       id="reassign-table-select"
-                      defaultValue=""
+                      defaultValue={selectedBooking.table?.id || selectedBooking.tableId || ""}
                       style={{
                         flex: 1,
                         padding: '10px 14px',

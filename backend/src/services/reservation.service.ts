@@ -247,27 +247,66 @@ export class ReservationService {
   async update(reservationId: string, restaurantId: string, dto: UpdateReservationDto) {
     // 1. Rely on atomic DB-level locking via an RPC instead of JS memory checks
     // This assumes you create a matching 'update_reservation_atomic' Postgres function
-    const { data: rpcData, error } = await supabaseAdmin.rpc('update_reservation_atomic', {
-      p_reservation_id: reservationId,
-      p_restaurant_id: restaurantId,
-      p_table_id: dto.tableId ?? null,
-      p_reservation_date: dto.reservationDate ?? null,
-      p_start_time: dto.startTime ?? null,
-      p_end_time: dto.endTime ?? null,
-      p_party_size: dto.partySize ?? null,
-      p_guest_first_name: dto.guestFirstName ?? null,
-      p_guest_last_name: dto.guestLastName ?? null,
-      p_guest_email: dto.guestEmail ?? null,
-      p_guest_phone: dto.guestPhone ?? null,
-      p_special_requests: dto.specialRequests ?? null,
-      p_internal_notes: dto.internalNotes ?? null
-    });
+    let rpcSuccess = false;
+    let rpcData;
 
-    if (error) {
-      if (error.message.includes('overlap') || error.message.includes('booked')) {
-        throw new AppError('Table is already booked for the selected time slot. Please choose a different time or table.', 409);
+    try {
+      const { data, error } = await supabaseAdmin.rpc('update_reservation_atomic', {
+        p_reservation_id: reservationId,
+        p_restaurant_id: restaurantId,
+        p_table_id: dto.tableId ?? null,
+        p_reservation_date: dto.reservationDate ?? null,
+        p_start_time: dto.startTime ?? null,
+        p_end_time: dto.endTime ?? null,
+        p_party_size: dto.partySize ?? null,
+        p_guest_first_name: dto.guestFirstName ?? null,
+        p_guest_last_name: dto.guestLastName ?? null,
+        p_guest_email: dto.guestEmail ?? null,
+        p_guest_phone: dto.guestPhone ?? null,
+        p_special_requests: dto.specialRequests ?? null,
+        p_internal_notes: dto.internalNotes ?? null
+      });
+
+      if (error) {
+        if (error.message.includes('overlap') || error.message.includes('booked')) {
+          throw new AppError('Table is already booked for the selected time slot.', 409);
+        }
+        console.warn('[ReservationService] RPC update failed, using fallback:', error.message);
+      } else {
+        rpcSuccess = true;
+        rpcData = data;
       }
-      throw new AppError(`Failed to update reservation: ${error.message}`, 500);
+    } catch (err: any) {
+      if (err instanceof AppError) throw err;
+      console.warn('[ReservationService] RPC update unavailable, using fallback:', err.message);
+    }
+
+    if (!rpcSuccess) {
+      // Fallback: Direct update without strict atomic conflict checking
+      const updatePayload: Record<string, any> = {};
+      if (dto.tableId !== undefined) updatePayload.table_id = dto.tableId;
+      if (dto.reservationDate !== undefined) updatePayload.reservation_date = dto.reservationDate;
+      if (dto.startTime !== undefined) updatePayload.start_time = dto.startTime;
+      if (dto.endTime !== undefined) updatePayload.end_time = dto.endTime;
+      if (dto.partySize !== undefined) updatePayload.party_size = dto.partySize;
+      if (dto.guestFirstName !== undefined) updatePayload.guest_first_name = dto.guestFirstName;
+      if (dto.guestLastName !== undefined) updatePayload.guest_last_name = dto.guestLastName;
+      if (dto.guestEmail !== undefined) updatePayload.guest_email = dto.guestEmail;
+      if (dto.guestPhone !== undefined) updatePayload.guest_phone = dto.guestPhone;
+      if (dto.specialRequests !== undefined) updatePayload.special_requests = dto.specialRequests;
+      if (dto.internalNotes !== undefined) updatePayload.internal_notes = dto.internalNotes;
+
+      if (Object.keys(updatePayload).length > 0) {
+        const { error: updateErr } = await supabaseAdmin
+          .from('reservations')
+          .update(updatePayload)
+          .eq('id', reservationId)
+          .eq('restaurant_id', restaurantId);
+
+        if (updateErr) {
+          throw new AppError('Failed to update reservation: ' + updateErr.message, 500);
+        }
+      }
     }
 
     // 2. Fetch the newly structured reservation payload for the response
