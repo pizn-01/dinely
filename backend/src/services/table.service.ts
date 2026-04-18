@@ -110,7 +110,49 @@ export class TableService {
   }
 
   async createTable(restaurantId: string, dto: CreateTableDto) {
-    // ── Uniqueness check: table_number ──────────────────
+    // ── Check for soft-deleted record with same table_number ──
+    // DB-level constraint covers ALL records (active + inactive), so we must
+    // reactivate the old record instead of inserting a new one.
+    const { data: deletedByNumber } = await supabaseAdmin
+      .from('tables')
+      .select('id')
+      .eq('restaurant_id', restaurantId)
+      .eq('table_number', dto.tableNumber)
+      .eq('is_active', false)
+      .maybeSingle();
+
+    if (deletedByNumber) {
+      // Reactivate the soft-deleted record with the new data
+      const tableName = dto.name || `Table ${dto.tableNumber}`;
+      const { data: reactivated, error: reactivateErr } = await supabaseAdmin
+        .from('tables')
+        .update({
+          name: tableName,
+          capacity: dto.capacity,
+          min_capacity: dto.minCapacity || 1,
+          area_id: dto.areaId || null,
+          shape: dto.shape || 'rectangle',
+          type: dto.type || null,
+          is_mergeable: dto.isMergeable || false,
+          is_premium: dto.isPremium || false,
+          premium_price: dto.premiumPrice || null,
+          position_x: dto.positionX || null,
+          position_y: dto.positionY || null,
+          is_active: true,
+          is_merged: false,
+          parent_table_id: null,
+          merged_table_ids: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', deletedByNumber.id)
+        .select('*, floor_areas(id, name)')
+        .single();
+
+      if (reactivateErr) throw new AppError(`Failed to reactivate table: ${reactivateErr.message}`, 500);
+      return this.formatTable(reactivated);
+    }
+
+    // ── Uniqueness check: table_number (active only) ──────────────────
     const { data: existingByNumber } = await supabaseAdmin
       .from('tables')
       .select('id, name')

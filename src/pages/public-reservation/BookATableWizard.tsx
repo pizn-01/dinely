@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import PoweredByFooter from '../../components/PoweredByFooter'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { api } from '../../services/api'
@@ -47,7 +47,12 @@ const initialData: ReservationData = {
 export default function BookATableWizard() {
   const navigate = useNavigate()
   const location = useLocation()
+  const searchParams = new URLSearchParams(window.location.search)
+  const restaurantSlug = searchParams.get('restaurant') || 'default-restaurant'
+  const returnUrl = searchParams.get('return_url') || searchParams.get('origin')
+
   const [currentStep, setCurrentStep] = useState(1)
+  const [orgData, setOrgData] = useState<any>(null)
   const [data, setData] = useState<ReservationData>(() => {
     if (location.state) {
       return {
@@ -61,6 +66,15 @@ export default function BookATableWizard() {
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Fetch restaurant info for logo and name
+  useEffect(() => {
+    if (restaurantSlug && restaurantSlug !== 'default-restaurant') {
+      api.get(`/public/${restaurantSlug}/info`)
+        .then(res => { if (res.data?.data) setOrgData(res.data.data) })
+        .catch(() => {})
+    }
+  }, [restaurantSlug])
 
   const updateData = useCallback((updates: Partial<ReservationData>) => {
     setData((prev) => ({ ...prev, ...updates }))
@@ -117,9 +131,7 @@ export default function BookATableWizard() {
     }
   }
 
-  const searchParams = new URLSearchParams(window.location.search)
-  const restaurantSlug = searchParams.get('restaurant') || 'default-restaurant'
-  const returnUrl = searchParams.get('return_url') || searchParams.get('origin')
+  // searchParams, restaurantSlug, returnUrl declared at top of component
   const percentage = Math.round((currentStep / TOTAL_STEPS) * 100)
 
   const renderStep = () => {
@@ -152,14 +164,18 @@ export default function BookATableWizard() {
       {/* Header */}
       <div style={{ textAlign: 'center', paddingTop: '40px', paddingBottom: '24px', paddingLeft: '16px', paddingRight: '16px' }}>
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
-          <div style={{ width: '56px', height: '56px', borderRadius: '9999px', backgroundColor: 'rgba(94, 139, 106, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ color: '#6B9E78' }}>
-              <path d="M6 13.87A4 4 0 0 1 7.41 6a5.11 5.11 0 0 1 1.05-1.54 5 5 0 0 1 7.08 0A5.11 5.11 0 0 1 16.59 6 4 4 0 0 1 18 13.87V21H6Z" />
-              <line x1="6" y1="17" x2="18" y2="17" />
-            </svg>
-          </div>
+          {orgData?.logoUrl ? (
+            <img src={orgData.logoUrl} alt={orgData.name || 'Restaurant'} style={{ height: '56px', maxWidth: '200px', objectFit: 'contain' }} />
+          ) : (
+            <div style={{ width: '56px', height: '56px', borderRadius: '9999px', backgroundColor: 'rgba(94, 139, 106, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ color: '#6B9E78' }}>
+                <path d="M6 13.87A4 4 0 0 1 7.41 6a5.11 5.11 0 0 1 1.05-1.54 5 5 0 0 1 7.08 0A5.11 5.11 0 0 1 16.59 6 4 4 0 0 1 18 13.87V21H6Z" />
+                <line x1="6" y1="17" x2="18" y2="17" />
+              </svg>
+            </div>
+          )}
         </div>
-        <h1 style={{ fontSize: '1.75rem', fontWeight: 700, color: '#ffffff', margin: 0 }}>Table Reservation</h1>
+        <h1 style={{ fontSize: '1.75rem', fontWeight: 700, color: '#ffffff', margin: 0 }}>{orgData?.name ? `${orgData.name} — Reservation` : 'Table Reservation'}</h1>
         <p style={{ color: '#8b949e', fontSize: '0.875rem', marginTop: '4px' }}>
           Book your perfect dining experience in just a few steps.
         </p>

@@ -380,10 +380,11 @@ export default function TablesManagementTab({ theme, orgId }: TablesManagementTa
               <div>
                 <label style={labelStyle}>Capacity *</label>
                 <input
-                  type="number"
-                  min={1}
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   value={form.capacity}
-                  onChange={(e) => setForm({ ...form, capacity: parseInt(e.target.value) || 1 })}
+                  onChange={(e) => setForm({ ...form, capacity: parseInt(e.target.value.replace(/[^0-9]/g, '')) || 1 })}
                   style={inputStyle}
                 />
               </div>

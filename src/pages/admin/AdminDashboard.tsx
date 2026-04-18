@@ -91,7 +91,7 @@ export default function AdminDashboard() {
         flexDirection: 'column',
         gap: '16px'
       }}>
-        <Navbar variant="admin" />
+        <Navbar variant="admin" userName={user?.name} userEmail={user?.email} userRole={user?.role} />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
           <h2>Access Denied</h2>
           <p>You must be logged in with a restaurant account to access the admin dashboard.</p>
@@ -108,7 +108,7 @@ export default function AdminDashboard() {
       fontFamily: 'var(--font-sans)',
       transition: 'background-color 0.3s ease'
     }}>
-      <Navbar variant="admin" logoUrl={orgData?.logoUrl} />
+      <Navbar variant="admin" logoUrl={orgData?.logoUrl} userName={user?.name} userEmail={user?.email} userRole={user?.role} />
 
       <div className="res-admin-container" style={{ padding: '32px 48px' }}>
         {/* Stats Cards */}

@@ -5,8 +5,10 @@ import { requireMinRole, requireRestaurantAccess } from '../middleware/rbac';
 import { validate } from '../middleware/validator';
 import { createReservationSchema, updateReservationSchema, updateReservationStatusSchema, reservationFilterSchema, updateTotalAmountSchema, tableReportFilterSchema } from '../validators/reservation.validator';
 import { UserRole } from '../types/enums';
+import multer from 'multer';
 
 const router = Router({ mergeParams: true });
+const upload = multer({ storage: multer.memoryStorage() });
 
 // All routes require authentication
 router.use(authenticate);
@@ -82,6 +84,13 @@ router.get('/reports/table-revenue',
   requireMinRole(UserRole.VIEWER),
   validate(tableReportFilterSchema, 'query'),
   (req, res, next) => reservationController.getTableRevenueReport(req, res, next)
+);
+
+// POST /organizations/:orgId/reservations/import — Bulk CSV import
+router.post('/import',
+  requireMinRole(UserRole.HOST),
+  upload.single('file'),
+  (req, res, next) => reservationController.importCsv(req, res, next)
 );
 
 export default router;

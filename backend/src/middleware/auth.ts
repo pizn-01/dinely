@@ -11,6 +11,10 @@ import { supabaseAdmin } from '../config/database';
 // replace with Redis or a Supabase table.
 const revokedTokens = new Set<string>();
 
+// ─── Last Active Tracking (throttled) ───────────────────
+const lastActiveThrottle = new Map<string, number>();
+const LAST_ACTIVE_THROTTLE_MS = 5 * 60 * 1000; // 5 minutes
+
 /**
  * Add a token's jti to the revocation set.
  * Called on explicit logout to invalidate the token server-side.
@@ -62,6 +66,26 @@ export const authenticate = async (
 
     req.user = decoded;
     next();
+
+    // ── Non-blocking: update staff last_active_at (throttled to once per 5 min per user) ──
+    if (decoded.sub && decoded.restaurantId) {
+      const now = Date.now();
+      const lastUpdate = lastActiveThrottle.get(decoded.sub) || 0;
+      if (now - lastUpdate > LAST_ACTIVE_THROTTLE_MS) {
+        lastActiveThrottle.set(decoded.sub, now);
+        (async () => {
+          try {
+            await supabaseAdmin
+              .from('staff_members')
+              .update({ last_active_at: new Date().toISOString() })
+              .eq('user_id', decoded.sub!)
+              .eq('restaurant_id', decoded.restaurantId!);
+          } catch (err: any) {
+            console.error('[Auth] last_active_at update failed:', err.message);
+          }
+        })();
+      }
+    }
   } catch (error: any) {
     if (error.name === 'TokenExpiredError') {
       res.status(401).json({

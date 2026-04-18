@@ -1,10 +1,20 @@
+import { useState, useEffect } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { LogIn, User, ArrowRight, Star } from 'lucide-react'
 import mainBg from '../assets/main-bg.png'
 import dinelyLogo from '../assets/dinely-logo.png'
+import { api } from '../services/api'
 
 export default function UnifiedLanding() {
   const { slug } = useParams()
+  const [orgData, setOrgData] = useState<any>(null)
+
+  useEffect(() => {
+    if (!slug) return
+    api.get(`/public/${slug}/info`)
+      .then(res => { if (res.data?.data) setOrgData(res.data.data) })
+      .catch(() => {}) // Silently fail — fallback to Dinely branding
+  }, [slug])
   
   // Construct dynamic links based on whether a slug was provided
   const guestLink = slug ? `/book-a-table?restaurant=${slug}` : '/book-a-table'
@@ -47,7 +57,7 @@ export default function UnifiedLanding() {
 
       {/* Navbar */}
       <nav className="res-unified-nav" style={{ padding: '32px 48px', position: 'relative', zIndex: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <img src={dinelyLogo} alt="Dinely" style={{ height: '36px', objectFit: 'contain' }} />
+        <img src={orgData?.logoUrl || dinelyLogo} alt={orgData?.name || 'Dinely'} style={{ height: '36px', objectFit: 'contain' }} />
         <div className="res-unified-nav-btns" style={{ display: 'flex', gap: '16px' }}>
           <Link to={loginLink} style={{ color: '#8b949e', textDecoration: 'none', fontSize: '0.875rem', fontWeight: 500, padding: '8px 16px', borderRadius: '8px', transition: 'all 0.2s' }}>
             Staff Login
@@ -117,7 +127,7 @@ export default function UnifiedLanding() {
       
       {/* Footer */}
       <div style={{ padding: '24px', textAlign: 'center', fontSize: '0.875rem', color: '#6b7280', position: 'relative', zIndex: 10 }}>
-        © {new Date().getFullYear()} Dinely. All rights reserved.
+        © {new Date().getFullYear()} {orgData?.name || 'Dinely'}. All rights reserved.
       </div>
     </div>
   )

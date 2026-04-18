@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Users, MapPin, Coffee, Settings, LogOut, ChevronLeft, ChevronRight, Upload, Plus, Calendar, Clock, Layout, Moon, Sun } from 'lucide-react'
+import { Users, MapPin, Coffee, ChevronLeft, ChevronRight, Upload, Plus, Calendar, Clock, Layout, Moon, Sun, CircleUser, LogOut, KeyRound } from 'lucide-react'
 import { api } from '../../services/api'
 import { toast } from 'react-hot-toast'
 import { useAuth } from '../../context/AuthContext'
@@ -52,6 +52,14 @@ export default function StaffTableManagement() {
   const [selectedBooking, setSelectedBooking] = useState<any>(null)
   const [selectedTable, setSelectedTable] = useState<any>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [showAccountDropdown, setShowAccountDropdown] = useState(false)
+  const accountRef = useRef<HTMLDivElement>(null)
+
+  // CSV Import state
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [importFile, setImportFile] = useState<File | null>(null)
+  const [importing, setImporting] = useState(false)
+  const [importResult, setImportResult] = useState<{ imported: number; failed: number; total: number; errors: Array<{ row: number; error: string }> } | null>(null)
   const [newRes, setNewRes] = useState({
     date: new Date().toISOString().split('T')[0],
     time: '18:30',
@@ -145,6 +153,17 @@ export default function StaffTableManagement() {
       navigate('/')
     }
   }, [user, loading, navigate])
+
+  // Close account dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (accountRef.current && !accountRef.current.contains(event.target as Node)) {
+        setShowAccountDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const dayTabs = useMemo(() => {
     const tabs = []
@@ -309,6 +328,25 @@ export default function StaffTableManagement() {
             <input type="file" accept=".csv" onChange={handleFileUpload} hidden />
           </label>
           <button 
+            onClick={() => { setShowImportModal(true); setImportFile(null); setImportResult(null) }}
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '8px',
+              padding: '10px 16px', 
+              border: `1px solid var(--border-primary)`, 
+              borderRadius: '12px', 
+              cursor: 'pointer',
+              fontSize: '0.875rem',
+              fontWeight: 600,
+              color: 'var(--text-secondary)',
+              backgroundColor: 'var(--bg-card)',
+              transition: 'all 0.2s'
+            }}>
+            <Calendar size={18} />
+            Import Reservations
+          </button>
+          <button 
             onClick={() => setShowCreateModal(true)}
             style={{ 
               backgroundColor: isDark ? '#C99C63' : '#111827', 
@@ -328,11 +366,101 @@ export default function StaffTableManagement() {
             Create Reservation
           </button>
           <div style={{ width: '1px', height: '24px', backgroundColor: 'var(--header-border)', margin: '0 8px' }} />
-          <button onClick={toggleTheme} title="Toggle Theme" style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '8px' }}>
-            {isDark ? <Sun size={20} /> : <Moon size={20} />}
-          </button>
-          <button style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '8px' }}><Settings size={20} /></button>
-          <button onClick={logout} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '8px' }}><LogOut size={20} /></button>
+          {/* Account Dropdown */}
+          {(() => {
+            const displayName = user?.name || user?.email?.split('@')[0] || 'User'
+            const displayEmail = user?.email || ''
+            const displayRole = user?.role || 'viewer'
+            const roleLabels: Record<string, { label: string; color: string; bg: string }> = {
+              admin: { label: 'Admin', color: '#C99C63', bg: 'rgba(201,156,99,0.15)' },
+              restaurant_admin: { label: 'Admin', color: '#C99C63', bg: 'rgba(201,156,99,0.15)' },
+              manager: { label: 'Manager', color: '#6B9E78', bg: 'rgba(107,158,120,0.15)' },
+              host: { label: 'Host', color: '#38bdf8', bg: 'rgba(56,189,248,0.15)' },
+              viewer: { label: 'Viewer', color: '#8b949e', bg: 'rgba(139,148,158,0.15)' },
+            }
+            const r = roleLabels[displayRole] || roleLabels['viewer']
+            return (
+              <div style={{ position: 'relative' }} ref={accountRef}>
+                <button
+                  id="staff-account-menu-trigger"
+                  onClick={() => setShowAccountDropdown(!showAccountDropdown)}
+                  style={{
+                    padding: '6px',
+                    color: showAccountDropdown ? '#C99C63' : 'var(--text-secondary)',
+                    background: showAccountDropdown ? 'rgba(201,156,99,0.1)' : 'none',
+                    border: showAccountDropdown ? '1px solid rgba(201,156,99,0.3)' : '1px solid transparent',
+                    borderRadius: '50%',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  <CircleUser size={26} />
+                </button>
+                {showAccountDropdown && (
+                  <div style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 10px)',
+                    right: 0,
+                    backgroundColor: isDark ? '#161B22' : '#ffffff',
+                    border: `1px solid ${isDark ? '#30363d' : '#e5e7eb'}`,
+                    borderRadius: '12px',
+                    padding: '6px',
+                    minWidth: '260px',
+                    boxShadow: isDark ? '0 8px 24px rgba(0,0,0,0.4)' : '0 8px 24px rgba(0,0,0,0.12)',
+                    zIndex: 100,
+                    animation: 'fadeInUp 0.15s ease-out',
+                  }}>
+                    {/* User Info */}
+                    <div style={{ padding: '14px', borderBottom: `1px solid ${isDark ? '#30363d' : '#e5e7eb'}`, marginBottom: '4px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'linear-gradient(135deg, #C99C63, #b58b57)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: '1rem', flexShrink: 0 }}>
+                          {displayName.charAt(0).toUpperCase()}
+                        </div>
+                        <div style={{ overflow: 'hidden' }}>
+                          <div style={{ fontWeight: 600, fontSize: '0.9rem', color: isDark ? '#fff' : '#1f2937', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{displayName}</div>
+                          <div style={{ fontSize: '0.8rem', color: isDark ? '#8b949e' : '#6b7280', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: '2px' }}>{displayEmail}</div>
+                          <div style={{ marginTop: '6px' }}>
+                            <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 600, color: r.color, backgroundColor: r.bg, textTransform: 'uppercase' as const, letterSpacing: '0.05em' }}>{r.label}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    {/* Menu Items */}
+                    <button
+                      onClick={() => { toggleTheme(); setShowAccountDropdown(false) }}
+                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', background: 'none', border: 'none', borderRadius: '6px', color: isDark ? '#e6edf3' : '#1f2937', fontSize: '0.875rem', cursor: 'pointer', textAlign: 'left' as const, transition: 'background-color 0.15s' }}
+                      onMouseOver={(e) => e.currentTarget.style.backgroundColor = isDark ? '#30363d' : '#f3f4f6'}
+                      onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                    >
+                      {isDark ? <Sun size={16} /> : <Moon size={16} />}
+                      {isDark ? 'Light Mode' : 'Dark Mode'}
+                    </button>
+                    <button
+                      onClick={() => { setShowAccountDropdown(false); navigate('/staff-forgot-password') }}
+                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', background: 'none', border: 'none', borderRadius: '6px', color: isDark ? '#e6edf3' : '#1f2937', fontSize: '0.875rem', cursor: 'pointer', textAlign: 'left' as const, transition: 'background-color 0.15s' }}
+                      onMouseOver={(e) => e.currentTarget.style.backgroundColor = isDark ? '#30363d' : '#f3f4f6'}
+                      onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                    >
+                      <KeyRound size={16} />
+                      Reset Password
+                    </button>
+                    <div style={{ height: '1px', backgroundColor: isDark ? '#30363d' : '#e5e7eb', margin: '4px 0' }} />
+                    <button
+                      onClick={() => { setShowAccountDropdown(false); logout(); navigate('/') }}
+                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', background: 'none', border: 'none', borderRadius: '6px', color: '#ef4444', fontSize: '0.875rem', cursor: 'pointer', textAlign: 'left' as const, transition: 'background-color 0.15s' }}
+                      onMouseOver={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(239,68,68,0.1)' : 'rgba(239,68,68,0.05)'}
+                      onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                    >
+                      <LogOut size={16} />
+                      Sign Out
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
         </div>
       </header>
 
@@ -1078,6 +1206,257 @@ export default function StaffTableManagement() {
           }}
         />
       )}
+
+      {/* CSV Import Modal */}
+      {showImportModal && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: '16px' }}>
+          <div style={{
+            backgroundColor: isDark ? '#101A1C' : '#ffffff',
+            border: `1px solid ${isDark ? '#30363d' : '#e5e7eb'}`,
+            borderRadius: '16px',
+            padding: '32px',
+            width: '100%',
+            maxWidth: '560px',
+            maxHeight: '85vh',
+            overflowY: 'auto',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+              <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: isDark ? '#ffffff' : '#111827' }}>
+                Import Reservations
+              </h3>
+              <button
+                onClick={() => setShowImportModal(false)}
+                style={{ background: 'none', border: 'none', color: isDark ? '#8b949e' : '#6b7280', cursor: 'pointer', fontSize: '1.25rem', padding: '4px' }}
+              >✕</button>
+            </div>
+
+            {/* Template Download + Guide */}
+            <div style={{
+              padding: '16px',
+              backgroundColor: isDark ? 'rgba(201,156,99,0.08)' : 'rgba(201,156,99,0.05)',
+              border: `1px solid ${isDark ? 'rgba(201,156,99,0.2)' : 'rgba(201,156,99,0.15)'}`,
+              borderRadius: '12px',
+              marginBottom: '20px',
+            }}>
+              <div style={{ fontWeight: 600, fontSize: '0.875rem', color: '#C99C63', marginBottom: '8px' }}>CSV Template Guide</div>
+              <p style={{ fontSize: '0.8rem', color: isDark ? '#d1d5db' : '#4b5563', margin: '0 0 12px 0', lineHeight: 1.5 }}>
+                Your CSV should have headers in the first row. Required columns: <strong>Date</strong>, <strong>Time</strong>, <strong>First Name</strong>. 
+                Optional: Last Name, Email, Phone, Party Size, Table, Special Requests, Source.
+              </p>
+              <div style={{ fontSize: '0.75rem', color: isDark ? '#8b949e' : '#6b7280', marginBottom: '12px' }}>
+                • Date format: YYYY-MM-DD or DD/MM/YYYY<br/>
+                • Time format: HH:MM (24-hour)<br/>
+                • Table: matches by table name or number
+              </div>
+              <button
+                onClick={() => {
+                  const headers = 'Date,Time,Party Size,First Name,Last Name,Email,Phone,Table,Special Requests,Source'
+                  const row1 = `${new Date(Date.now() + 86400000).toISOString().split('T')[0]},19:00,4,John,Smith,john@example.com,07700900000,Table 1,Window seat preferred,phone`
+                  const row2 = `${new Date(Date.now() + 172800000).toISOString().split('T')[0]},20:30,2,Jane,Doe,jane@example.com,,Table 2,Birthday celebration,website`
+                  const csv = [headers, row1, row2].join('\n')
+                  const blob = new Blob([csv], { type: 'text/csv' })
+                  const url = URL.createObjectURL(blob)
+                  const a = document.createElement('a')
+                  a.href = url
+                  a.download = 'reservation-import-template.csv'
+                  a.click()
+                  URL.revokeObjectURL(url)
+                }}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#C99C63',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontWeight: 600,
+                  fontSize: '0.8rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <Upload size={14} />
+                Download Template
+              </button>
+            </div>
+
+            {/* File Upload Area */}
+            {!importResult && (
+              <div
+                onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = '#C99C63' }}
+                onDragLeave={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = isDark ? '#30363d' : '#d1d5db' }}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  e.currentTarget.style.borderColor = isDark ? '#30363d' : '#d1d5db'
+                  const file = e.dataTransfer.files[0]
+                  if (file && (file.name.endsWith('.csv') || file.type === 'text/csv')) {
+                    setImportFile(file)
+                  } else {
+                    toast.error('Please upload a .csv file')
+                  }
+                }}
+                style={{
+                  border: `2px dashed ${isDark ? '#30363d' : '#d1d5db'}`,
+                  borderRadius: '12px',
+                  padding: '32px',
+                  textAlign: 'center',
+                  marginBottom: '20px',
+                  transition: 'border-color 0.2s',
+                  cursor: 'pointer',
+                }}
+                onClick={() => {
+                  const input = document.createElement('input')
+                  input.type = 'file'
+                  input.accept = '.csv'
+                  input.onchange = (e) => {
+                    const file = (e.target as HTMLInputElement).files?.[0]
+                    if (file) setImportFile(file)
+                  }
+                  input.click()
+                }}
+              >
+                {importFile ? (
+                  <div>
+                    <div style={{ fontSize: '2rem', marginBottom: '8px' }}>📄</div>
+                    <div style={{ fontWeight: 600, color: isDark ? '#ffffff' : '#1f2937', fontSize: '0.9rem' }}>{importFile.name}</div>
+                    <div style={{ fontSize: '0.8rem', color: isDark ? '#8b949e' : '#6b7280', marginTop: '4px' }}>
+                      {(importFile.size / 1024).toFixed(1)} KB — Click to change
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <div style={{ fontSize: '2rem', marginBottom: '8px' }}>📥</div>
+                    <div style={{ fontWeight: 600, color: isDark ? '#ffffff' : '#1f2937', fontSize: '0.9rem' }}>
+                      Drop your CSV file here
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: isDark ? '#8b949e' : '#6b7280', marginTop: '4px' }}>
+                      or click to browse
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Import Result */}
+            {importResult && (
+              <div style={{ marginBottom: '20px' }}>
+                <div style={{
+                  padding: '16px',
+                  borderRadius: '12px',
+                  backgroundColor: importResult.failed === 0
+                    ? (isDark ? 'rgba(107,158,120,0.1)' : 'rgba(107,158,120,0.05)')
+                    : (isDark ? 'rgba(234,179,8,0.1)' : 'rgba(234,179,8,0.05)'),
+                  border: `1px solid ${importResult.failed === 0 ? 'rgba(107,158,120,0.3)' : 'rgba(234,179,8,0.3)'}`,
+                  marginBottom: '16px',
+                }}>
+                  <div style={{ fontWeight: 700, fontSize: '1.1rem', color: isDark ? '#ffffff' : '#1f2937', marginBottom: '8px' }}>
+                    {importResult.failed === 0 ? '✅ Import Complete' : '⚠️ Import Completed with Errors'}
+                  </div>
+                  <div style={{ display: 'flex', gap: '24px', fontSize: '0.875rem' }}>
+                    <div><span style={{ color: '#6B9E78', fontWeight: 700 }}>{importResult.imported}</span> <span style={{ color: isDark ? '#8b949e' : '#6b7280' }}>imported</span></div>
+                    {importResult.failed > 0 && (
+                      <div><span style={{ color: '#ef4444', fontWeight: 700 }}>{importResult.failed}</span> <span style={{ color: isDark ? '#8b949e' : '#6b7280' }}>failed</span></div>
+                    )}
+                    <div><span style={{ color: isDark ? '#d1d5db' : '#374151', fontWeight: 600 }}>{importResult.total}</span> <span style={{ color: isDark ? '#8b949e' : '#6b7280' }}>total rows</span></div>
+                  </div>
+                </div>
+
+                {/* Error Details */}
+                {importResult.errors.length > 0 && (
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: '0.875rem', color: isDark ? '#d1d5db' : '#374151', marginBottom: '8px' }}>Error Details</div>
+                    <div style={{
+                      maxHeight: '200px',
+                      overflowY: 'auto',
+                      borderRadius: '8px',
+                      border: `1px solid ${isDark ? '#30363d' : '#e5e7eb'}`,
+                    }}>
+                      <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr style={{ backgroundColor: isDark ? '#161B22' : '#f9fafb' }}>
+                            <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: isDark ? '#8b949e' : '#6b7280', borderBottom: `1px solid ${isDark ? '#30363d' : '#e5e7eb'}` }}>Row</th>
+                            <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: isDark ? '#8b949e' : '#6b7280', borderBottom: `1px solid ${isDark ? '#30363d' : '#e5e7eb'}` }}>Error</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {importResult.errors.map((err, i) => (
+                            <tr key={i} style={{ borderBottom: `1px solid ${isDark ? '#30363d' : '#e5e7eb'}` }}>
+                              <td style={{ padding: '8px 12px', color: isDark ? '#d1d5db' : '#374151', fontWeight: 600 }}>{err.row}</td>
+                              <td style={{ padding: '8px 12px', color: '#ef4444' }}>{err.error}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Actions */}
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button
+                onClick={() => setShowImportModal(false)}
+                style={{
+                  flex: 1,
+                  padding: '12px',
+                  backgroundColor: 'transparent',
+                  border: `1px solid ${isDark ? '#30363d' : '#d1d5db'}`,
+                  color: isDark ? '#e6edf3' : '#374151',
+                  borderRadius: '8px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                {importResult ? 'Close' : 'Cancel'}
+              </button>
+              {!importResult && (
+                <button
+                  onClick={async () => {
+                    if (!importFile || !restaurantId) return
+                    setImporting(true)
+                    try {
+                      const formData = new FormData()
+                      formData.append('file', importFile)
+                      const { data: res } = await api.post(
+                        `/organizations/${restaurantId}/reservations/import`,
+                        formData,
+                        { headers: { 'Content-Type': 'multipart/form-data' } }
+                      )
+                      setImportResult(res.data)
+                      if (res.data?.imported > 0) {
+                        toast.success(`${res.data.imported} reservation(s) imported!`)
+                        fetchData(selectedDate, restaurantId)
+                      }
+                    } catch (err: any) {
+                      const msg = err.response?.data?.error || 'Import failed'
+                      toast.error(msg)
+                    } finally {
+                      setImporting(false)
+                    }
+                  }}
+                  disabled={!importFile || importing}
+                  style={{
+                    flex: 1,
+                    padding: '12px',
+                    backgroundColor: (!importFile || importing) ? '#9ca3af' : '#C99C63',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontWeight: 600,
+                    cursor: (!importFile || importing) ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {importing ? 'Importing...' : 'Import Reservations'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <PoweredByFooter theme={isDark ? 'dark' : 'light'} />
     </div>
   )

@@ -529,11 +529,11 @@ export default function WaitingListTab({ theme, orgId, serverToday }: WaitingLis
                 <div>
                   <label style={labelStyle}>Party Size *</label>
                   <input
-                    type="number"
-                    min={1}
-                    max={50}
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     value={form.partySize}
-                    onChange={(e) => setForm({ ...form, partySize: parseInt(e.target.value) || 1 })}
+                    onChange={(e) => setForm({ ...form, partySize: parseInt(e.target.value.replace(/[^0-9]/g, '')) || 1 })}
                     style={inputStyle}
                   />
                 </div>

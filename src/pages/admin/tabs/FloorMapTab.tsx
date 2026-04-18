@@ -358,18 +358,6 @@ export default function FloorMapTab({ theme, orgId }: FloorMapTabProps) {
         </div>
         
         <div className="res-floormap-toolbar" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-          <button
-            onClick={() => setShowModal(true)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '8px',
-              padding: '8px 16px', backgroundColor: '#C99C63',
-              color: '#ffffff', border: 'none', borderRadius: '6px',
-              cursor: 'pointer', fontWeight: 500
-            }}
-          >
-            <Plus size={16} />
-            Add Table
-          </button>
 
           <button
             onClick={handleUploadClick}
@@ -556,9 +544,11 @@ export default function FloorMapTab({ theme, orgId }: FloorMapTabProps) {
                 <div>
                   <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.875rem', color: isDark ? '#c9d1d9' : '#374151' }}>Capacity *</label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     value={form.capacity}
-                    onChange={e => setForm({ ...form, capacity: parseInt(e.target.value) || 0 })}
+                    onChange={e => setForm({ ...form, capacity: parseInt(e.target.value.replace(/[^0-9]/g, '')) || 0 })}
                     style={{
                       width: '100%', padding: '10px 12px', borderRadius: '6px',
                       backgroundColor: isDark ? '#0d1117' : '#ffffff', border: `1px solid ${isDark ? '#30363d' : '#d1d5db'}`,

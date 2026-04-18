@@ -210,7 +210,7 @@ export default function StaffManagementTab({ theme, orgId }: StaffManagementTabP
                     {member.email}
                   </td>
                   <td style={{ padding: '16px 24px', color: isDark ? '#e6edf3' : '#4b5563' }}>
-                    {member.lastActive ? new Date(member.lastActive).toLocaleString('en-GB') : 'Never'}
+                    {member.lastActiveAt ? new Date(member.lastActiveAt).toLocaleString('en-GB') : 'Never'}
                   </td>
                   <td style={{ padding: '16px 24px' }}>
                     <StatusBadge status={member.role || member.status || 'viewer'} />
