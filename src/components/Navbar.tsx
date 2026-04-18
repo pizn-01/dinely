@@ -11,9 +11,10 @@ interface NavbarProps {
   userName?: string
   userEmail?: string
   userRole?: string
+  orgSlug?: string
 }
 
-export default function Navbar({ variant = 'public', logoUrl, onSignOut, userName, userEmail, userRole }: NavbarProps) {
+export default function Navbar({ variant = 'public', logoUrl, onSignOut, userName, userEmail, userRole, orgSlug }: NavbarProps) {
   const [showAccountMenu, setShowAccountMenu] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
@@ -244,7 +245,11 @@ export default function Navbar({ variant = 'public', logoUrl, onSignOut, userNam
                     setShowAccountMenu(false)
                     // Determine which password reset flow to use
                     const isStaff = displayRole === 'manager' || displayRole === 'host' || displayRole === 'viewer'
-                    navigate(isStaff ? '/staff-forgot-password' : '/forgot-password')
+                    if (isStaff) {
+                      navigate(orgSlug ? `/staff-forgot-password/${orgSlug}` : '/staff-forgot-password')
+                    } else {
+                      navigate(orgSlug ? `/forgot-password/${orgSlug}` : '/forgot-password')
+                    }
                   }}
                   style={menuItemStyle}
                   onMouseOver={(e) => e.currentTarget.style.backgroundColor = isDark ? '#30363d' : '#f3f4f6'}

@@ -194,35 +194,6 @@ export default function StaffTableManagement() {
     ]
   }, [dbTables, dbReservations])
 
-  const [uploading, setUploading] = useState(false)
-
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-
-    try {
-      setUploading(true)
-      const formData = new FormData()
-      formData.append('file', file)
-
-      if (!restaurantId) throw new Error('No restaurant context found')
-
-      await api.post(`/organizations/${restaurantId}/tables/import`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      })
-
-      toast.success('Floor plan CSV uploaded successfully!')
-      if (restaurantId) fetchData(selectedDate, restaurantId)
-    } catch (error) {
-      console.error('Failed to upload CSV:', error)
-      toast.error('Failed to upload floor plan CSV.')
-    } finally {
-      setUploading(false)
-    }
-  }
-
   const handleStatusUpdate = async (resId: string, status: string) => {
     try {
       await api.patch(`/organizations/${restaurantId}/reservations/${resId}/status`, { status })
@@ -310,23 +281,6 @@ export default function StaffTableManagement() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <label style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '8px', 
-            padding: '10px 16px', 
-            border: `1px solid var(--border-primary)`, 
-            borderRadius: '12px', 
-            cursor: 'pointer',
-            fontSize: '0.875rem',
-            fontWeight: 600,
-            color: 'var(--text-secondary)',
-            backgroundColor: 'var(--bg-card)'
-          }}>
-            <Upload size={18} />
-            {uploading ? 'Uploading...' : 'Import Map'}
-            <input type="file" accept=".csv" onChange={handleFileUpload} hidden />
-          </label>
           <button 
             onClick={() => { setShowImportModal(true); setImportFile(null); setImportResult(null) }}
             style={{ 
@@ -438,7 +392,7 @@ export default function StaffTableManagement() {
                       {isDark ? 'Light Mode' : 'Dark Mode'}
                     </button>
                     <button
-                      onClick={() => { setShowAccountDropdown(false); navigate('/staff-forgot-password') }}
+                      onClick={() => { setShowAccountDropdown(false); navigate(orgData?.slug ? `/staff-forgot-password/${orgData.slug}` : '/staff-forgot-password') }}
                       style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', background: 'none', border: 'none', borderRadius: '6px', color: isDark ? '#e6edf3' : '#1f2937', fontSize: '0.875rem', cursor: 'pointer', textAlign: 'left' as const, transition: 'background-color 0.15s' }}
                       onMouseOver={(e) => e.currentTarget.style.backgroundColor = isDark ? '#30363d' : '#f3f4f6'}
                       onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
