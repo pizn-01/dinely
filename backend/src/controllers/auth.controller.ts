@@ -49,6 +49,15 @@ export class AuthController {
     }
   }
 
+  async superAdminLogin(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const result = await authService.superAdminLogin(req.body);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async getProfile(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       if (!req.user) {

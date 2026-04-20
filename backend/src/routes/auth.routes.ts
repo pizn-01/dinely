@@ -14,6 +14,7 @@ router.post('/signup', authLimiter, validate(signupSchema), (req, res, next) => 
 // Login routes
 router.post('/login', authLimiter, validate(loginSchema), (req, res, next) => authController.login(req, res, next));
 router.post('/staff-login', authLimiter, validate(staffLoginSchema), (req, res, next) => authController.staffLogin(req, res, next));
+router.post('/super-admin-login', authLimiter, validate(loginSchema), (req, res, next) => authController.superAdminLogin(req, res, next));
 router.post('/customer-login', authLimiter, validate(customerLoginSchema), (req, res, next) => authController.customerLogin(req, res, next));
 router.post('/customer-signup', authLimiter, validate(customerSignupSchema), (req, res, next) => authController.customerSignup(req, res, next));
 

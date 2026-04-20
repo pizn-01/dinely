@@ -118,11 +118,12 @@ export class AdminService {
    * Platform-wide statistics.
    */
   async getPlatformStats() {
-    const [orgCount, userCount, reservationCount, activeOrgCount] = await Promise.all([
+    const [orgCount, userCount, reservationCount, activeOrgCount, allOrgs] = await Promise.all([
       supabaseAdmin.from('organizations').select('*', { count: 'exact', head: true }),
       supabaseAdmin.from('staff_members').select('*', { count: 'exact', head: true }),
       supabaseAdmin.from('reservations').select('*', { count: 'exact', head: true }),
       supabaseAdmin.from('organizations').select('*', { count: 'exact', head: true }).eq('is_active', true),
+      supabaseAdmin.from('organizations').select('subscription_plan, subscription_status')
     ]);
 
     // Top restaurants by reservation count
@@ -133,12 +134,45 @@ export class AdminService {
       .order('created_at', { ascending: false })
       .limit(10);
 
+    // Financial calculations
+    const starterPrice = 49;
+    const proPrice = 79;
+    
+    let mrr = 0;
+    let activeSubs = 0;
+    let canceledSubs = 0;
+
+    (allOrgs.data || []).forEach(org => {
+      // MRR calculation based on active plans
+      if (org.subscription_status === 'active' || org.subscription_status === 'trialing') {
+        activeSubs++;
+        if (org.subscription_plan === 'professional') mrr += proPrice;
+        else if (org.subscription_plan === 'starter') mrr += starterPrice;
+      }
+      if (org.subscription_status === 'canceled') {
+        canceledSubs++;
+      }
+    });
+
+    const churnRate = (canceledSubs + activeSubs) > 0 
+      ? ((canceledSubs / (canceledSubs + activeSubs)) * 100).toFixed(2) 
+      : '0.00';
+      
+    const arpu = activeSubs > 0 
+      ? (mrr / activeSubs).toFixed(2)
+      : '0.00';
+
     return {
       totalRestaurants: orgCount.count || 0,
       activeRestaurants: activeOrgCount.count || 0,
       totalUsers: userCount.count || 0,
       totalReservations: reservationCount.count || 0,
       topRestaurants: topRestaurants || [],
+      financials: {
+        mrr,
+        arpu: parseFloat(arpu),
+        churnRate: parseFloat(churnRate)
+      }
     };
   }
 

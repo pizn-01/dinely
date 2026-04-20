@@ -313,6 +313,57 @@ export class AuthService {
   }
 
   /**
+   * Super admin-specific login.
+   * Completely bypasses the staff_members table and only queries super_admins.
+   */
+  async superAdminLogin(dto: LoginDto): Promise<AuthResponse> {
+    const tempClient = createClient(process.env.SUPABASE_URL as string, process.env.SUPABASE_ANON_KEY as string, {
+      auth: { persistSession: false },
+    });
+
+    const { data: authData, error: authError } = await tempClient.auth.signInWithPassword({
+      email: dto.email,
+      password: dto.password,
+    });
+
+    if (authError || !authData.user) {
+      throw new AppError('Invalid email or password', 401);
+    }
+
+    const userId = authData.user.id;
+
+    const { data: superAdmin } = await supabaseAdmin
+      .from('super_admins')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .single();
+
+    if (!superAdmin) {
+      throw new AppError('No active super admin account found for this email', 401);
+    }
+
+    const token = generateToken({
+      sub: userId,
+      email: dto.email,
+      role: UserRole.SUPER_ADMIN,
+    });
+
+    const refreshToken = generateRefreshToken(userId);
+
+    return {
+      user: {
+        id: userId,
+        email: dto.email,
+        role: UserRole.SUPER_ADMIN,
+        name: superAdmin.name,
+      },
+      token,
+      refreshToken,
+    };
+  }
+
+  /**
    * Get current user profile from JWT.
    */
   async getProfile(userId: string) {

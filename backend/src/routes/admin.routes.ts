@@ -64,4 +64,29 @@ router.get('/organizations/:id/subscription',
   (req, res, next) => adminController.getOrganizationSubscription(req, res, next)
 );
 
+// GET /admin/support-tickets
+router.get('/support-tickets',
+  (req, res, next) => adminController.listSupportTickets(req, res, next)
+);
+
+// PATCH /admin/support-tickets/:id/status
+router.patch('/support-tickets/:id/status',
+  (req, res, next) => adminController.updateSupportTicketStatus(req, res, next)
+);
+
+// POST /admin/broadcasts
+router.post('/broadcasts',
+  (req, res, next) => adminController.createBroadcast(req, res, next)
+);
+
+// GET /admin/broadcasts
+router.get('/broadcasts',
+  (req, res, next) => adminController.listBroadcasts(req, res, next)
+);
+
+// PATCH /admin/broadcasts/:id/toggle
+router.patch('/broadcasts/:id/toggle',
+  (req, res, next) => adminController.toggleBroadcast(req, res, next)
+);
+
 export default router;

@@ -52,4 +52,18 @@ router.post('/:orgId/logo',
   (req, res, next) => organizationController.uploadLogo(req, res, next)
 );
 
+// POST /organizations/:orgId/support
+router.post('/:orgId/support',
+  requireRestaurantAccess,
+  requireMinRole(UserRole.RESTAURANT_ADMIN),
+  (req, res, next) => organizationController.createSupportTicket(req, res, next)
+);
+
+// GET /organizations/:orgId/support
+router.get('/:orgId/support',
+  requireRestaurantAccess,
+  requireMinRole(UserRole.RESTAURANT_ADMIN),
+  (req, res, next) => organizationController.listSupportTickets(req, res, next)
+);
+
 export default router;

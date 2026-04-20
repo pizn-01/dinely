@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Activity, Building2, Users, FileText, ToggleLeft, ToggleRight, CheckCircle, XCircle, CreditCard, AlertTriangle, Clock, DollarSign, ExternalLink } from 'lucide-react'
+import { Calendar, Users, Building2, CheckCircle, CreditCard, Clock, Map, Star, Activity, Plus, ShieldAlert, LogOut, ArrowUpRight, TrendingUp, FileText, ToggleLeft, ToggleRight, XCircle, AlertTriangle, DollarSign, ExternalLink } from 'lucide-react'
 import { api } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import { toast } from 'react-hot-toast'
@@ -12,10 +12,9 @@ import dinelyLogo from '../../assets/dinely-logo.png'
 
 const tabs = [
   { id: 'overview', label: 'Overview', icon: Activity },
-  { id: 'subscriptions', label: 'Subscriptions', icon: CreditCard },
-  { id: 'organizations', label: 'Organizations', icon: Building2 },
-  { id: 'users', label: 'Users', icon: Users },
-  { id: 'audit', label: 'Audit Log', icon: FileText },
+  { id: 'support', label: 'Support Tickets', icon: AlertTriangle },
+  { id: 'broadcasts', label: 'Broadcasts', icon: Activity },
+  { id: 'audit', label: 'Audit Log', icon: Clock },
 ]
 
 // ─── Helpers ──────────────────────────────────────────────────
@@ -60,12 +59,20 @@ export default function SuperAdminDashboard() {
     activeRestaurants: 0,
     totalUsers: 0,
     totalReservations: 0,
+    financials: { mrr: 0, arpu: 0, churnRate: 0 },
   })
 
   const [organizations, setOrganizations] = useState<any[]>([])
   const [users, setUsers] = useState<any[]>([])
   const [auditLogs, setAuditLogs] = useState<any[]>([])
+  const [supportTickets, setSupportTickets] = useState<any[]>([])
+  const [broadcasts, setBroadcasts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+
+  // Broadcast creation state
+  const [bcTitle, setBcTitle] = useState('')
+  const [bcMessage, setBcMessage] = useState('')
+  const [bcType, setBcType] = useState('info')
 
   const fetchData = useCallback(async () => {
     if (user?.role !== 'super_admin') return
@@ -87,8 +94,18 @@ export default function SuperAdminDashboard() {
       }
 
       const auditRes = await api.get('/admin/audit-log?limit=50')
-      if (auditRes.data?.logs) {
-        setAuditLogs(auditRes.data.logs)
+      if (auditRes.data?.entries) {
+        setAuditLogs(auditRes.data.entries)
+      }
+
+      const supportRes = await api.get('/admin/support-tickets?limit=50')
+      if (supportRes.data?.tickets) {
+        setSupportTickets(supportRes.data.tickets)
+      }
+
+      const bcRes = await api.get('/admin/broadcasts?limit=50')
+      if (bcRes.data?.broadcasts) {
+        setBroadcasts(bcRes.data.broadcasts)
       }
     } catch (error) {
       console.error('Failed to load super admin data:', error)
@@ -100,6 +117,45 @@ export default function SuperAdminDashboard() {
   useEffect(() => {
     fetchData()
   }, [fetchData])
+
+  const handleResolveTicket = async (ticketId: string) => {
+    try {
+      await api.patch(`/admin/support-tickets/${ticketId}/status`, { status: 'resolved' })
+      setSupportTickets(tickets => tickets.map(t => t.id === ticketId ? { ...t, status: 'resolved' } : t))
+      toast.success('Ticket marked as resolved.')
+    } catch (error) {
+      console.error('Failed to resolve ticket', error)
+      toast.error('Failed to update ticket status.')
+    }
+  }
+
+  const handleCreateBroadcast = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!bcTitle.trim() || !bcMessage.trim()) return
+    try {
+      const res = await api.post('/admin/broadcasts', { title: bcTitle, message: bcMessage, type: bcType, isActive: true })
+      if (res.data?.data) {
+        setBroadcasts([res.data.data, ...broadcasts])
+        setBcTitle('')
+        setBcMessage('')
+        toast.success('Broadcast dispatched successfully.')
+      }
+    } catch (error) {
+      console.error('Failed to dispatch broadcast', error)
+      toast.error('Failed to create broadcast.')
+    }
+  }
+
+  const handleToggleBroadcast = async (bcId: string, currentStatus: boolean) => {
+    try {
+      await api.patch(`/admin/broadcasts/${bcId}/toggle`, { isActive: !currentStatus })
+      setBroadcasts(list => list.map(b => b.id === bcId ? { ...b, is_active: !currentStatus } : b))
+      toast.success(currentStatus ? 'Broadcast deactivated.' : 'Broadcast activated.')
+    } catch (error) {
+      console.error('Failed to toggle broadcast', error)
+      toast.error('Failed to update broadcast status.')
+    }
+  }
 
   const handleToggleOrgStatus = async (orgId: string, currentStatus: boolean) => {
     try {
@@ -229,6 +285,27 @@ export default function SuperAdminDashboard() {
                 <StatsCard label="Paying Subscribers" value={subStats.totalPaying} icon={<CreditCard size={18} />} variant={isDark ? 'dark' : 'light'} />
                 <StatsCard label="Total Users" value={stats.totalUsers} icon={<Users size={18} />} variant={isDark ? 'dark' : 'light'} />
                 <StatsCard label="Total Reservations" value={stats.totalReservations} icon={<FileText size={18} />} variant={isDark ? 'dark' : 'light'} />
+              </div>
+
+              {/* Financial Analytics */}
+              <div style={{ backgroundColor: cardBg, borderRadius: '16px', border: `1px solid ${borderColor}`, padding: '28px 32px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: '0 0 20px 0', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <TrendingUp size={18} style={{ color: '#22c55e' }} /> Financial Analytics (SaaS)
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
+                  <div style={{ backgroundColor: isDark ? '#152326' : '#f9fafb', borderRadius: '12px', padding: '20px', border: `1px solid ${borderColor}` }}>
+                    <div style={{ fontSize: '2rem', fontWeight: 800, color: '#22c55e', marginBottom: '4px' }}>£{stats.financials?.mrr || 0}</div>
+                    <div style={{ fontSize: '0.85rem', color: textSecondary, fontWeight: 500 }}>Monthly Recurring Revenue</div>
+                  </div>
+                  <div style={{ backgroundColor: isDark ? '#152326' : '#f9fafb', borderRadius: '12px', padding: '20px', border: `1px solid ${borderColor}` }}>
+                    <div style={{ fontSize: '2rem', fontWeight: 800, color: gold, marginBottom: '4px' }}>£{stats.financials?.arpu || 0}</div>
+                    <div style={{ fontSize: '0.85rem', color: textSecondary, fontWeight: 500 }}>Avg. Rev. Per User (ARPU)</div>
+                  </div>
+                  <div style={{ backgroundColor: isDark ? '#152326' : '#f9fafb', borderRadius: '12px', padding: '20px', border: `1px solid ${borderColor}` }}>
+                    <div style={{ fontSize: '2rem', fontWeight: 800, color: '#ef4444', marginBottom: '4px' }}>{stats.financials?.churnRate || 0}%</div>
+                    <div style={{ fontSize: '0.85rem', color: textSecondary, fontWeight: 500 }}>Churn Rate</div>
+                  </div>
+                </div>
               </div>
 
               {/* Quick subscription breakdown */}
@@ -459,10 +536,10 @@ export default function SuperAdminDashboard() {
                       <tr key={log.id} style={{ borderBottom: `1px solid ${borderColor}`, fontSize: '0.875rem', transition: 'background-color 0.15s' }}
                           onMouseOver={(e) => (e.currentTarget.style.backgroundColor = isDark ? '#152326' : '#f9fafb')}
                           onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}>
-                        <td style={{ ...tdStyle, color: textMuted }}>{new Date(log.created_at).toLocaleString()}</td>
+                        <td style={tdStyle}>{new Date(log.createdAt).toLocaleString()}</td>
                         <td style={{ ...tdStyle, fontWeight: 500, color: textPrimary }}>{log.action}</td>
-                        <td style={{ ...tdStyle, fontFamily: 'monospace', color: textMuted }}>{log.user_id?.slice(0,8) || 'System'}...</td>
-                        <td style={{ ...tdStyle, color: textMuted }}>{log.resource_type}</td>
+                        <td style={{ ...tdStyle, fontFamily: 'monospace', color: textMuted }}>{log.userId?.slice(0,8) || 'System'}...</td>
+                        <td style={{ ...tdStyle, color: textMuted }}>{log.entityType}</td>
                       </tr>
                     ))}
                     {auditLogs.length === 0 && (
@@ -470,6 +547,143 @@ export default function SuperAdminDashboard() {
                     )}
                   </tbody>
                </table>
+            </div>
+          )}
+
+          {/* ═══════════════════════════════════════════════ */}
+          {/* SUPPORT TICKETS TAB                             */}
+          {/* ═══════════════════════════════════════════════ */}
+          {activeTab === 'support' && (
+            <div style={{ backgroundColor: cardBg, borderRadius: '16px', border: `1px solid ${borderColor}`, overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
+               <table style={tableStyle}>
+                  <thead>
+                    <tr style={{ backgroundColor: headerBg, borderBottom: `1px solid ${borderColor}` }}>
+                      <th style={thStyle}>Ticket details</th>
+                      <th style={thStyle}>Restaurant</th>
+                      <th style={thStyle}>Status</th>
+                      <th style={thStyle}>Submitted</th>
+                      <th style={thStyle}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {supportTickets.map(ticket => (
+                      <tr key={ticket.id} style={{ borderBottom: `1px solid ${borderColor}`, transition: 'background-color 0.15s' }}
+                          onMouseOver={(e) => (e.currentTarget.style.backgroundColor = isDark ? '#152326' : '#f9fafb')}
+                          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}>
+                        <td style={tdStyle}>
+                          <span style={{ fontWeight: 600, color: textPrimary, display: 'block' }}>{ticket.subject}</span>
+                          <span style={{ fontSize: '0.8rem', color: textMuted, whiteSpace: 'pre-wrap', display: 'block', maxWidth: '300px' }}>{ticket.message}</span>
+                        </td>
+                        <td style={tdStyle}>
+                          <span style={{ fontSize: '0.85rem', color: textSecondary, display: 'block' }}>{ticket.restaurantName || 'Unknown'}</span>
+                          <span style={{ fontSize: '0.75rem', color: textMuted, display: 'block' }}>{ticket.restaurantEmail || ''}</span>
+                        </td>
+                        <td style={tdStyle}>
+                          <span style={{ 
+                            padding: '4px 10px', borderRadius: '100px', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase',
+                            backgroundColor: ticket.status === 'open' ? 'rgba(250, 204, 21, 0.1)' : ticket.status === 'resolved' ? 'rgba(34, 197, 94, 0.1)' : 'rgba(56, 189, 248, 0.1)',
+                            color: ticket.status === 'open' ? '#facc15' : ticket.status === 'resolved' ? '#22c55e' : '#38bdf8'
+                          }}>
+                            {ticket.status}
+                          </span>
+                        </td>
+                        <td style={{ ...tdStyle, fontSize: '0.85rem', color: textMuted }}>
+                          {new Date(ticket.created_at).toLocaleDateString()}
+                        </td>
+                        <td style={{ ...tdStyle, textAlign: 'right' }}>
+                          {ticket.status === 'open' && (
+                            <button 
+                              onClick={() => handleResolveTicket(ticket.id)}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#10b981', display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
+                              <CheckCircle size={18} />
+                              <span style={{ fontSize: '0.875rem', fontWeight: 600 }}>Mark as resolved</span>
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                    {supportTickets.length === 0 && (
+                      <tr><td colSpan={5} style={{ padding: '48px 24px', textAlign: 'center', color: textMuted }}>No support tickets found.</td></tr>
+                    )}
+                  </tbody>
+               </table>
+            </div>
+          )}
+
+          {/* ═══════════════════════════════════════════════ */}
+          {/* BROADCASTS TAB                                */}
+          {/* ═══════════════════════════════════════════════ */}
+          {activeTab === 'broadcasts' && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '32px' }}>
+              <div style={{ backgroundColor: cardBg, borderRadius: '16px', border: `1px solid ${borderColor}`, padding: '24px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
+                <h3 style={{ margin: '0 0 20px 0', fontSize: '1.25rem', color: textPrimary, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Activity color={gold} size={20} /> Create Global Broadcast
+                </h3>
+                <form onSubmit={handleCreateBroadcast} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', color: textMuted, marginBottom: '8px' }}>Title</label>
+                    <input type="text" value={bcTitle} onChange={(e) => setBcTitle(e.target.value)} required placeholder="e.g. Scheduled Maintenance" style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: `1px solid ${borderColor}`, backgroundColor: isDark ? '#0d1117' : '#fff', color: textPrimary, outline: 'none' }} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', color: textMuted, marginBottom: '8px' }}>Message</label>
+                    <textarea value={bcMessage} onChange={(e) => setBcMessage(e.target.value)} required rows={4} placeholder="Describe the announcement..." style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: `1px solid ${borderColor}`, backgroundColor: isDark ? '#0d1117' : '#fff', color: textPrimary, outline: 'none', resize: 'vertical' }} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', color: textMuted, marginBottom: '8px' }}>Type</label>
+                    <select value={bcType} onChange={(e) => setBcType(e.target.value)} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: `1px solid ${borderColor}`, backgroundColor: isDark ? '#0d1117' : '#fff', color: textPrimary, outline: 'none' }}>
+                      <option value="info">Info (Blue)</option>
+                      <option value="warning">Warning (Yellow)</option>
+                    </select>
+                  </div>
+                  <button type="submit" style={{ padding: '12px', borderRadius: '8px', backgroundColor: gold, color: '#fff', border: 'none', fontWeight: 600, cursor: 'pointer', marginTop: '8px' }}>
+                    Dispatch Broadcast
+                  </button>
+                </form>
+              </div>
+
+              <div style={{ backgroundColor: cardBg, borderRadius: '16px', border: `1px solid ${borderColor}`, overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
+                 <table style={tableStyle}>
+                    <thead>
+                      <tr style={{ backgroundColor: headerBg, borderBottom: `1px solid ${borderColor}` }}>
+                        <th style={thStyle}>Broadcast</th>
+                        <th style={thStyle}>Type</th>
+                        <th style={thStyle}>Date</th>
+                        <th style={thStyle}>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {broadcasts.map(b => (
+                        <tr key={b.id} style={{ borderBottom: `1px solid ${borderColor}`, transition: 'background-color 0.15s' }}>
+                          <td style={tdStyle}>
+                            <span style={{ fontWeight: 600, color: textPrimary, display: 'block' }}>{b.title}</span>
+                            <span style={{ fontSize: '0.8rem', color: textMuted }}>{b.message}</span>
+                          </td>
+                          <td style={tdStyle}>
+                            <span style={{ 
+                              padding: '2px 8px', borderRadius: '100px', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase',
+                              backgroundColor: b.type === 'warning' ? 'rgba(250, 204, 21, 0.1)' : 'rgba(56, 189, 248, 0.1)',
+                              color: b.type === 'warning' ? '#facc15' : '#38bdf8'
+                            }}>
+                              {b.type}
+                            </span>
+                          </td>
+                          <td style={{ ...tdStyle, fontSize: '0.85rem', color: textMuted }}>{new Date(b.created_at).toLocaleDateString()}</td>
+                          <td style={{ ...tdStyle, textAlign: 'right' }}>
+                            <button 
+                              onClick={() => handleToggleBroadcast(b.id, b.is_active)}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: textSecondary, display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
+                              {b.is_active ? <ToggleRight size={24} color={isDark ? '#5EEA7A' : '#10b981'} /> : <ToggleLeft size={24} color="#ef4444" />}
+                              <span style={{ fontSize: '0.875rem', fontWeight: 600 }}>{b.is_active ? 'Active' : 'Inactive'}</span>
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                      {broadcasts.length === 0 && (
+                        <tr><td colSpan={4} style={{ padding: '48px 24px', textAlign: 'center', color: textMuted }}>No broadcasts found.</td></tr>
+                      )}
+                    </tbody>
+                 </table>
+              </div>
             </div>
           )}
 

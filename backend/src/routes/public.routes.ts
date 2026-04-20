@@ -5,6 +5,7 @@ import { validate } from '../middleware/validator';
 import { createReservationSchema } from '../validators/reservation.validator';
 import { publicApiLimiter } from '../middleware/rateLimiter';
 import { tableService } from '../services/table.service';
+import { broadcastService } from '../services/broadcast.service';
 import { supabaseAdmin } from '../config/database';
 
 const router = Router();
@@ -19,6 +20,16 @@ const param = (req: Request, key: string): string => req.params[key] as string;
  * Public endpoints for restaurant website widgets and POS.
  * Authenticated via restaurant slug (public info only).
  */
+
+// GET /public/broadcasts/active — Global system banners
+router.get('/broadcasts/active', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const broadcasts = await broadcastService.getActiveBroadcasts();
+    res.json({ success: true, data: broadcasts });
+  } catch (error) {
+    next(error);
+  }
+});
 
 // GET /public/:slug/info — Get restaurant public info
 router.get('/:slug/info', async (req: Request, res: Response, next: NextFunction) => {

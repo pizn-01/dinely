@@ -13,6 +13,7 @@ import WaitingListTab from './tabs/WaitingListTab'
 import FloorMapTab from './tabs/FloorMapTab'
 import PoweredByFooter from '../../components/PoweredByFooter'
 import SettingsTab from './tabs/SettingsTab'
+import SupportTab from './tabs/SupportTab'
 
 const tabs = [
   { id: 'reservation', label: 'Reservation' },
@@ -20,6 +21,7 @@ const tabs = [
   { id: 'staff', label: 'Staff Management' },
   { id: 'waitinglist', label: 'Waiting List' },
   { id: 'floormap', label: 'Floor Map' },
+  { id: 'support', label: 'Support & Feedback' },
   { id: 'settings', label: 'Settings' },
 ]
 
@@ -194,6 +196,7 @@ export default function AdminDashboard() {
             {activeTab === 'staff' && <StaffManagementTab theme={isDark ? 'dark' : 'light'} orgId={orgId} />}
             {activeTab === 'waitinglist' && <WaitingListTab theme={isDark ? 'dark' : 'light'} orgId={orgId} serverToday={stats.serverToday} />}
             {activeTab === 'floormap' && <FloorMapTab theme={isDark ? 'dark' : 'light'} orgId={orgId} />}
+            {activeTab === 'support' && <SupportTab theme={isDark ? 'dark' : 'light'} orgId={orgId} />}
             {activeTab === 'settings' && <SettingsTab theme={isDark ? 'dark' : 'light'} orgId={orgId} />}
           </div>
         </div>
