@@ -50,9 +50,9 @@ function getStatusBadge(status: string, isDark: boolean) {
 
 // ─── Component ────────────────────────────────────────────────
 export default function SuperAdminDashboard() {
-  const { user } = useAuth()
+  const { user, isLoading } = useAuth()
   const { isDark } = useTheme()
-  const [activeTab, setActiveTab] = useState('overview')
+  const [activeTab, setActiveTab] = useState(tabs[0].id)
   
   const [stats, setStats] = useState({
     totalRestaurants: 0,
@@ -170,6 +170,10 @@ export default function SuperAdminDashboard() {
     }
   }
 
+  if (isLoading) {
+    return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: isDark ? '#0B1517' : '#f8fafc' }}>Loading...</div>
+  }
+
   if (!user || user.role !== 'super_admin') {
     return <Navigate to="/staff-login" replace />
   }
@@ -210,7 +214,7 @@ export default function SuperAdminDashboard() {
       transition: 'background-color 0.3s ease',
       color: textPrimary
     }}>
-      <Navbar variant="admin" />
+      <Navbar variant="admin" logoUrl={dinelyLogo} />
 
       <div className="res-admin-container" style={{ padding: '32px 48px', maxWidth: '1440px', margin: '0 auto' }}>
         
