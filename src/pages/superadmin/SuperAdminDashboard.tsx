@@ -7,11 +7,14 @@ import { useTheme } from '../../context/ThemeContext'
 import Navbar from '../../components/Navbar'
 import StatsCard from '../../components/StatsCard'
 import PoweredByFooter from '../../components/PoweredByFooter'
-import { Navigate } from 'react-router-dom'
+import { Navigate, useNavigate } from 'react-router-dom'
 import dinelyLogo from '../../assets/dinely-logo.png'
 
 const tabs = [
   { id: 'overview', label: 'Overview', icon: Activity },
+  { id: 'organizations', label: 'Organizations', icon: Building2 },
+  { id: 'users', label: 'Users', icon: Users },
+  { id: 'subscriptions', label: 'Subscriptions', icon: CreditCard },
   { id: 'support', label: 'Support Tickets', icon: AlertTriangle },
   { id: 'broadcasts', label: 'Broadcasts', icon: Activity },
   { id: 'audit', label: 'Audit Log', icon: Clock },
@@ -52,6 +55,7 @@ function getStatusBadge(status: string, isDark: boolean) {
 export default function SuperAdminDashboard() {
   const { user, isLoading } = useAuth()
   const { isDark } = useTheme()
+  const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState(tabs[0].id)
   
   const [stats, setStats] = useState({
@@ -456,12 +460,22 @@ export default function SuperAdminDashboard() {
                           </span>
                         </td>
                         <td style={{ ...tdStyle, textAlign: 'right' }}>
-                          <button 
-                            onClick={() => handleToggleOrgStatus(org.id, org.isActive)}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: textSecondary, display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
-                            {org.isActive ? <ToggleRight size={24} color={isDark ? '#5EEA7A' : '#10b981'} /> : <ToggleLeft size={24} color="#ef4444" />}
-                            <span style={{ fontSize: '0.875rem', fontWeight: 600 }}>{org.isActive ? 'Disable' : 'Enable'}</span>
-                          </button>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '12px' }}>
+                            <button 
+                              onClick={() => navigate(`/admin/super/organizations/${org.id}`)}
+                              style={{ background: 'none', border: `1px solid ${borderColor}`, padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', color: textSecondary, display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 600, transition: 'all 0.15s' }}
+                              onMouseOver={(e) => { e.currentTarget.style.borderColor = gold; e.currentTarget.style.color = gold }}
+                              onMouseOut={(e) => { e.currentTarget.style.borderColor = borderColor; e.currentTarget.style.color = textSecondary }}
+                            >
+                              <ExternalLink size={14} /> Details
+                            </button>
+                            <button 
+                              onClick={() => handleToggleOrgStatus(org.id, org.isActive)}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: textSecondary, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              {org.isActive ? <ToggleRight size={24} color={isDark ? '#5EEA7A' : '#10b981'} /> : <ToggleLeft size={24} color="#ef4444" />}
+                              <span style={{ fontSize: '0.875rem', fontWeight: 600 }}>{org.isActive ? 'Disable' : 'Enable'}</span>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}

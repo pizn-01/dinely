@@ -14,6 +14,7 @@ import PremiumReservation from './pages/PremiumReservation'
 import PremiumBookingConfirmed from './pages/reservation/PremiumBookingConfirmed'
 import SuperAdminDashboard from './pages/superadmin/SuperAdminDashboard'
 import SuperAdminLogin from './pages/superadmin/SuperAdminLogin'
+import SuperAdminOrganizationDetail from './pages/superadmin/SuperAdminOrganizationDetail'
 import GlobalBanner from './components/GlobalBanner'
 import UserReservationWizard from './pages/user-reservation/UserReservationWizard'
 import UserBookingConfirmed from './pages/user-reservation/UserBookingConfirmed'
@@ -50,6 +51,7 @@ function App() {
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/admin/super" element={<SuperAdminDashboard />} />
         <Route path="/admin/super/login" element={<SuperAdminLogin />} />
+        <Route path="/admin/super/organizations/:id" element={<SuperAdminOrganizationDetail />} />
         <Route path="/setup" element={<SetupWizard />} />
         <Route path="/staff-login" element={<StaffLogin />} />
         <Route path="/staff-login/:slug" element={<StaffLogin />} />
