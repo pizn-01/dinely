@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, Link, useParams } from 'react-router-dom'
+import { useNavigate, Link, useParams, useSearchParams } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
 import { api } from '../services/api'
 import { useAuth } from '../context/AuthContext'
@@ -8,14 +8,50 @@ import dinelyLogo from '../assets/dinely-logo.png'
 export default function StaffLogin() {
   const navigate = useNavigate()
   const { slug } = useParams<{ slug?: string }>()
+  const [searchParams] = useSearchParams()
   const { login } = useAuth()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+  
+  const urlEmail = searchParams.get('email') || ''
+  const urlPassword = searchParams.get('password') || ''
+
+  const [email, setEmail] = useState(urlEmail)
+  const [password, setPassword] = useState(urlPassword)
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [restaurantName, setRestaurantName] = useState('')
   const [logoUrl, setLogoUrl] = useState('')
+  const [autoLoginAttempted, setAutoLoginAttempted] = useState(false)
+
+  // Auto-login via URL parameters
+  useEffect(() => {
+    if (urlEmail && urlPassword && !autoLoginAttempted) {
+      setAutoLoginAttempted(true)
+      const performAutoLogin = async () => {
+        setLoading(true)
+        setError('')
+        try {
+          const { data } = await api.post('/auth/staff-login', { email: urlEmail, password: urlPassword })
+          const { token, refreshToken: rToken, user, restaurant } = data.data
+          
+          if (rToken) localStorage.setItem('refreshToken', rToken)
+          
+          login(token, {
+            ...user,
+            restaurantId: restaurant?.id
+          })
+          
+          navigate('/staff/tables')
+        } catch (err: any) {
+          console.error('Auto login failed:', err)
+          setError(err.response?.data?.error || 'Failed to auto login. Please check your credentials.')
+        } finally {
+          setLoading(false)
+        }
+      }
+      performAutoLogin()
+    }
+  }, [urlEmail, urlPassword, autoLoginAttempted, login, navigate])
 
   // Fetch restaurant name from slug for display
   useEffect(() => {

@@ -578,16 +578,39 @@ export class ReservationService {
   async getAvailableTimeSlots(restaurantId: string, date: string, partySize: number) {
     const { data: org } = await supabaseAdmin
       .from('organizations')
-      .select('opening_time, closing_time')
+      .select('opening_time, closing_time, weekly_hours')
       .eq('id', restaurantId)
       .single();
 
-    if (!org || !org.opening_time || !org.closing_time) return { allSlots: [], availableSlots: [] };
+    if (!org) return { allSlots: [], availableSlots: [] };
 
-    const startH = parseInt(org.opening_time.split(':')[0], 10);
-    const startM = parseInt(org.opening_time.split(':')[1], 10);
-    const endH = parseInt(org.closing_time.split(':')[0], 10);
-    const endM = parseInt(org.closing_time.split(':')[1], 10);
+    let startH = 0, startM = 0, endH = 0, endM = 0;
+
+    if (org.weekly_hours) {
+      const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+      const dayOfWeek = days[new Date(date).getUTCDay()];
+      const dayHours = org.weekly_hours[dayOfWeek];
+
+      if (dayHours && dayHours.closed) {
+        return { allSlots: [], availableSlots: [] };
+      }
+
+      const openTime = dayHours?.open || org.opening_time;
+      const closeTime = dayHours?.close || org.closing_time;
+
+      if (!openTime || !closeTime) return { allSlots: [], availableSlots: [] };
+
+      startH = parseInt(openTime.split(':')[0], 10);
+      startM = parseInt(openTime.split(':')[1], 10);
+      endH = parseInt(closeTime.split(':')[0], 10);
+      endM = parseInt(closeTime.split(':')[1], 10);
+    } else {
+      if (!org.opening_time || !org.closing_time) return { allSlots: [], availableSlots: [] };
+      startH = parseInt(org.opening_time.split(':')[0], 10);
+      startM = parseInt(org.opening_time.split(':')[1], 10);
+      endH = parseInt(org.closing_time.split(':')[0], 10);
+      endM = parseInt(org.closing_time.split(':')[1], 10);
+    }
 
     const baseDate = new Date('2000-01-01T00:00:00Z');
     const startTimeTime = new Date(baseDate); startTimeTime.setUTCHours(startH, startM);
