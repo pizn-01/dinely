@@ -588,7 +588,16 @@ export class ReservationService {
 
     if (org.weekly_hours) {
       const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-      const dayOfWeek = days[new Date(date).getUTCDay()];
+      
+      let parsedDate = date;
+      if (date.includes('/')) {
+        const parts = date.split('/');
+        if (parts[0].length === 2) {
+          parsedDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+        }
+      }
+      
+      const dayOfWeek = days[new Date(parsedDate).getUTCDay()];
       const dayHours = org.weekly_hours[dayOfWeek];
 
       if (dayHours && dayHours.closed) {

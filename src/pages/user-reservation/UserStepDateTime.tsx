@@ -125,8 +125,12 @@ export default function UserStepDateTime({ data, updateData, restaurantSlug }: U
     const fetchSlots = async () => {
       if (!data.date || !data.guests) return
       try {
+        const formattedDate = data.date.includes('/')
+          ? data.date.split('/').reverse().join('-')
+          : data.date;
+
         const res = await api.get(`/public/${restaurantSlug}/slots`, {
-          params: { date: data.date, partySize: data.guests }
+          params: { date: formattedDate, partySize: data.guests }
         })
         if (res.data?.success) {
           const { allSlots, availableSlots } = res.data.data
