@@ -16,6 +16,7 @@ export default function StepDateTime({ data, updateData }: StepDateTimeProps) {
   const [timeSlots, setTimeSlots] = useState<string[]>([])
   const [conflictSlots, setConflictSlots] = useState<string[]>([])
   const [fullyBooked, setFullyBooked] = useState(false)
+  const [isClosed, setIsClosed] = useState(false)
 
   useEffect(() => {
     const fetchSlots = async () => {
@@ -29,11 +30,12 @@ export default function StepDateTime({ data, updateData }: StepDateTimeProps) {
           params: { date: formattedDate, partySize: data.guests }
         })
         if (res.data?.success) {
-          const { allSlots, availableSlots } = res.data.data
-          setTimeSlots(allSlots)
-          const conflicts = allSlots.filter((slot: string) => !availableSlots.includes(slot))
+          const { allSlots, availableSlots, isClosed: resIsClosed } = res.data.data
+          setIsClosed(resIsClosed || false)
+          setTimeSlots(allSlots || [])
+          const conflicts = (allSlots || []).filter((slot: string) => !(availableSlots || []).includes(slot))
           setConflictSlots(conflicts)
-          setFullyBooked(availableSlots.length === 0 && allSlots.length > 0)
+          setFullyBooked((availableSlots || []).length === 0 && (allSlots || []).length > 0)
           
           if (data.time && conflicts.includes(data.time)) {
              updateData({ time: '' })
@@ -106,7 +108,23 @@ export default function StepDateTime({ data, updateData }: StepDateTimeProps) {
 
       {/* Time Slots */}
       <div style={{ marginBottom: '32px' }}>
-        {timeSlots.length === 0 ? (
+        {isClosed ? (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            backgroundColor: '#fef2f2',
+            border: '1px solid #fecaca',
+            borderRadius: '12px',
+            padding: '16px',
+            color: '#dc2626'
+          }}>
+            <AlertCircle size={16} />
+            <span style={{ fontSize: '0.875rem', fontFamily: 'var(--font-sans)', fontWeight: 500 }}>
+              The restaurant is closed on this date.
+            </span>
+          </div>
+        ) : timeSlots.length === 0 ? (
           <p style={{ color: '#6b7280', fontSize: '0.875rem' }}>Loading time slots...</p>
         ) : (
           <TimeSlotPicker

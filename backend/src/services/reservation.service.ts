@@ -585,8 +585,18 @@ export class ReservationService {
     if (!org) return { allSlots: [], availableSlots: [] };
 
     let startH = 0, startM = 0, endH = 0, endM = 0;
+    let isClosed = false;
 
     if (org.weekly_hours) {
+      let weeklyHours = org.weekly_hours;
+      if (typeof weeklyHours === 'string') {
+        try {
+          weeklyHours = JSON.parse(weeklyHours);
+        } catch (e) {
+          console.error('Failed to parse weekly_hours', e);
+        }
+      }
+
       const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
       
       let parsedDate = date;
@@ -598,23 +608,24 @@ export class ReservationService {
       }
       
       const dayOfWeek = days[new Date(parsedDate).getUTCDay()];
-      const dayHours = org.weekly_hours[dayOfWeek];
+      const dayHours = weeklyHours[dayOfWeek];
 
-      if (dayHours && dayHours.closed) {
-        return { allSlots: [], availableSlots: [] };
+      if (dayHours && (dayHours.closed === true || dayHours.closed === 'true')) {
+        isClosed = true;
+        return { allSlots: [], availableSlots: [], isClosed: true };
       }
 
       const openTime = dayHours?.open || org.opening_time;
       const closeTime = dayHours?.close || org.closing_time;
 
-      if (!openTime || !closeTime) return { allSlots: [], availableSlots: [] };
+      if (!openTime || !closeTime) return { allSlots: [], availableSlots: [], isClosed: true };
 
       startH = parseInt(openTime.split(':')[0], 10);
       startM = parseInt(openTime.split(':')[1], 10);
       endH = parseInt(closeTime.split(':')[0], 10);
       endM = parseInt(closeTime.split(':')[1], 10);
     } else {
-      if (!org.opening_time || !org.closing_time) return { allSlots: [], availableSlots: [] };
+      if (!org.opening_time || !org.closing_time) return { allSlots: [], availableSlots: [], isClosed: true };
       startH = parseInt(org.opening_time.split(':')[0], 10);
       startM = parseInt(org.opening_time.split(':')[1], 10);
       endH = parseInt(org.closing_time.split(':')[0], 10);
@@ -647,7 +658,7 @@ export class ReservationService {
       .gte('capacity', partySize);
 
     if (!allTables || allTables.length === 0) {
-      return { allSlots, availableSlots };
+      return { allSlots, availableSlots, isClosed: false };
     }
 
     // Get org duration for end-time calculation
@@ -680,7 +691,7 @@ export class ReservationService {
       if (hasAvailable) availableSlots.push(slot);
     }
 
-    return { allSlots, availableSlots };
+    return { allSlots, availableSlots, isClosed: false };
   }
 
   /**
