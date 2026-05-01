@@ -50,6 +50,7 @@ router.get('/:slug/info', async (req: Request, res: Response, next: NextFunction
         maxPartySize: org.maxPartySize,
         allowWalkIns: org.allowWalkIns,
         logoUrl: org.logoUrl || null,
+        widgetBgUrl: org.widgetBgUrl || null,
         cancellationPolicy: org.cancellationPolicy || null,
       },
     });

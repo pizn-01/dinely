@@ -30,7 +30,7 @@ export default function UnifiedLanding() {
       flexDirection: 'column',
       position: 'relative',
       overflow: 'hidden',
-      backgroundImage: `linear-gradient(rgba(11, 21, 23, 0.4), rgba(11, 21, 23, 0.6)), url(${mainBg})`,
+      backgroundImage: `linear-gradient(rgba(11, 21, 23, 0.4), rgba(11, 21, 23, 0.6)), url(${orgData?.widgetBgUrl || mainBg})`,
       backgroundSize: 'cover',
       backgroundPosition: 'center',
       backgroundAttachment: 'fixed'

@@ -60,6 +60,22 @@ export class OrganizationController {
     }
   }
 
+  async uploadWidgetBg(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const file = (req as any).file;
+      if (!file) {
+        res.status(400).json({ success: false, error: 'Image file is required' });
+        return;
+      }
+      
+      const paramId = (req as any).params.orgId;
+      const result = await organizationService.uploadWidgetBg(paramId, file);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async createSupportTicket(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const { subject, message } = req.body;

@@ -9,6 +9,12 @@ export const createOrganizationSchema = z.object({
   closingTime: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/, 'Must be in HH:MM or HH:MM:SS format').optional(),
 });
 
+const dayHoursSchema = z.object({
+  open: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
+  close: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
+  closed: z.boolean(),
+});
+
 export const updateOrganizationSchema = z.object({
   name: z.string().min(2).max(255).optional(),
   address: z.string().optional(),
@@ -25,6 +31,16 @@ export const updateOrganizationSchema = z.object({
   maxPartySize: z.number().int().min(1).max(100).optional(),
   requirePayment: z.boolean().optional(),
   cancellationPolicy: z.string().optional(),
+  vipMembershipFee: z.number().min(0).optional(),
+  weeklyHours: z.object({
+    monday: dayHoursSchema,
+    tuesday: dayHoursSchema,
+    wednesday: dayHoursSchema,
+    thursday: dayHoursSchema,
+    friday: dayHoursSchema,
+    saturday: dayHoursSchema,
+    sunday: dayHoursSchema,
+  }).optional(),
 });
 
 export const setupStepSchema = z.object({

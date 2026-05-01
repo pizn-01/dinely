@@ -84,6 +84,9 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
   const [logoUrl, setLogoUrl] = useState('')
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [uploadSuccess, setUploadSuccess] = useState(false)
+  const [widgetBgUrl, setWidgetBgUrl] = useState('')
+  const [uploadingWidgetBg, setUploadingWidgetBg] = useState(false)
+  const [widgetBgUploadSuccess, setWidgetBgUploadSuccess] = useState(false)
 
   // Restaurant configuration state
   const [settings, setSettings] = useState<OrgSettings>(defaultSettings)
@@ -102,6 +105,7 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
         const org = data.data
         if (org?.slug) setRestaurantSlug(org.slug)
         if (org?.logoUrl) setLogoUrl(org.logoUrl)
+        if (org?.widgetBgUrl) setWidgetBgUrl(org.widgetBgUrl)
 
         let isStripeComplete = org?.stripeOnboardingComplete ?? false
 
@@ -185,6 +189,37 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
       toast.error(err?.response?.data?.error || 'Failed to upload logo')
     } finally {
       setUploadingLogo(false)
+    }
+  }
+
+  const handleWidgetBgUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('Background image must be smaller than 10MB')
+      return
+    }
+
+    try {
+      setUploadingWidgetBg(true)
+      const formData = new FormData()
+      formData.append('widgetBg', file)
+
+      const { data } = await api.post(`/organizations/${orgId}/widget-bg`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+
+      if (data.data?.widgetBgUrl) {
+        setWidgetBgUrl(data.data.widgetBgUrl)
+        setWidgetBgUploadSuccess(true)
+        setTimeout(() => setWidgetBgUploadSuccess(false), 3000)
+      }
+    } catch (err: any) {
+      console.error('Failed to upload widget background:', err)
+      toast.error(err?.response?.data?.error || 'Failed to upload background image')
+    } finally {
+      setUploadingWidgetBg(false)
     }
   }
 
@@ -748,6 +783,74 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#10b981', fontSize: '0.875rem', marginTop: '12px', fontWeight: 500 }}>
                     <Check size={16} />
                     Logo updated successfully
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Widget Background Image */}
+          <div style={cardStyle}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 500, marginBottom: '8px' }}>Widget Background Image</h3>
+            <p style={{ color: isDark ? '#8b949e' : '#6b7280', fontSize: '0.875rem', marginBottom: '24px' }}>
+              Upload a custom background image for your public reservation page.
+              This image appears behind the hero section when guests visit your booking link.
+              (Max size: 10MB. Formats: PNG, JPG, WebP).
+            </p>
+
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '32px' }}>
+              <div style={{
+                width: '200px',
+                height: '120px',
+                borderRadius: '12px',
+                border: `2px dashed ${isDark ? '#30363d' : '#d1d5db'}`,
+                backgroundColor: isDark ? '#161B22' : '#f9fafb',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                overflow: 'hidden'
+              }}>
+                {widgetBgUrl ? (
+                  <img src={widgetBgUrl} alt="Widget Background" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '10px' }} />
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', color: isDark ? '#8b949e' : '#9ca3af' }}>
+                    <ImageIcon size={32} style={{ marginBottom: '8px' }} />
+                    <span style={{ fontSize: '0.75rem' }}>No Background</span>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ flex: 1 }}>
+                <label style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '10px 20px',
+                  backgroundColor: isDark ? '#238636' : '#C99C63',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontWeight: 600,
+                  fontSize: '0.875rem',
+                  cursor: uploadingWidgetBg ? 'wait' : 'pointer',
+                  transition: 'opacity 0.2s',
+                  opacity: uploadingWidgetBg ? 0.7 : 1
+                }}>
+                  <Upload size={16} />
+                  {uploadingWidgetBg ? 'Uploading...' : 'Upload Background'}
+                  <input
+                    type="file"
+                    accept=".png,.jpg,.jpeg,.webp"
+                    onChange={handleWidgetBgUpload}
+                    disabled={uploadingWidgetBg}
+                    style={{ display: 'none' }}
+                  />
+                </label>
+
+                {widgetBgUploadSuccess && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#10b981', fontSize: '0.875rem', marginTop: '12px', fontWeight: 500 }}>
+                    <Check size={16} />
+                    Background updated successfully
                   </div>
                 )}
               </div>

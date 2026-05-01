@@ -141,7 +141,10 @@ export default function UserStepDateTime({ data, updateData, restaurantSlug }: U
           setConflictSlots(conflicts)
           setFullyBooked((availableSlots || []).length === 0 && (allSlots || []).length > 0)
           
-          if (data.time && conflicts.includes(data.time)) {
+          // Clear selected time if the day is closed or the previously selected slot is now conflicted
+          if (resIsClosed && data.time) {
+            updateData({ time: '' })
+          } else if (data.time && conflicts.includes(data.time)) {
              updateData({ time: '' })
           }
         }

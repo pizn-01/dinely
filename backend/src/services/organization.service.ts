@@ -171,6 +171,61 @@ export class OrganizationService {
   }
 
   /**
+   * Upload a widget background image and update the organization record.
+   */
+  async uploadWidgetBg(orgId: string, file: Express.Multer.File) {
+    // Clean up old background if present
+    const { data: currentOrg } = await supabaseAdmin
+      .from('organizations')
+      .select('widget_bg_url')
+      .eq('id', orgId)
+      .single();
+
+    if (currentOrg?.widget_bg_url) {
+      try {
+        const oldPath = currentOrg.widget_bg_url.split('/restaurant-assets/')[1];
+        if (oldPath) {
+          await supabaseAdmin.storage.from('restaurant-assets').remove([oldPath]);
+        }
+      } catch (cleanupErr) {
+        console.warn('[OrgService] Failed to clean up old widget bg:', cleanupErr);
+      }
+    }
+
+    const fileName = `widget-bg/${orgId}/${Date.now()}-${file.originalname}`;
+
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from('restaurant-assets')
+      .upload(fileName, file.buffer, {
+        contentType: file.mimetype,
+        upsert: true,
+      });
+
+    if (uploadError) {
+      console.error('[OrgService] Widget bg upload failed:', uploadError);
+      throw new AppError('Failed to upload widget background image', 500);
+    }
+
+    const { data: urlData } = supabaseAdmin.storage
+      .from('restaurant-assets')
+      .getPublicUrl(fileName);
+
+    const widgetBgUrl = urlData.publicUrl;
+
+    // Update organization record
+    const { error: updateError } = await supabaseAdmin
+      .from('organizations')
+      .update({ widget_bg_url: widgetBgUrl, updated_at: new Date().toISOString() })
+      .eq('id', orgId);
+
+    if (updateError) {
+      throw new AppError('Failed to save widget background URL', 500);
+    }
+
+    return { widgetBgUrl };
+  }
+
+  /**
    * Get dashboard statistics for a restaurant.
    */
   async getStats(restaurantId: string) {
@@ -268,6 +323,7 @@ export class OrganizationService {
       stripeOnboardingComplete: row.stripe_onboarding_complete,
       vipMembershipFee: row.vip_membership_fee,
       weeklyHours: row.weekly_hours || null,
+      widgetBgUrl: row.widget_bg_url || null,
       isActive: row.is_active,
       createdAt: row.created_at,
       updatedAt: row.updated_at,

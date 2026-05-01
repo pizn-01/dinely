@@ -52,6 +52,14 @@ router.post('/:orgId/logo',
   (req, res, next) => organizationController.uploadLogo(req, res, next)
 );
 
+// POST /organizations/:orgId/widget-bg
+router.post('/:orgId/widget-bg',
+  requireRestaurantAccess,
+  requireMinRole(UserRole.RESTAURANT_ADMIN),
+  upload.single('widgetBg'),
+  (req, res, next) => organizationController.uploadWidgetBg(req, res, next)
+);
+
 // POST /organizations/:orgId/support
 router.post('/:orgId/support',
   requireRestaurantAccess,
