@@ -44,6 +44,7 @@ export default function StaffTableManagement() {
   // Dynamic State
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
   const [dbTables, setDbTables] = useState<any[]>([])
+  const [dbAreas, setDbAreas] = useState<any[]>([])
   const [dbReservations, setDbReservations] = useState<any[]>([])
   const [restaurantName, setRestaurantName] = useState('Staff Dashboard')
   const [orgData, setOrgData] = useState<any>(null)
@@ -87,6 +88,11 @@ export default function StaffTableManagement() {
   const [newAreaName, setNewAreaName] = useState('')
   const [isCreatingArea, setIsCreatingArea] = useState(false)
 
+  // ── Create Table State ──────────────────────────────────────────────────────
+  const [showCreateTableModal, setShowCreateTableModal] = useState(false)
+  const [newTableData, setNewTableData] = useState({ name: '', capacity: 2, minCapacity: 1, areaId: '' })
+  const [isCreatingTable, setIsCreatingTable] = useState(false)
+
   const restaurantId = user?.restaurantId
 
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null)
@@ -100,13 +106,15 @@ export default function StaffTableManagement() {
     }
     try {
       setLoading(true)
-      const [tablesRes, resvRes, orgRes] = await Promise.all([
+      const [tablesRes, resvRes, orgRes, areasRes] = await Promise.all([
         api.get(`/organizations/${rid}/tables`),
         api.get(`/organizations/${rid}/reservations?date=${d}`),
-        api.get(`/organizations/${rid}`)
+        api.get(`/organizations/${rid}`),
+        api.get(`/organizations/${rid}/tables/areas`)
       ])
 
       setDbTables(tablesRes.data.data || [])
+      setDbAreas(areasRes.data.data || [])
       setDbReservations(resvRes.data.reservations || []) 
       setRestaurantName(orgRes.data.data?.name || 'Staff Dashboard')
       setOrgData(orgRes.data.data)
@@ -210,10 +218,10 @@ export default function StaffTableManagement() {
   }, [dbTables, dbReservations])
 
   const groupedAreas = useMemo(() => {
-    const areasMap: Record<string, Record<string, any[]>> = {}
-    dbTables.forEach(table => {
-      const fullAreaName = table.area?.name || table.floor_areas?.name || table.location || 'Main Area'
-      
+    const areasMap: Record<string, Record<string, { areaId: string, name: string, tables: any[] }>> = {}
+    
+    dbAreas.forEach(areaObj => {
+      const fullAreaName = areaObj.name || 'Main Area'
       let floor = 'Areas'
       let area = fullAreaName
 
@@ -224,12 +232,27 @@ export default function StaffTableManagement() {
       }
 
       if (!areasMap[floor]) areasMap[floor] = {}
-      if (!areasMap[floor][area]) areasMap[floor][area] = []
+      areasMap[floor][area] = { areaId: areaObj.id, name: fullAreaName, tables: [] }
+    })
+
+    dbTables.forEach(table => {
+      const fullAreaName = table.area?.name || table.floor_areas?.name || table.location || 'Main Area'
+      let floor = 'Areas'
+      let area = fullAreaName
+
+      if (fullAreaName.includes(' - ')) {
+        const parts = fullAreaName.split(' - ')
+        floor = parts[0].trim()
+        area = parts[1].trim()
+      }
+
+      if (!areasMap[floor]) areasMap[floor] = {}
+      if (!areasMap[floor][area]) areasMap[floor][area] = { areaId: table.area?.id || table.floor_areas?.id || '', name: fullAreaName, tables: [] }
       
-      areasMap[floor][area].push(table)
+      areasMap[floor][area].tables.push(table)
     })
     return areasMap
-  }, [dbTables])
+  }, [dbTables, dbAreas])
 
   const handleStatusUpdate = async (resId: string, status: string) => {
     try {
@@ -258,6 +281,29 @@ export default function StaffTableManagement() {
       toast.error(error.response?.data?.error || 'Failed to create area')
     } finally {
       setIsCreatingArea(false)
+    }
+  }
+
+  const handleCreateTable = async () => {
+    if (!newTableData.name.trim() || !newTableData.areaId) return
+    try {
+      setIsCreatingTable(true)
+      await api.post(`/organizations/${restaurantId}/tables`, {
+        tableNumber: newTableData.name.trim(), // Use name as tableNumber for now
+        name: newTableData.name.trim(),
+        capacity: newTableData.capacity,
+        minCapacity: newTableData.minCapacity,
+        areaId: newTableData.areaId
+      })
+      toast.success('Table created successfully')
+      setShowCreateTableModal(false)
+      setNewTableData({ name: '', capacity: 2, minCapacity: 1, areaId: '' })
+      if (restaurantId) fetchData(selectedDate, restaurantId)
+    } catch (error: any) {
+      console.error('Failed to create table:', error)
+      toast.error(error.response?.data?.error || 'Failed to create table')
+    } finally {
+      setIsCreatingTable(false)
     }
   }
 
@@ -638,7 +684,8 @@ export default function StaffTableManagement() {
                              const isSelected = selectedAreaFilter === filterKey
 
                              // Calculate occupancy
-                             const areaTables = areas[areaName]
+                             const areaData = areas[areaName]
+                             const areaTables = areaData.tables
                              const seatedCount = areaTables.filter(t => {
                                return dbReservations.some(r => r.table?.id === t.id && r.status === 'seated' && !['cancelled', 'no_show'].includes(r.status))
                              }).length
@@ -686,28 +733,26 @@ export default function StaffTableManagement() {
 
                   {/* Right Pane: Table Grid */}
                   <div style={{ flex: 1, paddingBottom: '60px' }}>
-                    {Object.entries(
-                      dbTables.reduce((acc, table) => {
-                        const areaName = table.area?.name || table.floor_areas?.name || table.location || 'Main Area'
-                        if (selectedAreaFilter !== 'All Areas' && areaName !== selectedAreaFilter) return acc
-                        if (!acc[areaName]) acc[areaName] = []
-                        acc[areaName].push(table)
-                        return acc
-                      }, {} as Record<string, any[]>)
-                    ).map(([areaName, areaTables]) => (
-                      <div key={areaName} style={{ marginBottom: '40px' }}>
-                        {selectedAreaFilter === 'All Areas' ? (
-                          <div style={{ padding: '24px 60px', backgroundColor: 'var(--bg-tertiary)', borderTop: `1px solid var(--border-primary)`, borderBottom: `1px solid var(--border-primary)`, marginBottom: '40px', transition: 'background-color 0.3s' }}>
-                            <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>{areaName}</h3>
-                            <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>{(areaTables as any[]).length} Tables</p>
-                          </div>
-                        ) : (
-                          <div style={{ padding: '32px 60px 16px', marginBottom: '24px', borderBottom: `1px solid var(--border-primary)` }}>
-                            <h3 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>{areaName.includes(' - ') ? areaName.split(' - ')[1] : areaName}</h3>
-                            <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>{(areaTables as any[]).length} Tables</p>
-                          </div>
-                        )}
-                        <div style={{ padding: '0 60px', display: 'flex', flexWrap: 'wrap', gap: '100px', justifyContent: 'center' }}>
+                    {Object.entries(groupedAreas).flatMap(([floorName, floorAreas]) => 
+                      Object.entries(floorAreas).map(([areaShortName, areaData]) => {
+                        const fullAreaName = areaData.name
+                        const areaTables = areaData.tables
+                        if (selectedAreaFilter !== 'All Areas' && fullAreaName !== selectedAreaFilter) return []
+                        
+                        return (
+                          <div key={fullAreaName} style={{ marginBottom: '40px' }}>
+                            {selectedAreaFilter === 'All Areas' ? (
+                              <div style={{ padding: '24px 60px', backgroundColor: 'var(--bg-tertiary)', borderTop: `1px solid var(--border-primary)`, borderBottom: `1px solid var(--border-primary)`, marginBottom: '40px', transition: 'background-color 0.3s' }}>
+                                <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>{fullAreaName}</h3>
+                                <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>{(areaTables as any[]).length} Tables</p>
+                              </div>
+                            ) : (
+                              <div style={{ padding: '32px 60px 16px', marginBottom: '24px', borderBottom: `1px solid var(--border-primary)` }}>
+                                <h3 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>{areaShortName}</h3>
+                                <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>{(areaTables as any[]).length} Tables</p>
+                              </div>
+                            )}
+                            <div style={{ padding: '0 60px', display: 'flex', flexWrap: 'wrap', gap: '100px', justifyContent: 'center' }}>
                       {(areaTables as any[]).map(table => {
                         // Get all valid reservations for this table today
                         const tableReservations = dbReservations.filter(r => r.table?.id === table.id && !['cancelled', 'no_show'].includes(r.status))
@@ -844,9 +889,24 @@ export default function StaffTableManagement() {
                           </div>
                         )
                       })}
+                      
+                      {/* Add Table Button for this Area */}
+                      {areaData.areaId && (
+                        <div 
+                          onClick={() => { setNewTableData(prev => ({...prev, areaId: areaData.areaId})); setShowCreateTableModal(true); }}
+                          style={{ position: 'relative', width: '120px', height: '120px', cursor: 'pointer', borderRadius: '16px', border: '2px dashed var(--text-tertiary)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', color: 'var(--text-tertiary)', transition: 'all 0.2s', backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)' }}
+                          onMouseOver={e => { e.currentTarget.style.borderColor = '#C99C63'; e.currentTarget.style.color = '#C99C63'; e.currentTarget.style.backgroundColor = isDark ? 'rgba(201,156,99,0.05)' : 'rgba(201,156,99,0.05)'; }}
+                          onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--text-tertiary)'; e.currentTarget.style.color = 'var(--text-tertiary)'; e.currentTarget.style.backgroundColor = isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)'; }}
+                        >
+                          <Plus size={24} />
+                          <span style={{ fontSize: '0.75rem', fontWeight: 600 }}>Add Table</span>
+                        </div>
+                      )}
                     </div>
                   </div>
-                ))}
+                )
+              })
+            )}
                   </div>
                 </div>
                 {/* Merge Action Bar */}
@@ -1787,6 +1847,103 @@ export default function StaffTableManagement() {
                 style={{ padding: '10px 20px', borderRadius: '12px', border: 'none', backgroundColor: '#C99C63', color: '#fff', fontWeight: 600, cursor: isCreatingArea || !newAreaName.trim() ? 'not-allowed' : 'pointer', opacity: isCreatingArea || !newAreaName.trim() ? 0.7 : 1 }}
               >
                 {isCreatingArea ? 'Creating...' : 'Create Area'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Table Modal */}
+      {showCreateTableModal && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '24px', backdropFilter: 'blur(4px)' }}>
+          <div style={{ backgroundColor: isDark ? '#111827' : '#ffffff', borderRadius: '24px', width: '100%', maxWidth: '400px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+            <div style={{ padding: '24px', borderBottom: `1px solid var(--border-primary)`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>Add New Table</h2>
+              <button onClick={() => { setShowCreateTableModal(false); setNewTableData({ name: '', capacity: 2, minCapacity: 1, areaId: '' }); }} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', padding: '4px' }}>
+                <X size={20} />
+              </button>
+            </div>
+            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                  Table Name or Number
+                </label>
+                <input
+                  type="text"
+                  value={newTableData.name}
+                  onChange={e => setNewTableData(prev => ({...prev, name: e.target.value}))}
+                  placeholder="e.g. T-12 or VIP-1"
+                  autoFocus
+                  style={{
+                    width: '100%',
+                    padding: '12px 16px',
+                    borderRadius: '12px',
+                    border: `1px solid var(--border-primary)`,
+                    backgroundColor: 'var(--bg-card)',
+                    color: 'var(--text-primary)',
+                    fontSize: '1rem',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                    Capacity
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={newTableData.capacity}
+                    onChange={e => setNewTableData(prev => ({...prev, capacity: parseInt(e.target.value) || 2}))}
+                    style={{
+                      width: '100%',
+                      padding: '12px 16px',
+                      borderRadius: '12px',
+                      border: `1px solid var(--border-primary)`,
+                      backgroundColor: 'var(--bg-card)',
+                      color: 'var(--text-primary)',
+                      fontSize: '1rem',
+                      outline: 'none'
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                    Min Capacity
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={newTableData.minCapacity}
+                    onChange={e => setNewTableData(prev => ({...prev, minCapacity: parseInt(e.target.value) || 1}))}
+                    style={{
+                      width: '100%',
+                      padding: '12px 16px',
+                      borderRadius: '12px',
+                      border: `1px solid var(--border-primary)`,
+                      backgroundColor: 'var(--bg-card)',
+                      color: 'var(--text-primary)',
+                      fontSize: '1rem',
+                      outline: 'none'
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+            <div style={{ padding: '16px 24px', backgroundColor: 'var(--bg-tertiary)', borderTop: `1px solid var(--border-primary)`, display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button
+                onClick={() => { setShowCreateTableModal(false); setNewTableData({ name: '', capacity: 2, minCapacity: 1, areaId: '' }); }}
+                style={{ padding: '10px 20px', borderRadius: '12px', border: 'none', backgroundColor: 'transparent', color: 'var(--text-secondary)', fontWeight: 600, cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateTable}
+                disabled={isCreatingTable || !newTableData.name.trim()}
+                style={{ padding: '10px 20px', borderRadius: '12px', border: 'none', backgroundColor: '#C99C63', color: '#fff', fontWeight: 600, cursor: isCreatingTable || !newTableData.name.trim() ? 'not-allowed' : 'pointer', opacity: isCreatingTable || !newTableData.name.trim() ? 0.7 : 1 }}
+              >
+                {isCreatingTable ? 'Creating...' : 'Create Table'}
               </button>
             </div>
           </div>
