@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Users, MapPin, Coffee, ChevronLeft, ChevronRight, Upload, Plus, Calendar, Clock, Layout, Moon, Sun, CircleUser, LogOut, KeyRound, Link2, Unlink } from 'lucide-react'
+import { Users, MapPin, Coffee, ChevronLeft, ChevronRight, Upload, Plus, Calendar, Clock, Layout, Moon, Sun, CircleUser, LogOut, KeyRound, Link2, Unlink, X } from 'lucide-react'
 import { api } from '../../services/api'
 import { toast } from 'react-hot-toast'
 import { useAuth } from '../../context/AuthContext'
@@ -81,6 +81,11 @@ export default function StaffTableManagement() {
 
   // ── Area Filter State ──────────────────────────────────────────────────────
   const [selectedAreaFilter, setSelectedAreaFilter] = useState<string>('All Areas')
+
+  // ── Create Area State ──────────────────────────────────────────────────────
+  const [showCreateAreaModal, setShowCreateAreaModal] = useState(false)
+  const [newAreaName, setNewAreaName] = useState('')
+  const [isCreatingArea, setIsCreatingArea] = useState(false)
 
   const restaurantId = user?.restaurantId
 
@@ -234,6 +239,25 @@ export default function StaffTableManagement() {
     } catch (error: any) {
       console.error('Failed to update status:', error)
       toast.error(error.response?.data?.error || 'Failed to update reservation status.')
+    }
+  }
+
+  const handleCreateArea = async () => {
+    if (!newAreaName.trim()) return
+    try {
+      setIsCreatingArea(true)
+      await api.post(`/organizations/${restaurantId}/tables/areas`, {
+        name: newAreaName.trim()
+      })
+      toast.success('Area created successfully')
+      setShowCreateAreaModal(false)
+      setNewAreaName('')
+      if (restaurantId) fetchData(selectedDate, restaurantId)
+    } catch (error: any) {
+      console.error('Failed to create area:', error)
+      toast.error(error.response?.data?.error || 'Failed to create area')
+    } finally {
+      setIsCreatingArea(false)
     }
   }
 
@@ -593,17 +617,18 @@ export default function StaffTableManagement() {
                 <div style={{ display: 'flex', alignItems: 'flex-start' }}>
                   
                   {/* Left Pane: Sidebar Navigator */}
-                  <div style={{ width: '250px', flexShrink: 0, padding: '24px', borderRight: '1px solid var(--border-primary)', minHeight: '500px' }}>
-                    <div style={{ marginBottom: '24px' }}>
-                      <button 
-                        onClick={() => setSelectedAreaFilter('All Areas')}
-                        style={{ width: '100%', textAlign: 'left', padding: '12px 16px', borderRadius: '12px', border: 'none', backgroundColor: selectedAreaFilter === 'All Areas' ? 'var(--bg-tertiary)' : 'transparent', color: selectedAreaFilter === 'All Areas' ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: selectedAreaFilter === 'All Areas' ? 700 : 500, cursor: 'pointer', transition: 'all 0.2s', borderRight: selectedAreaFilter === 'All Areas' ? `3px solid #C99C63` : '3px solid transparent' }}>
-                        All Areas
-                      </button>
-                    </div>
+                  <div style={{ width: '250px', flexShrink: 0, padding: '24px', borderRight: '1px solid var(--border-primary)', minHeight: '500px', display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ marginBottom: '24px' }}>
+                        <button 
+                          onClick={() => setSelectedAreaFilter('All Areas')}
+                          style={{ width: '100%', textAlign: 'left', padding: '12px 16px', borderRadius: '12px', border: 'none', backgroundColor: selectedAreaFilter === 'All Areas' ? 'var(--bg-tertiary)' : 'transparent', color: selectedAreaFilter === 'All Areas' ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: selectedAreaFilter === 'All Areas' ? 700 : 500, cursor: 'pointer', transition: 'all 0.2s', borderRight: selectedAreaFilter === 'All Areas' ? `3px solid #C99C63` : '3px solid transparent' }}>
+                          All Areas
+                        </button>
+                      </div>
 
-                    {Object.entries(groupedAreas).map(([floorName, areas]) => (
-                      <div key={floorName} style={{ marginBottom: '24px' }}>
+                      {Object.entries(groupedAreas).map(([floorName, areas]) => (
+                        <div key={floorName} style={{ marginBottom: '24px' }}>
                         <div style={{ padding: '0 16px', marginBottom: '8px', fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                           {floorName}
                         </div>
@@ -643,6 +668,20 @@ export default function StaffTableManagement() {
                         </div>
                       </div>
                     ))}
+                    </div>
+
+                    {/* Create Area Button */}
+                    <div style={{ marginTop: '24px', paddingTop: '24px', borderTop: '1px solid var(--border-primary)' }}>
+                      <button 
+                        onClick={() => setShowCreateAreaModal(true)}
+                        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px', borderRadius: '12px', border: '1px dashed var(--text-tertiary)', backgroundColor: 'transparent', color: 'var(--text-secondary)', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', fontSize: '0.875rem' }}
+                        onMouseOver={e => { e.currentTarget.style.borderColor = '#C99C63'; e.currentTarget.style.color = '#C99C63' }}
+                        onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--text-tertiary)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
+                      >
+                        <Plus size={16} />
+                        Create Area
+                      </button>
+                    </div>
                   </div>
 
                   {/* Right Pane: Table Grid */}
@@ -1699,6 +1738,60 @@ export default function StaffTableManagement() {
       )}
 
       <PoweredByFooter theme={isDark ? 'dark' : 'light'} />
+      
+      {/* Create Area Modal */}
+      {showCreateAreaModal && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '24px', backdropFilter: 'blur(4px)' }}>
+          <div style={{ backgroundColor: isDark ? '#111827' : '#ffffff', borderRadius: '24px', width: '100%', maxWidth: '400px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+            <div style={{ padding: '24px', borderBottom: `1px solid var(--border-primary)`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>Create New Area</h2>
+              <button onClick={() => { setShowCreateAreaModal(false); setNewAreaName(''); }} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', padding: '4px' }}>
+                <X size={20} />
+              </button>
+            </div>
+            <div style={{ padding: '24px' }}>
+              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                Area Name
+              </label>
+              <input
+                type="text"
+                value={newAreaName}
+                onChange={e => setNewAreaName(e.target.value)}
+                placeholder="e.g. Floor 1 - Patio"
+                autoFocus
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  borderRadius: '12px',
+                  border: `1px solid var(--border-primary)`,
+                  backgroundColor: 'var(--bg-card)',
+                  color: 'var(--text-primary)',
+                  fontSize: '1rem',
+                  outline: 'none'
+                }}
+              />
+              <p style={{ marginTop: '8px', fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
+                Tip: Use "Floor - Area" (e.g. "Main - Bar") to automatically group them.
+              </p>
+            </div>
+            <div style={{ padding: '16px 24px', backgroundColor: 'var(--bg-tertiary)', borderTop: `1px solid var(--border-primary)`, display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button
+                onClick={() => { setShowCreateAreaModal(false); setNewAreaName(''); }}
+                style={{ padding: '10px 20px', borderRadius: '12px', border: 'none', backgroundColor: 'transparent', color: 'var(--text-secondary)', fontWeight: 600, cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateArea}
+                disabled={isCreatingArea || !newAreaName.trim()}
+                style={{ padding: '10px 20px', borderRadius: '12px', border: 'none', backgroundColor: '#C99C63', color: '#fff', fontWeight: 600, cursor: isCreatingArea || !newAreaName.trim() ? 'not-allowed' : 'pointer', opacity: isCreatingArea || !newAreaName.trim() ? 0.7 : 1 }}
+              >
+                {isCreatingArea ? 'Creating...' : 'Create Area'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
