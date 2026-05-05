@@ -79,6 +79,9 @@ export default function StaffTableManagement() {
   const [mergedTableName, setMergedTableName] = useState('')
   const [isMerging, setIsMerging] = useState(false)
 
+  // ── Area Filter State ──────────────────────────────────────────────────────
+  const [selectedAreaFilter, setSelectedAreaFilter] = useState<string>('All Areas')
+
   const restaurantId = user?.restaurantId
 
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null)
@@ -200,6 +203,28 @@ export default function StaffTableManagement() {
       { label: 'Available', value: available, color: '#6B9E78', icon: <Layout size={20} /> }
     ]
   }, [dbTables, dbReservations])
+
+  const groupedAreas = useMemo(() => {
+    const areasMap: Record<string, Record<string, any[]>> = {}
+    dbTables.forEach(table => {
+      const fullAreaName = table.area?.name || table.floor_areas?.name || table.location || 'Main Area'
+      
+      let floor = 'Areas'
+      let area = fullAreaName
+
+      if (fullAreaName.includes(' - ')) {
+        const parts = fullAreaName.split(' - ')
+        floor = parts[0].trim()
+        area = parts[1].trim()
+      }
+
+      if (!areasMap[floor]) areasMap[floor] = {}
+      if (!areasMap[floor][area]) areasMap[floor][area] = []
+      
+      areasMap[floor][area].push(table)
+    })
+    return areasMap
+  }, [dbTables])
 
   const handleStatusUpdate = async (resId: string, status: string) => {
     try {
@@ -564,20 +589,86 @@ export default function StaffTableManagement() {
                     {isMergeMode ? `${selectedTableIds.size} table${selectedTableIds.size !== 1 ? 's' : ''} selected — Shift+Click to add more, or use the bar below` : 'Hold Shift + Click tables to select multiple for a large-party merge'}
                   </span>
                 </div>
-                {Object.entries(
-                  dbTables.reduce((acc, table) => {
-                    const areaName = table.area?.name || table.floor_areas?.name || table.location || 'Main Area'
-                    if (!acc[areaName]) acc[areaName] = []
-                    acc[areaName].push(table)
-                    return acc
-                  }, {} as Record<string, any[]>)
-                ).map(([areaName, areaTables]) => (
-                  <div key={areaName} style={{ marginBottom: '40px' }}>
-                    <div style={{ padding: '24px 60px', backgroundColor: 'var(--bg-tertiary)', borderTop: `1px solid var(--border-primary)`, borderBottom: `1px solid var(--border-primary)`, marginBottom: '40px', transition: 'background-color 0.3s' }}>
-                      <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>{areaName}</h3>
-                      <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>{(areaTables as any[]).length} Tables</p>
+                {/* Main Two-Pane Layout */}
+                <div style={{ display: 'flex', alignItems: 'flex-start' }}>
+                  
+                  {/* Left Pane: Sidebar Navigator */}
+                  <div style={{ width: '250px', flexShrink: 0, padding: '24px', borderRight: '1px solid var(--border-primary)', minHeight: '500px' }}>
+                    <div style={{ marginBottom: '24px' }}>
+                      <button 
+                        onClick={() => setSelectedAreaFilter('All Areas')}
+                        style={{ width: '100%', textAlign: 'left', padding: '12px 16px', borderRadius: '12px', border: 'none', backgroundColor: selectedAreaFilter === 'All Areas' ? 'var(--bg-tertiary)' : 'transparent', color: selectedAreaFilter === 'All Areas' ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: selectedAreaFilter === 'All Areas' ? 700 : 500, cursor: 'pointer', transition: 'all 0.2s', borderRight: selectedAreaFilter === 'All Areas' ? `3px solid #C99C63` : '3px solid transparent' }}>
+                        All Areas
+                      </button>
                     </div>
-                    <div style={{ padding: '0 60px', display: 'flex', flexWrap: 'wrap', gap: '100px', justifyContent: 'center' }}>
+
+                    {Object.entries(groupedAreas).map(([floorName, areas]) => (
+                      <div key={floorName} style={{ marginBottom: '24px' }}>
+                        <div style={{ padding: '0 16px', marginBottom: '8px', fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          {floorName}
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          {Object.keys(areas).map(areaName => {
+                             const filterKey = floorName === 'Areas' ? areaName : `${floorName} - ${areaName}`
+                             const isSelected = selectedAreaFilter === filterKey
+
+                             // Calculate occupancy
+                             const areaTables = areas[areaName]
+                             const seatedCount = areaTables.filter(t => {
+                               return dbReservations.some(r => r.table?.id === t.id && r.status === 'seated' && !['cancelled', 'no_show'].includes(r.status))
+                             }).length
+
+                             return (
+                               <button 
+                                 key={areaName}
+                                 onClick={() => setSelectedAreaFilter(filterKey)}
+                                 style={{ 
+                                   width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', textAlign: 'left', padding: '10px 16px', borderRadius: '12px', border: 'none', 
+                                   backgroundColor: isSelected ? 'var(--bg-tertiary)' : 'transparent', 
+                                   color: isSelected ? 'var(--text-primary)' : 'var(--text-secondary)', 
+                                   fontWeight: isSelected ? 600 : 500, 
+                                   cursor: 'pointer', transition: 'all 0.2s',
+                                   borderRight: isSelected ? `3px solid #C99C63` : '3px solid transparent'
+                                 }}
+                               >
+                                 <span style={{ fontSize: '0.875rem' }}>{areaName}</span>
+                                 {seatedCount > 0 && (
+                                   <span style={{ fontSize: '0.7rem', backgroundColor: isDark ? 'rgba(107,158,120,0.15)' : '#F0FDF4', color: '#6B9E78', padding: '2px 8px', borderRadius: '100px', fontWeight: 700 }}>
+                                     {seatedCount}/{areaTables.length}
+                                   </span>
+                                 )}
+                               </button>
+                             )
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Right Pane: Table Grid */}
+                  <div style={{ flex: 1, paddingBottom: '60px' }}>
+                    {Object.entries(
+                      dbTables.reduce((acc, table) => {
+                        const areaName = table.area?.name || table.floor_areas?.name || table.location || 'Main Area'
+                        if (selectedAreaFilter !== 'All Areas' && areaName !== selectedAreaFilter) return acc
+                        if (!acc[areaName]) acc[areaName] = []
+                        acc[areaName].push(table)
+                        return acc
+                      }, {} as Record<string, any[]>)
+                    ).map(([areaName, areaTables]) => (
+                      <div key={areaName} style={{ marginBottom: '40px' }}>
+                        {selectedAreaFilter === 'All Areas' ? (
+                          <div style={{ padding: '24px 60px', backgroundColor: 'var(--bg-tertiary)', borderTop: `1px solid var(--border-primary)`, borderBottom: `1px solid var(--border-primary)`, marginBottom: '40px', transition: 'background-color 0.3s' }}>
+                            <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>{areaName}</h3>
+                            <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>{(areaTables as any[]).length} Tables</p>
+                          </div>
+                        ) : (
+                          <div style={{ padding: '32px 60px 16px', marginBottom: '24px', borderBottom: `1px solid var(--border-primary)` }}>
+                            <h3 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>{areaName.includes(' - ') ? areaName.split(' - ')[1] : areaName}</h3>
+                            <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>{(areaTables as any[]).length} Tables</p>
+                          </div>
+                        )}
+                        <div style={{ padding: '0 60px', display: 'flex', flexWrap: 'wrap', gap: '100px', justifyContent: 'center' }}>
                       {(areaTables as any[]).map(table => {
                         // Get all valid reservations for this table today
                         const tableReservations = dbReservations.filter(r => r.table?.id === table.id && !['cancelled', 'no_show'].includes(r.status))
@@ -717,6 +808,8 @@ export default function StaffTableManagement() {
                     </div>
                   </div>
                 ))}
+                  </div>
+                </div>
                 {/* Merge Action Bar */}
                 {isMergeMode && (
                   <div style={{ position: 'sticky', bottom: '20px', margin: '0 60px 20px', backgroundColor: isDark ? '#0d1b1e' : '#1f2937', borderRadius: '16px', padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 8px 32px rgba(0,0,0,0.45)', border: '1px solid rgba(201,156,99,0.3)', zIndex: 40 }}>
