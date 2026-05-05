@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Users, MapPin, Coffee, ChevronLeft, ChevronRight, Upload, Plus, Calendar, Clock, Layout, Moon, Sun, CircleUser, LogOut, KeyRound } from 'lucide-react'
+import { Users, MapPin, Coffee, ChevronLeft, ChevronRight, Upload, Plus, Calendar, Clock, Layout, Moon, Sun, CircleUser, LogOut, KeyRound, Link2, Unlink } from 'lucide-react'
 import { api } from '../../services/api'
 import { toast } from 'react-hot-toast'
 import { useAuth } from '../../context/AuthContext'
@@ -71,6 +71,13 @@ export default function StaffTableManagement() {
     specialRequests: '',
     tableId: ''
   })
+
+  // ── Table Merge State ──────────────────────────────────────────────────────
+  const [selectedTableIds, setSelectedTableIds] = useState<Set<string>>(new Set())
+  const [isMergeMode, setIsMergeMode] = useState(false)
+  const [showMergeModal, setShowMergeModal] = useState(false)
+  const [mergedTableName, setMergedTableName] = useState('')
+  const [isMerging, setIsMerging] = useState(false)
 
   const restaurantId = user?.restaurantId
 
@@ -223,6 +230,61 @@ export default function StaffTableManagement() {
       if (restaurantId) fetchData(selectedDate, restaurantId)
     } catch (error) {
       console.error('Failed to create reservation:', error)
+    }
+  }
+
+  const handleTableClick = (table: any, event: React.MouseEvent) => {
+    if (event.shiftKey) {
+      if (table.isMerged) return // Can't select already-merged tables
+      setSelectedTableIds(prev => {
+        const next = new Set(prev)
+        next.has(table.id) ? next.delete(table.id) : next.add(table.id)
+        return next
+      })
+      setIsMergeMode(true)
+    } else {
+      if (isMergeMode) {
+        setSelectedTableIds(new Set())
+        setIsMergeMode(false)
+      }
+      setSelectedTable(table)
+    }
+  }
+
+  const handleConfirmMerge = async () => {
+    if (!restaurantId) return
+    setIsMerging(true)
+    try {
+      const ids = Array.from(selectedTableIds)
+      const totalCapacity = dbTables
+        .filter(t => ids.includes(t.id))
+        .reduce((sum, t) => sum + (t.capacity || 0), 0)
+      await api.post(`/organizations/${restaurantId}/tables/merge`, {
+        sourceTableIds: ids,
+        mergedTable: { name: mergedTableName.trim() || 'Merged Table', capacity: totalCapacity }
+      })
+      toast.success('Tables merged! Booking can now be assigned to the merged table.')
+      setSelectedTableIds(new Set())
+      setIsMergeMode(false)
+      setShowMergeModal(false)
+      setMergedTableName('')
+      fetchData(selectedDate, restaurantId)
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || 'Failed to merge tables')
+    } finally {
+      setIsMerging(false)
+    }
+  }
+
+  const handleUnmerge = async (mergedTableId: string) => {
+    if (!restaurantId) return
+    try {
+      await api.post(`/organizations/${restaurantId}/tables/${mergedTableId}/unmerge`)
+      toast.success('Tables restored to individual status')
+      setSelectedTable(null)
+      fetchData(selectedDate, restaurantId)
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || 'Failed to unmerge tables')
     }
   }
 
@@ -494,7 +556,14 @@ export default function StaffTableManagement() {
           {/* View Content */}
           <div style={{ minHeight: '500px' }}>
             {activeTab === 'Table View' && (
-              <div style={{ backgroundColor: 'var(--bg-card)', paddingBottom: '60px', transition: 'background-color 0.3s' }}>
+              <div style={{ backgroundColor: 'var(--bg-card)', paddingBottom: '60px', transition: 'background-color 0.3s', position: 'relative' }}>
+                {/* Shift+Click hint */}
+                <div style={{ padding: '10px 60px', backgroundColor: isMergeMode ? (isDark ? 'rgba(201,156,99,0.1)' : 'rgba(201,156,99,0.06)') : 'transparent', borderBottom: isMergeMode ? `1px solid rgba(201,156,99,0.2)` : '1px solid transparent', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.3s' }}>
+                  <Link2 size={13} color={isMergeMode ? '#C99C63' : 'var(--text-tertiary)'} />
+                  <span style={{ fontSize: '0.75rem', color: isMergeMode ? '#C99C63' : 'var(--text-tertiary)', fontWeight: 500 }}>
+                    {isMergeMode ? `${selectedTableIds.size} table${selectedTableIds.size !== 1 ? 's' : ''} selected — Shift+Click to add more, or use the bar below` : 'Hold Shift + Click tables to select multiple for a large-party merge'}
+                  </span>
+                </div>
                 {Object.entries(
                   dbTables.reduce((acc, table) => {
                     const areaName = table.area?.name || table.floor_areas?.name || table.location || 'Main Area'
@@ -563,8 +632,20 @@ export default function StaffTableManagement() {
                         return (
                           <div 
                             key={table.id}
-                            onClick={() => setSelectedTable(table)}
-                            style={{ position: 'relative', width: '120px', height: '120px', cursor: 'pointer' }}>
+                            onClick={(e) => handleTableClick(table, e)}
+                            style={{ position: 'relative', width: '120px', height: '120px', cursor: 'pointer', opacity: isMergeMode && table.isMerged ? 0.45 : 1, transition: 'opacity 0.2s' }}>
+                            {/* Selected checkmark badge */}
+                            {selectedTableIds.has(table.id) && (
+                              <div style={{ position: 'absolute', top: '-10px', right: '-10px', width: '24px', height: '24px', borderRadius: '50%', backgroundColor: '#C99C63', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 20, boxShadow: '0 2px 8px rgba(201,156,99,0.5)' }}>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                              </div>
+                            )}
+                            {/* Merged chain badge */}
+                            {table.isMerged && !selectedTableIds.has(table.id) && (
+                              <div style={{ position: 'absolute', top: '-10px', right: '-10px', width: '24px', height: '24px', borderRadius: '50%', backgroundColor: '#38bdf8', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 20, boxShadow: '0 2px 8px rgba(56,189,248,0.5)' }}>
+                                <Link2 size={12} color="#fff" />
+                              </div>
+                            )}
                             
                             {/* Plus Chair Layout - Rendered based on capacity */}
                             {capacity >= 1 && <div style={{ position: 'absolute', top: '-12px', left: '50%', transform: 'translateX(-50%)', width: '28px', height: '28px', backgroundColor: 'var(--chair-bg)', borderRadius: '6px', border: `1px solid var(--chair-border)` }} />} {/* Top */}
@@ -576,16 +657,20 @@ export default function StaffTableManagement() {
                             <div style={{ 
                               width: '100%', 
                               height: '100%', 
-                              backgroundColor: 'var(--table-circle-bg)', 
                               borderRadius: '16px', 
-                              border: `2.5px solid ${status === 'available' ? 'var(--table-circle-border)' : style.color}`,
+                              border: selectedTableIds.has(table.id)
+                                ? '2.5px solid #C99C63'
+                                : table.isMerged
+                                  ? '2.5px solid #38bdf8'
+                                  : `2.5px solid ${status === 'available' ? 'var(--table-circle-border)' : style.color}`,
+                              backgroundColor: selectedTableIds.has(table.id) ? (isDark ? 'rgba(201,156,99,0.1)' : 'rgba(201,156,99,0.05)') : 'var(--table-circle-bg)',
+                              boxShadow: selectedTableIds.has(table.id) ? '0 0 0 4px rgba(201,156,99,0.25)' : 'var(--shadow-md)',
                               display: 'flex', 
                               flexDirection: 'column', 
                               alignItems: 'center', 
                               justifyContent: 'center',
                               position: 'relative',
                               zIndex: 10,
-                              boxShadow: 'var(--shadow-md)',
                               transition: 'all 0.3s'
                             }}>
                               <span style={{ fontSize: '0.625rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{table.name || `T-${table.tableNumber}`}</span>
@@ -632,6 +717,42 @@ export default function StaffTableManagement() {
                     </div>
                   </div>
                 ))}
+                {/* Merge Action Bar */}
+                {isMergeMode && (
+                  <div style={{ position: 'sticky', bottom: '20px', margin: '0 60px 20px', backgroundColor: isDark ? '#0d1b1e' : '#1f2937', borderRadius: '16px', padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 8px 32px rgba(0,0,0,0.45)', border: '1px solid rgba(201,156,99,0.3)', zIndex: 40 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: 'rgba(201,156,99,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Link2 size={18} color="#C99C63" />
+                      </div>
+                      <div>
+                        <div style={{ color: '#ffffff', fontWeight: 700, fontSize: '0.9rem' }}>
+                          {selectedTableIds.size} table{selectedTableIds.size !== 1 ? 's' : ''} selected
+                        </div>
+                        <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.78rem', marginTop: '2px' }}>
+                          {selectedTableIds.size >= 2
+                            ? `Combined capacity: ${dbTables.filter(t => selectedTableIds.has(t.id)).reduce((s, t) => s + (t.capacity || 0), 0)} guests`
+                            : 'Select at least 2 tables to merge'}
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <button onClick={() => { setSelectedTableIds(new Set()); setIsMergeMode(false) }} style={{ padding: '10px 18px', borderRadius: '10px', backgroundColor: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.75)', fontWeight: 600, cursor: 'pointer', fontSize: '0.875rem' }}>Cancel</button>
+                      <button
+                        onClick={() => {
+                          if (selectedTableIds.size >= 2) {
+                            const names = dbTables.filter(t => selectedTableIds.has(t.id)).map(t => t.name || `T-${t.tableNumber}`).join(' + ')
+                            setMergedTableName(names)
+                            setShowMergeModal(true)
+                          }
+                        }}
+                        disabled={selectedTableIds.size < 2}
+                        style={{ padding: '10px 20px', borderRadius: '10px', backgroundColor: selectedTableIds.size >= 2 ? '#C99C63' : 'rgba(201,156,99,0.25)', border: 'none', color: selectedTableIds.size >= 2 ? '#0B1517' : 'rgba(255,255,255,0.35)', fontWeight: 700, cursor: selectedTableIds.size >= 2 ? 'pointer' : 'not-allowed', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Link2 size={15} /> Merge Tables
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Unassigned Reservations in Table View */}
                 {dbReservations.filter(r => !r.table?.id && !['completed', 'cancelled', 'no_show'].includes(r.status)).length > 0 && (
                   <div style={{ width: '100%', marginTop: '40px', paddingTop: '40px', borderTop: `2px dashed var(--border-primary)`, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -1139,6 +1260,21 @@ export default function StaffTableManagement() {
               </div>
             )}
 
+            {selectedTable && selectedTable.isMerged && (
+              <div style={{ marginBottom: '14px' }}>
+                <div style={{ padding: '14px 16px', backgroundColor: isDark ? 'rgba(56,189,248,0.08)' : 'rgba(56,189,248,0.05)', borderRadius: '12px', border: '1px solid rgba(56,189,248,0.22)', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <Link2 size={15} color="#38bdf8" style={{ flexShrink: 0 }} />
+                  <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>This is a temporary merged table. Restore the individual tables once the party leaves.</p>
+                </div>
+                <button
+                  onClick={() => handleUnmerge(selectedTable.id)}
+                  style={{ width: '100%', padding: '13px', borderRadius: '14px', backgroundColor: 'rgba(56,189,248,0.12)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.28)', fontWeight: 700, cursor: 'pointer', fontSize: '0.875rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '10px' }}
+                >
+                  <Unlink size={16} />
+                  Unmerge &amp; Restore Tables
+                </button>
+              </div>
+            )}
             {selectedTable && (
               <button 
                 onClick={() => { setShowCreateModal(true); }}
@@ -1149,6 +1285,64 @@ export default function StaffTableManagement() {
           </div>
         </div>
       )}
+      {/* Merge Confirmation Modal */}
+      {showMergeModal && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, backdropFilter: 'blur(4px)' }}>
+          <div style={{ backgroundColor: isDark ? '#101A1C' : '#ffffff', border: `1px solid ${isDark ? '#2a3a3e' : '#e5e7eb'}`, borderRadius: '20px', padding: '36px', width: '100%', maxWidth: '440px', boxShadow: '0 24px 48px rgba(0,0,0,0.4)' }}>
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '24px' }}>
+              <div style={{ width: '48px', height: '48px', borderRadius: '14px', backgroundColor: 'rgba(201,156,99,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Link2 size={22} color="#C99C63" />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700, color: isDark ? '#ffffff' : '#111827' }}>Merge {selectedTableIds.size} Tables</h3>
+                <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Create a temporary combined table for a large party</p>
+              </div>
+            </div>
+            {/* Table chips */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '18px' }}>
+              {dbTables.filter(t => selectedTableIds.has(t.id)).map(t => (
+                <span key={t.id} style={{ padding: '6px 14px', borderRadius: '100px', backgroundColor: isDark ? '#1a2d3a' : '#f0f9ff', border: '1px solid rgba(56,189,248,0.3)', color: '#38bdf8', fontSize: '0.8rem', fontWeight: 600 }}>
+                  {t.name || `T-${t.tableNumber}`}
+                </span>
+              ))}
+            </div>
+            {/* Capacity badge */}
+            <div style={{ padding: '13px 16px', backgroundColor: isDark ? 'rgba(107,158,120,0.1)' : 'rgba(107,158,120,0.06)', borderRadius: '12px', border: '1px solid rgba(107,158,120,0.2)', marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Users size={16} color="#6B9E78" />
+              <span style={{ fontSize: '0.875rem', fontWeight: 600, color: isDark ? '#d1fae5' : '#065f46' }}>
+                Combined capacity: {dbTables.filter(t => selectedTableIds.has(t.id)).reduce((s, t) => s + (t.capacity || 0), 0)} guests
+              </span>
+            </div>
+            {/* Name input */}
+            <div style={{ marginBottom: '18px' }}>
+              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: isDark ? '#d1d5db' : '#374151', marginBottom: '8px' }}>Label for merged table</label>
+              <input
+                type="text"
+                value={mergedTableName}
+                onChange={(e) => setMergedTableName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && selectedTableIds.size >= 2) handleConfirmMerge() }}
+                placeholder="e.g. Large Party Table"
+                autoFocus
+                style={{ width: '100%', padding: '12px 16px', borderRadius: '10px', border: `1px solid ${isDark ? '#30363d' : '#d1d5db'}`, backgroundColor: isDark ? '#161B22' : '#f9fafb', color: isDark ? '#ffffff' : '#111827', fontSize: '0.875rem', boxSizing: 'border-box' as const, outline: 'none', fontFamily: 'inherit' }}
+              />
+            </div>
+            {/* Warning */}
+            <div style={{ padding: '12px 14px', backgroundColor: isDark ? 'rgba(251,191,36,0.07)' : 'rgba(251,191,36,0.06)', borderRadius: '10px', border: '1px solid rgba(251,191,36,0.2)', marginBottom: '24px', display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+              <span style={{ fontSize: '1rem', flexShrink: 0 }}>⚠</span>
+              <p style={{ margin: 0, fontSize: '0.8rem', color: isDark ? 'rgba(251,191,36,0.85)' : '#92400e', lineHeight: 1.5 }}>Individual tables will be hidden until this merge is removed via Unmerge.</p>
+            </div>
+            {/* Actions */}
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button onClick={() => { setShowMergeModal(false); setMergedTableName('') }} disabled={isMerging} style={{ flex: 1, padding: '12px', borderRadius: '12px', backgroundColor: 'transparent', border: `1px solid ${isDark ? '#30363d' : '#d1d5db'}`, color: isDark ? '#e6edf3' : '#374151', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+              <button onClick={handleConfirmMerge} disabled={isMerging} style={{ flex: 1, padding: '12px', borderRadius: '12px', backgroundColor: isMerging ? '#9ca3af' : '#C99C63', color: '#0B1517', border: 'none', fontWeight: 700, cursor: isMerging ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                {isMerging ? 'Merging...' : (<><Link2 size={16} /> Confirm Merge</>)}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* POS Create Modal */}
       {showCreateModal && restaurantId && (
         <StaffReservationWizard
