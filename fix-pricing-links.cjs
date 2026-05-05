@@ -22,7 +22,7 @@ content = content.replace(/to="\/signup"/g, (match) => {
 // Find the last <Link to="/signup" in the pricing section (the 5th one, now unchanged)
 content = content.replace(
   /(<Link to="\/signup" style=\{\{ display: 'block', textAlign: 'center', backgroundColor: primaryNavy, color: '#ffffff', padding: '14px', borderRadius: '8px', textDecoration: 'none', fontWeight: 600 \}\}>Get Started<\/Link>)(?![\s\S]*<Link to="\/signup")/,
-  `<a href="mailto:hello@dinely.co.uk?subject=Enterprise%20Plan%20Inquiry" style={{ display: 'block', textAlign: 'center', backgroundColor: primaryNavy, color: '#ffffff', padding: '14px', borderRadius: '8px', textDecoration: 'none', fontWeight: 600 }}>Contact Us</a>`
+  `<a href="mailto:info@bssas.co.uk?subject=Enterprise%20Plan%20Inquiry" style={{ display: 'block', textAlign: 'center', backgroundColor: primaryNavy, color: '#ffffff', padding: '14px', borderRadius: '8px', textDecoration: 'none', fontWeight: 600 }}>Contact Us</a>`
 );
 
 fs.writeFileSync(filePath, content, 'utf8');

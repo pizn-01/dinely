@@ -57,7 +57,7 @@ export class AuthService {
 
     if (orgError || !org) {
       await supabaseAdmin.auth.admin.deleteUser(userId);
-      throw new AppError('Failed to create organization', 500);
+      throw new AppError(orgError?.message || 'Failed to create organization', 500);
     }
 
     await supabaseAdmin.from('staff_members').insert({
@@ -112,7 +112,7 @@ export class AuthService {
     });
 
     if (authError || !authData.user) {
-      throw new AppError('Invalid email or password', 401);
+      throw new AppError(authError?.message || 'Invalid email or password', 401);
     }
 
     const userId = authData.user.id;
@@ -154,7 +154,7 @@ export class AuthService {
         };
       }
 
-      throw new AppError('No active staff account found for this email', 401);
+      throw new AppError(staffError?.message || 'No active staff account found for this email', 401);
     }
 
     const roleMap: Record<string, UserRole> = {
@@ -218,7 +218,7 @@ export class AuthService {
     });
 
     if (authError || !authData.user) {
-      throw new AppError('Invalid email or password', 401);
+      throw new AppError(authError?.message || 'Invalid email or password', 401);
     }
 
     const userId = authData.user.id;
@@ -327,7 +327,7 @@ export class AuthService {
     });
 
     if (authError || !authData.user) {
-      throw new AppError('Invalid email or password', 401);
+      throw new AppError(authError?.message || 'Invalid email or password', 401);
     }
 
     const userId = authData.user.id;
@@ -644,7 +644,7 @@ export class AuthService {
 
       if (mergeError || !merged) {
         await supabaseAdmin.auth.admin.deleteUser(userId);
-        throw new AppError('Failed to link existing customer profile', 500);
+        throw new AppError(mergeError?.message || 'Failed to link existing customer profile', 500);
       }
       customer = merged;
     } else {
@@ -664,7 +664,7 @@ export class AuthService {
 
       if (customerError || !newCustomer) {
         await supabaseAdmin.auth.admin.deleteUser(userId);
-        throw new AppError('Failed to create customer profile', 500);
+        throw new AppError(customerError?.message || 'Failed to create customer profile', 500);
       }
       customer = newCustomer;
     }
@@ -705,7 +705,7 @@ export class AuthService {
     });
 
     if (authError || !authData.user) {
-      throw new AppError('Invalid email or password', 401);
+      throw new AppError(authError?.message || 'Invalid email or password', 401);
     }
 
     const userId = authData.user.id;

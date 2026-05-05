@@ -92,7 +92,7 @@ class EmailService {
   constructor() {
     // Auto-detect provider from environment
     const resendKey = process.env.RESEND_API_KEY;
-    const resendFrom = process.env.RESEND_FROM_EMAIL || 'noreply@tablereserve.app';
+    const resendFrom = process.env.RESEND_FROM_EMAIL || 'noreply@dinely.co.uk';
 
     if (resendKey && resendKey !== 'your-resend-api-key') {
       this.provider = new ResendEmailProvider(resendKey, resendFrom);
@@ -142,7 +142,7 @@ class EmailService {
 
     return this.send({
       to: params.to,
-      subject: `You're invited to join ${params.restaurantName} — TableReserve`,
+      subject: `You're invited to join ${params.restaurantName} — Dinely`,
       html: `
         <div style="font-family: 'Inter', Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #0B1517; color: #ffffff; padding: 40px; border-radius: 16px;">
           <div style="text-align: center; margin-bottom: 32px;">
@@ -152,7 +152,7 @@ class EmailService {
           
           <div style="background-color: #101A1C; border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 24px; margin-bottom: 24px;">
             <p style="margin: 0 0 12px 0;">Hi ${params.staffName},</p>
-            <p style="margin: 0 0 16px 0; color: #c9d1d9;">You've been invited to join <strong style="color: #ffffff;">${params.restaurantName}</strong> as a <strong style="color: #4a9e6b;">${params.role}</strong> on TableReserve.</p>
+            <p style="margin: 0 0 16px 0; color: #c9d1d9;">You've been invited to join <strong style="color: #ffffff;">${params.restaurantName}</strong> as a <strong style="color: #4a9e6b;">${params.role}</strong> on Dinely.</p>
             <p style="margin: 0; color: #c9d1d9;">Click the button below to set up your account and get started:</p>
           </div>
           
@@ -322,7 +322,7 @@ class EmailService {
   async sendPasswordReset(params: { to: string; resetUrl: string }) {
     return this.send({
       to: params.to,
-      subject: 'Reset Your Password — TableReserve',
+      subject: 'Reset Your Password — Dinely',
       html: `
         <div style="font-family: 'Inter', Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #0B1517; color: #ffffff; padding: 40px; border-radius: 16px;">
           <h2 style="text-align: center; color: #ffffff;">Reset Your Password</h2>
@@ -383,7 +383,7 @@ class EmailService {
           </div>
 
           <p style="color: #484f58; font-size: 12px; text-align: center;">
-            If you didn't make this purchase, please contact <a href="mailto:support@dinely.co.uk" style="color: #C99C63;">support@dinely.co.uk</a> immediately.
+            If you didn't make this purchase, please contact <a href="mailto:info@bssas.co.uk" style="color: #C99C63;">info@bssas.co.uk</a> immediately.
           </p>
         </div>
       `,

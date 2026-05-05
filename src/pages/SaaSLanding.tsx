@@ -313,7 +313,7 @@ export default function SaaSLanding() {
                <li style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.95rem' }}><Check size={18} color={primaryNavy} /> Dedicated account manager</li>
                <li style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.95rem' }}><Check size={18} color={primaryNavy} /> Custom SLA</li>
              </ul>
-             <a href="mailto:hello@dinely.co.uk?subject=Enterprise Plan Inquiry" style={{ display: 'block', textAlign: 'center', backgroundColor: primaryNavy, color: '#ffffff', padding: '14px', borderRadius: '8px', textDecoration: 'none', fontWeight: 600 }}>Contact Us</a>
+             <a href="mailto:info@bssas.co.uk?subject=Enterprise Plan Inquiry" style={{ display: 'block', textAlign: 'center', backgroundColor: primaryNavy, color: '#ffffff', padding: '14px', borderRadius: '8px', textDecoration: 'none', fontWeight: 600 }}>Contact Us</a>
            </div>
          </div>
       </section>
