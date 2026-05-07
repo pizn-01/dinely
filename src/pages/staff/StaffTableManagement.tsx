@@ -1069,7 +1069,25 @@ export default function StaffTableManagement() {
                       acc[areaName].push(table)
                       return acc
                     }, {} as Record<string, any[]>)
-                  ).map(([area, tables], areaIdx, arr) => (
+                  ).map(([area, tables], areaIdx, arr) => {
+                    const sortedTables = [...(tables as any[])].sort((a, b) => {
+                      const aName = String(a.name || a.tableNumber || a.table_number || '')
+                      const bName = String(b.name || b.tableNumber || b.table_number || '')
+                      // Prefer explicit numeric fields when available
+                      const aNumField = Number(a.tableNumber ?? a.table_number)
+                      const bNumField = Number(b.tableNumber ?? b.table_number)
+                      if (Number.isFinite(aNumField) && Number.isFinite(bNumField)) {
+                        return aNumField - bNumField
+                      }
+                      // Fallback: first number found in name
+                      const aNum = parseInt((aName.match(/\d+/)?.[0] || ''), 10)
+                      const bNum = parseInt((bName.match(/\d+/)?.[0] || ''), 10)
+                      if (Number.isFinite(aNum) && Number.isFinite(bNum) && aNum !== bNum) {
+                        return aNum - bNum
+                      }
+                      return aName.localeCompare(bName, undefined, { numeric: true, sensitivity: 'base' })
+                    })
+                    return (
                     <div key={area} style={{ display: 'flex', borderBottom: areaIdx === arr.length - 1 ? 'none' : `1px solid var(--border-secondary)` }}>
                       
                       {/* Area Name Column (Vertical) */}
@@ -1081,7 +1099,7 @@ export default function StaffTableManagement() {
 
                       {/* Tables inside this Area */}
                       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                        {(tables as any[]).map((table, tIdx) => (
+                        {sortedTables.map((table, tIdx) => (
                           <div key={table.id} style={{ display: 'flex', minHeight: '60px', borderBottom: tIdx === (tables as any[]).length - 1 ? 'none' : `1px solid var(--border-secondary)` }}>
                             
                             {/* Table Number & Capacity */}
@@ -1170,7 +1188,7 @@ export default function StaffTableManagement() {
                         ))}
                       </div>
                     </div>
-                  ))}
+                  )})}
 
                   {/* Unassigned / Drag Drop Catcher */}
                   {dbReservations.filter(r => (!r.table?.id || !dbTables.some(t => t.id === r.table?.id)) && !['completed', 'cancelled', 'no_show'].includes(r.status)).length > 0 && (
