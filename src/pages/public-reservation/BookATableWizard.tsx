@@ -175,9 +175,13 @@ export default function BookATableWizard() {
             </div>
           )}
         </div>
-        <h1 style={{ fontSize: '1.75rem', fontWeight: 700, color: '#ffffff', margin: 0 }}>{orgData?.name ? `${orgData.name} — Reservation` : 'Table Reservation'}</h1>
+        <h1 style={{ fontSize: '1.75rem', fontWeight: 700, color: '#ffffff', margin: 0 }}>
+          {orgData?.widgetHeading?.trim()
+            ? orgData.widgetHeading
+            : (orgData?.name ? `${orgData.name} — Reservation` : 'Table Reservation')}
+        </h1>
         <p style={{ color: '#8b949e', fontSize: '0.875rem', marginTop: '4px' }}>
-          Book your perfect dining experience in just a few steps.
+          {orgData?.widgetCtaText?.trim() ? orgData.widgetCtaText : 'Book your perfect dining experience in just a few steps.'}
         </p>
       </div>
 

@@ -51,6 +51,8 @@ router.get('/:slug/info', async (req: Request, res: Response, next: NextFunction
         allowWalkIns: org.allowWalkIns,
         logoUrl: org.logoUrl || null,
         widgetBgUrl: org.widgetBgUrl || null,
+        widgetHeading: org.widgetHeading || null,
+        widgetCtaText: org.widgetCtaText || null,
         cancellationPolicy: org.cancellationPolicy || null,
       },
     });

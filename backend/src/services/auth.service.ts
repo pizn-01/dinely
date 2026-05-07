@@ -313,6 +313,88 @@ export class AuthService {
   }
 
   /**
+   * Trusted-IP staff login (POS embedding).
+   * If enabled for a restaurant, and request IP matches allowlist, issues a staff JWT
+   * without requiring credentials. Intended for locked-down POS networks only.
+   */
+  async staffIpLogin(restaurantSlug: string, ip: string): Promise<AuthResponse> {
+    const { data: org } = await supabaseAdmin
+      .from('organizations')
+      .select('id, name, slug, staff_ip_login_enabled, staff_trusted_ips')
+      .eq('slug', restaurantSlug)
+      .eq('is_active', true)
+      .single();
+
+    if (!org) {
+      throw new AppError('Restaurant not found', 404);
+    }
+
+    if (!org.staff_ip_login_enabled) {
+      throw new AppError('IP login is not enabled for this restaurant', 403);
+    }
+
+    const listRaw = String(org.staff_trusted_ips || '')
+      .split(/[\n,]/g)
+      .map(s => s.trim())
+      .filter(Boolean);
+
+    const ipOk = !!ip && listRaw.includes(ip);
+    if (!ipOk) {
+      throw new AppError('IP address is not trusted for staff login', 403);
+    }
+
+    // Pick a default active staff member for this restaurant.
+    // (Typically the "tablets" account / host account.)
+    const { data: staffMembers } = await supabaseAdmin
+      .from('staff_members')
+      .select('id, user_id, role, name, email, organizations(*)')
+      .eq('restaurant_id', org.id)
+      .eq('is_active', true)
+      .limit(1);
+
+    const staffMember = staffMembers?.[0] || null;
+    if (!staffMember?.user_id) {
+      throw new AppError('No active staff account found for this restaurant', 404);
+    }
+
+    const roleMap: Record<string, UserRole> = {
+      admin: UserRole.RESTAURANT_ADMIN,
+      manager: UserRole.MANAGER,
+      host: UserRole.HOST,
+      viewer: UserRole.VIEWER,
+    };
+
+    const role = roleMap[staffMember.role] || UserRole.VIEWER;
+
+    const token = generateToken({
+      sub: staffMember.user_id,
+      email: staffMember.email,
+      role,
+      restaurantId: org.id,
+    });
+
+    const refreshToken = generateRefreshToken(staffMember.user_id);
+
+    return {
+      user: {
+        id: staffMember.user_id,
+        email: staffMember.email,
+        role,
+        name: staffMember.name,
+      },
+      token,
+      refreshToken,
+      restaurant: {
+        id: org.id,
+        name: org.name,
+        slug: org.slug,
+        setupCompleted: true,
+        openingTime: undefined as any,
+      },
+    };
+  }
+
+  /**
    * Super admin-specific login.
    * Completely bypasses the staff_members table and only queries super_admins.
    */

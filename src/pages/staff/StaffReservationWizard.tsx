@@ -6,6 +6,15 @@ interface StaffReservationWizardProps {
   restaurantId: string
   onClose: () => void
   onSuccess: () => void
+  preselectedTable?: {
+    id: string
+    name?: string | null
+    tableNumber?: string | null
+    capacity?: number | null
+    areaName?: string | null
+  }
+  initialDate?: string
+  initialTime?: string
 }
 
 export interface ReservationData {
@@ -25,8 +34,10 @@ export interface ReservationData {
   specialRequest: string
 }
 
+const defaultDate = new Date().toISOString().split('T')[0]
+
 const initialData: ReservationData = {
-  date: new Date().toISOString().split('T')[0],
+  date: defaultDate,
   time: '18:30',
   guests: 2,
   tableId: null,
@@ -44,7 +55,7 @@ const initialData: ReservationData = {
 
 const TOTAL_STEPS = 4
 
-export default function StaffReservationWizard({ restaurantId, onClose, onSuccess }: StaffReservationWizardProps) {
+export default function StaffReservationWizard({ restaurantId, onClose, onSuccess, preselectedTable, initialDate, initialTime }: StaffReservationWizardProps) {
   const [currentStep, setCurrentStep] = useState(1)
   const [data, setData] = useState<ReservationData>(initialData)
   const [loading, setLoading] = useState(false)
@@ -57,6 +68,23 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
   const updateData = useCallback((updates: Partial<ReservationData>) => {
     setData((prev) => ({ ...prev, ...updates }))
   }, [])
+
+  // Apply optional initial values (date/time + preselected table)
+  useEffect(() => {
+    const updates: Partial<ReservationData> = {}
+    if (initialDate) updates.date = initialDate
+    if (initialTime) updates.time = initialTime
+    if (preselectedTable?.id) {
+      updates.tableId = preselectedTable.id
+      const name = preselectedTable.name || preselectedTable.tableNumber || ''
+      updates.tableName = name
+      updates.tableCapacity = preselectedTable.capacity || 0
+      updates.tableLocation = preselectedTable.areaName || ''
+    }
+    if (Object.keys(updates).length > 0) {
+      setData(prev => ({ ...prev, ...updates }))
+    }
+  }, [initialDate, initialTime, preselectedTable])
 
   const fetchAvailableTables = async () => {
     setLoadingTables(true)
@@ -81,6 +109,11 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
   const handleNext = async () => {
     if (currentStep === 1) {
       // Before moving to step 2, fetch tables
+      // If table is already selected (opened from a specific table), skip the table selection step.
+      if (data.tableId) {
+        setCurrentStep(3)
+        return
+      }
       await fetchAvailableTables()
       setCurrentStep(2)
     } else if (currentStep === 2) {
@@ -115,7 +148,7 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
         tableId: data.tableId || null,
         guestFirstName: data.firstName,
         guestLastName: data.lastName,
-        guestEmail: data.email,
+        guestEmail: data.email?.trim() ? data.email.trim() : undefined,
         guestPhone: data.phone,
         specialRequests: data.specialRequest,
         source: 'pos'
@@ -141,6 +174,7 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
             type="date"
             value={data.date}
             onChange={(e) => updateData({ date: e.target.value })}
+            className="res-wizard-input"
             style={{ width: '100%', padding: '10px 10px 10px 40px', borderRadius: '8px', border: '1px solid #D1D5DB', fontSize: '0.875rem' }}
           />
         </div>
@@ -153,6 +187,7 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
             type="time"
             value={data.time}
             onChange={(e) => updateData({ time: e.target.value })}
+            className="res-wizard-input"
             style={{ width: '100%', padding: '10px 10px 10px 40px', borderRadius: '8px', border: '1px solid #D1D5DB', fontSize: '0.875rem' }}
           />
         </div>
@@ -167,6 +202,7 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
             max={20}
             value={data.guests}
             onChange={(e) => updateData({ guests: parseInt(e.target.value) || 1 })}
+            className="res-wizard-input"
             style={{ width: '100%', padding: '10px 10px 10px 40px', borderRadius: '8px', border: '1px solid #D1D5DB', fontSize: '0.875rem' }}
           />
         </div>
@@ -232,23 +268,23 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
       </div>
       <div>
         <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: '#374151', marginBottom: '4px' }}>First Name *</label>
-        <input type="text" value={data.firstName} onChange={e => updateData({ firstName: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #D1D5DB', fontSize: '0.875rem' }} placeholder="John" />
+        <input className="res-wizard-input" type="text" value={data.firstName} onChange={e => updateData({ firstName: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #D1D5DB', fontSize: '0.875rem' }} placeholder="John" />
       </div>
       <div>
         <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: '#374151', marginBottom: '4px' }}>Last Name *</label>
-        <input type="text" value={data.lastName} onChange={e => updateData({ lastName: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #D1D5DB', fontSize: '0.875rem' }} placeholder="Doe" />
+        <input className="res-wizard-input" type="text" value={data.lastName} onChange={e => updateData({ lastName: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #D1D5DB', fontSize: '0.875rem' }} placeholder="Doe" />
       </div>
       <div>
         <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: '#374151', marginBottom: '4px' }}>Email</label>
-        <input type="email" value={data.email} onChange={e => updateData({ email: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #D1D5DB', fontSize: '0.875rem' }} placeholder="john@example.com" />
+        <input className="res-wizard-input" type="email" value={data.email} onChange={e => updateData({ email: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #D1D5DB', fontSize: '0.875rem' }} placeholder="john@example.com" />
       </div>
       <div>
         <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: '#374151', marginBottom: '4px' }}>Phone</label>
-        <input type="tel" value={data.phone} onChange={e => updateData({ phone: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #D1D5DB', fontSize: '0.875rem' }} placeholder="+44 7700 900000" />
+        <input className="res-wizard-input" type="tel" value={data.phone} onChange={e => updateData({ phone: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #D1D5DB', fontSize: '0.875rem' }} placeholder="+44 7700 900000" />
       </div>
       <div style={{ gridColumn: '1 / -1' }}>
         <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: '#374151', marginBottom: '4px' }}>Special Requests</label>
-        <textarea value={data.specialRequest} onChange={e => updateData({ specialRequest: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #D1D5DB', fontSize: '0.875rem', minHeight: '80px', resize: 'vertical' }} placeholder="Allergies, high chair required, etc." />
+        <textarea className="res-wizard-input" value={data.specialRequest} onChange={e => updateData({ specialRequest: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #D1D5DB', fontSize: '0.875rem', minHeight: '80px', resize: 'vertical' }} placeholder="Allergies, high chair required, etc." />
       </div>
     </div>
   )

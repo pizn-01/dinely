@@ -53,6 +53,11 @@ export default function StaffTableManagement() {
   const [selectedBooking, setSelectedBooking] = useState<any>(null)
   const [selectedTable, setSelectedTable] = useState<any>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [wizardPreset, setWizardPreset] = useState<null | {
+    table?: { id: string; name?: string | null; tableNumber?: string | null; capacity?: number | null; areaName?: string | null }
+    date?: string
+    time?: string
+  }>(null)
   const [showAccountDropdown, setShowAccountDropdown] = useState(false)
   const accountRef = useRef<HTMLDivElement>(null)
 
@@ -251,6 +256,18 @@ export default function StaffTableManagement() {
       
       areasMap[floor][area].tables.push(table)
     })
+
+    // Ensure tables are displayed sequentially within each area (natural sort)
+    Object.values(areasMap).forEach(areaGroup => {
+      Object.values(areaGroup).forEach(entry => {
+        entry.tables.sort((a: any, b: any) => {
+          const aKey = String(a.name || a.tableNumber || a.table_number || '').trim()
+          const bKey = String(b.name || b.tableNumber || b.table_number || '').trim()
+          return aKey.localeCompare(bKey, undefined, { numeric: true, sensitivity: 'base' })
+        })
+      })
+    })
+
     return areasMap
   }, [dbTables, dbAreas])
 
@@ -1029,7 +1046,7 @@ export default function StaffTableManagement() {
                 <div style={{ border: `1px solid var(--border-secondary)`, borderRadius: '16px', overflow: 'hidden', backgroundColor: 'var(--bg-card)', boxShadow: 'var(--shadow-md)', transition: 'background-color 0.3s' }}>
                   
                   {/* Timeline Header */}
-                  <div style={{ display: 'flex', backgroundColor: 'var(--calendar-header-bg)', borderBottom: `1px solid var(--border-secondary)` }}>
+                  <div style={{ display: 'flex', backgroundColor: 'var(--calendar-header-bg)', borderBottom: `1px solid var(--border-secondary)`, position: 'sticky', top: 0, zIndex: 30 }}>
                     <div style={{ width: '160px', flexShrink: 0, borderRight: `1px solid var(--border-secondary)` }}></div>
                     <div style={{ flex: 1, display: 'flex' }}>
                       {Array.from({ length: 10 }).map((_, i) => (
@@ -1076,7 +1093,31 @@ export default function StaffTableManagement() {
                             {/* Timeline Grid (20 half-hour columns) */}
                             <div style={{ flex: 1, display: 'flex', position: 'relative', backgroundColor: 'var(--calendar-row-bg)' }}>
                               {Array.from({ length: 20 }).map((_, colIdx) => (
-                                <div key={colIdx} style={{ flex: 1, borderRight: `1px solid var(--border-primary)` }} />
+                                <div
+                                  key={colIdx}
+                                  onClick={() => {
+                                    // Timeline columns represent half-hour slots starting at 12:00
+                                    const totalMins = colIdx * 30
+                                    const hour = 12 + Math.floor(totalMins / 60)
+                                    const min = totalMins % 60
+                                    const slot = `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`
+                                    // Wizard will skip table selection step (table is preselected here)
+                                    setWizardPreset({
+                                      table: {
+                                        id: table.id,
+                                        name: table.name || null,
+                                        tableNumber: table.tableNumber || table.table_number || null,
+                                        capacity: table.capacity || null,
+                                        areaName: table.floor_areas?.name || table.area?.name || null,
+                                      },
+                                      date: selectedDate,
+                                      time: slot,
+                                    })
+                                    setShowCreateModal(true)
+                                  }}
+                                  style={{ flex: 1, borderRight: `1px solid var(--border-primary)`, cursor: 'pointer' }}
+                                  title="Create reservation"
+                                />
                               ))}
 
                               {/* Overlay Reservations — only active ones */}
@@ -1468,8 +1509,20 @@ export default function StaffTableManagement() {
               </div>
             )}
             {selectedTable && (
-              <button 
-                onClick={() => { setShowCreateModal(true); }}
+              <button
+                onClick={() => {
+                  setWizardPreset({
+                    table: {
+                      id: selectedTable.id,
+                      name: selectedTable.name || null,
+                      tableNumber: selectedTable.tableNumber || selectedTable.table_number || null,
+                      capacity: selectedTable.capacity || null,
+                      areaName: selectedTable.floor_areas?.name || selectedTable.area?.name || null,
+                    },
+                    date: selectedDate,
+                  })
+                  setShowCreateModal(true)
+                }}
                 style={{ width: '100%', padding: '16px', borderRadius: '16px', backgroundColor: isDark ? '#5EEA7A' : '#111827', color: isDark ? '#0B1517' : '#ffffff', border: 'none', fontSize: '1rem', fontWeight: 700, cursor: 'pointer' }}>
                 New Reservation for Table
               </button>
@@ -1539,9 +1592,13 @@ export default function StaffTableManagement() {
       {showCreateModal && restaurantId && (
         <StaffReservationWizard
           restaurantId={restaurantId}
-          onClose={() => setShowCreateModal(false)}
+          preselectedTable={wizardPreset?.table}
+          initialDate={wizardPreset?.date}
+          initialTime={wizardPreset?.time}
+          onClose={() => { setShowCreateModal(false); setWizardPreset(null) }}
           onSuccess={() => {
             setShowCreateModal(false)
+            setWizardPreset(null)
             fetchData(selectedDate, restaurantId)
           }}
         />

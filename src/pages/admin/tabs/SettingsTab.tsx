@@ -29,6 +29,10 @@ interface OrgSettings {
   address: string
   phone: string
   email: string
+  widgetHeading?: string
+  widgetCtaText?: string
+  staffIpLoginEnabled?: boolean
+  staffTrustedIps?: string
   openingTime: string
   closingTime: string
   currency: string
@@ -60,6 +64,10 @@ const defaultSettings: OrgSettings = {
   address: '',
   phone: '',
   email: '',
+  widgetHeading: '',
+  widgetCtaText: '',
+  staffIpLoginEnabled: false,
+  staffTrustedIps: '',
   openingTime: '12:00',
   closingTime: '22:00',
   currency: 'GBP',
@@ -126,6 +134,10 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
           address: org?.address || '',
           phone: org?.phone || '',
           email: org?.email || '',
+          widgetHeading: org?.widgetHeading || '',
+          widgetCtaText: org?.widgetCtaText || '',
+          staffIpLoginEnabled: org?.staffIpLoginEnabled ?? false,
+          staffTrustedIps: org?.staffTrustedIps || '',
           openingTime: org?.openingTime || '12:00',
           closingTime: org?.closingTime || '22:00',
           currency: org?.currency || 'GBP',
@@ -227,6 +239,10 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
     try {
       setSavingSettings(true)
       await api.put(`/organizations/${orgId}`, {
+        widgetHeading: settings.widgetHeading,
+        widgetCtaText: settings.widgetCtaText,
+        staffIpLoginEnabled: settings.staffIpLoginEnabled,
+        staffTrustedIps: settings.staffTrustedIps,
         openingTime: settings.openingTime,
         closingTime: settings.closingTime,
         currency: settings.currency,
@@ -898,6 +914,58 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
                 {copiedStaff ? <Check size={16} /> : <Copy size={16} />}
                 {copiedStaff ? 'Copied!' : 'Copy Link'}
               </button>
+            </div>
+          </div>
+
+          {/* Public Widget Text */}
+          <div style={cardStyle}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 500, marginBottom: '8px' }}>Public Widget Heading & CTA</h3>
+            <p style={{ color: isDark ? '#8b949e' : '#6b7280', fontSize: '0.875rem', marginBottom: '20px' }}>
+              Customize the heading and CTA text shown on the public reservation widget.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div>
+                <label style={labelStyle}>Heading</label>
+                <input
+                  value={settings.widgetHeading || ''}
+                  onChange={(e) => setSettings({ ...settings, widgetHeading: e.target.value })}
+                  placeholder="e.g. Reserve a table"
+                  style={inputStyle}
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>CTA text</label>
+                <input
+                  value={settings.widgetCtaText || ''}
+                  onChange={(e) => setSettings({ ...settings, widgetCtaText: e.target.value })}
+                  placeholder="e.g. Book now"
+                  style={inputStyle}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* POS Trusted IP Auto-Login */}
+          <div style={cardStyle}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 500, marginBottom: '8px' }}>POS Trusted IP Auto-Login</h3>
+            <p style={{ color: isDark ? '#8b949e' : '#6b7280', fontSize: '0.875rem', marginBottom: '16px' }}>
+              If enabled, staff login can be automatic for requests coming from trusted IPs (recommended only on locked-down POS networks).
+            </p>
+            <div style={{ borderTop: `1px solid ${isDark ? '#21262d' : '#f3f4f6'}` }}>
+              <ToggleSwitch
+                checked={!!settings.staffIpLoginEnabled}
+                onChange={(v) => setSettings({ ...settings, staffIpLoginEnabled: v })}
+                label="Enable trusted-IP staff auto-login"
+              />
+            </div>
+            <div style={{ marginTop: '12px' }}>
+              <label style={labelStyle}>Trusted IPs (one per line or comma-separated)</label>
+              <textarea
+                value={settings.staffTrustedIps || ''}
+                onChange={(e) => setSettings({ ...settings, staffTrustedIps: e.target.value })}
+                placeholder="e.g. 203.0.113.10&#10;203.0.113.11"
+                style={{ ...inputStyle, minHeight: '96px', resize: 'vertical' as const, fontFamily: 'inherit' }}
+              />
             </div>
           </div>
 

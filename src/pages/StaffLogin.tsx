@@ -12,10 +12,9 @@ export default function StaffLogin() {
   const { login } = useAuth()
   
   const urlEmail = searchParams.get('email') || ''
-  const urlPassword = searchParams.get('password') || ''
 
   const [email, setEmail] = useState(urlEmail)
-  const [password, setPassword] = useState(urlPassword)
+  const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -23,35 +22,29 @@ export default function StaffLogin() {
   const [logoUrl, setLogoUrl] = useState('')
   const [autoLoginAttempted, setAutoLoginAttempted] = useState(false)
 
-  // Auto-login via URL parameters
+  // Note: For security reasons we do NOT support embedding passwords in URLs.
+  // If a slug is present, the backend can optionally support trusted-IP auto-login
+  // (if enabled per restaurant) via a dedicated endpoint.
   useEffect(() => {
-    if (urlEmail && urlPassword && !autoLoginAttempted) {
-      setAutoLoginAttempted(true)
-      const performAutoLogin = async () => {
-        setLoading(true)
-        setError('')
-        try {
-          const { data } = await api.post('/auth/staff-login', { email: urlEmail, password: urlPassword })
-          const { token, refreshToken: rToken, user, restaurant } = data.data
-          
-          if (rToken) localStorage.setItem('refreshToken', rToken)
-          
-          login(token, {
-            ...user,
-            restaurantId: restaurant?.id
-          })
-          
-          navigate('/staff/tables')
-        } catch (err: any) {
-          console.error('Auto login failed:', err)
-          setError(err.response?.data?.error || 'Failed to auto login. Please check your credentials.')
-        } finally {
-          setLoading(false)
-        }
+    if (!slug || autoLoginAttempted) return
+    setAutoLoginAttempted(true)
+    const tryIpAutoLogin = async () => {
+      setLoading(true)
+      setError('')
+      try {
+        const { data } = await api.post('/auth/staff-login-ip', { restaurantSlug: slug })
+        const { token, refreshToken: rToken, user, restaurant } = data.data
+        if (rToken) localStorage.setItem('refreshToken', rToken)
+        login(token, { ...user, restaurantId: restaurant?.id })
+        navigate('/staff/tables')
+      } catch {
+        // Silent failure – user can still log in manually
+      } finally {
+        setLoading(false)
       }
-      performAutoLogin()
     }
-  }, [urlEmail, urlPassword, autoLoginAttempted, login, navigate])
+    tryIpAutoLogin()
+  }, [slug, autoLoginAttempted, login, navigate])
 
   // Fetch restaurant name from slug for display
   useEffect(() => {

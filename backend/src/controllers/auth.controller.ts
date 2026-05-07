@@ -49,6 +49,18 @@ export class AuthController {
     }
   }
 
+  async staffIpLogin(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const restaurantSlug = req.body.restaurantSlug as string;
+      const forwarded = (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim();
+      const ip = forwarded || (req.ip as string) || '';
+      const result = await authService.staffIpLogin(restaurantSlug, ip);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async superAdminLogin(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const result = await authService.superAdminLogin(req.body);

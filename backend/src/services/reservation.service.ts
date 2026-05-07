@@ -137,11 +137,12 @@ export class ReservationService {
     let customerId: string | null = null;
     let isPremium = false;
     
-    if (dto.guestEmail) {
+    const normalizedGuestEmail = dto.guestEmail && dto.guestEmail.trim() ? dto.guestEmail.trim() : null;
+    if (normalizedGuestEmail) {
       const { data: existingCustomer } = await supabaseAdmin
         .from('customers')
         .select('id, is_vip')
-        .eq('email', dto.guestEmail)
+        .eq('email', normalizedGuestEmail)
         .single();
 
       if (existingCustomer) {
@@ -153,7 +154,7 @@ export class ReservationService {
           .insert({
             first_name: dto.guestFirstName,
             last_name: dto.guestLastName || null,
-            email: dto.guestEmail,
+            email: normalizedGuestEmail,
             phone: dto.guestPhone || null,
           })
           .select()
@@ -174,7 +175,7 @@ export class ReservationService {
       p_party_size: dto.partySize,
       p_guest_first_name: dto.guestFirstName,
       p_guest_last_name: dto.guestLastName || null,
-      p_guest_email: dto.guestEmail,
+      p_guest_email: normalizedGuestEmail,
       p_guest_phone: dto.guestPhone || null,
       p_source: dto.source || 'app',
       p_special_requests: dto.specialRequests || null,
@@ -210,7 +211,7 @@ export class ReservationService {
     }
 
     // Send confirmation email (fire-and-forget)
-    const guestEmail = dto.guestEmail || createdRes.guest_email;
+    const guestEmail = normalizedGuestEmail || createdRes.guest_email;
     if (guestEmail) {
       try {
         // Get restaurant name, phone and cancellation policy for the email

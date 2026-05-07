@@ -64,6 +64,10 @@ export class OrganizationService {
     if (dto.maxPartySize !== undefined) updateData.max_party_size = dto.maxPartySize;
     if (dto.requirePayment !== undefined) updateData.require_payment = dto.requirePayment;
     if (dto.cancellationPolicy !== undefined) updateData.cancellation_policy = dto.cancellationPolicy;
+    if (dto.widgetHeading !== undefined) updateData.widget_heading = dto.widgetHeading;
+    if (dto.widgetCtaText !== undefined) updateData.widget_cta_text = dto.widgetCtaText;
+    if (dto.staffIpLoginEnabled !== undefined) updateData.staff_ip_login_enabled = dto.staffIpLoginEnabled;
+    if (dto.staffTrustedIps !== undefined) updateData.staff_trusted_ips = dto.staffTrustedIps;
     if (dto.setupCompleted !== undefined) updateData.setup_completed = dto.setupCompleted;
     if (dto.logoUrl !== undefined) updateData.logo_url = dto.logoUrl;
     if (dto.vipMembershipFee !== undefined) updateData.vip_membership_fee = dto.vipMembershipFee;
@@ -306,6 +310,10 @@ export class OrganizationService {
       address: row.address,
       phone: row.phone,
       email: row.email,
+      widgetHeading: row.widget_heading || null,
+      widgetCtaText: row.widget_cta_text || null,
+      staffIpLoginEnabled: row.staff_ip_login_enabled || false,
+      staffTrustedIps: row.staff_trusted_ips || '',
       openingTime: row.opening_time,
       closingTime: row.closing_time,
       currency: row.currency,

@@ -13,7 +13,9 @@ export const createReservationSchema = z.object({
   partySize: z.number().int().min(1).max(50), // Org-specific maxPartySize enforced in service layer
   guestFirstName: z.string().min(1).max(100),
   guestLastName: z.string().max(100).optional(),
-  guestEmail: z.string().email(),
+  // Staff-created bookings (POS / walk-in / phone) may omit email.
+  // Public flows should still provide it; service layer handles nulls safely.
+  guestEmail: z.string().email().optional(),
   guestPhone: z.string().max(50).optional(),
   specialRequests: z.string().max(1000).optional(),
   source: z.enum(['website', 'app', 'pos', 'phone', 'walk_in', 'third_party']).optional(),

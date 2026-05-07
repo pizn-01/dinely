@@ -115,6 +115,12 @@ body {
   color: var(--color-dark-text-muted);
 }
 
+/* Staff POS reservation wizard (light modal) placeholder contrast */
+.res-wizard-input::placeholder {
+  color: #6b7280;
+  opacity: 1;
+}
+
 .btn-gold {
   background: var(--color-gold);
   color: #ffffff;
