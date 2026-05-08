@@ -239,6 +239,10 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
     try {
       setSavingSettings(true)
       await api.put(`/organizations/${orgId}`, {
+        name: settings.name || undefined,
+        address: settings.address || undefined,
+        phone: settings.phone || undefined,
+        email: settings.email?.trim() ? settings.email.trim() : undefined,
         widgetHeading: settings.widgetHeading,
         widgetCtaText: settings.widgetCtaText,
         staffIpLoginEnabled: settings.staffIpLoginEnabled,
@@ -249,6 +253,7 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
         allowMergeableTables: settings.allowMergeableTables,
         allowWalkIns: settings.allowWalkIns,
         defaultReservationDurationMin: settings.defaultReservationDurationMin,
+        minAdvanceBookingHours: settings.minAdvanceBookingHours,
         maxAdvanceBookingDays: settings.maxAdvanceBookingDays,
         maxPartySize: settings.maxPartySize,
         requirePayment: settings.requirePayment,
@@ -261,7 +266,21 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
       setTimeout(() => setSaveSuccess(false), 3000)
     } catch (err: any) {
       console.error('Failed to save settings:', err)
-      toast.error(err?.response?.data?.error || 'Failed to save settings. Please try again.')
+      const status = err?.response?.status
+      if (status === 403) {
+        toast.error('You do not have permission to modify settings. Admin role is required.')
+      } else if (status === 401) {
+        toast.error('Your session has expired. Please log in again.')
+      } else if (status === 400) {
+        const details = err?.response?.data?.details
+        if (details && Array.isArray(details)) {
+          toast.error(`Validation error: ${details.map((d: any) => `${d.field}: ${d.message}`).join(', ')}`)
+        } else {
+          toast.error(err?.response?.data?.error || 'Invalid settings data. Please check your inputs.')
+        }
+      } else {
+        toast.error(err?.response?.data?.error || 'Failed to save settings. Please try again.')
+      }
     } finally {
       setSavingSettings(false)
     }

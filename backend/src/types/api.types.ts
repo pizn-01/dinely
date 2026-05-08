@@ -69,6 +69,10 @@ export interface UpdateOrganizationDto {
   maxPartySize?: number;
   requirePayment?: boolean;
   cancellationPolicy?: string;
+  widgetHeading?: string;
+  widgetCtaText?: string;
+  staffIpLoginEnabled?: boolean;
+  staffTrustedIps?: string;
   setupCompleted?: boolean;
   logoUrl?: string;
   vipMembershipFee?: number;

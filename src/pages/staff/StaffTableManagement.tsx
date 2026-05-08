@@ -865,7 +865,7 @@ export default function StaffTableManagement() {
                               zIndex: 10,
                               transition: 'all 0.3s'
                             }}>
-                              <span style={{ fontSize: '0.625rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{table.name || `T-${table.tableNumber}`}</span>
+                              <span style={{ fontSize: '0.625rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center', maxWidth: '90%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 4px' }}>{table.name || `T-${table.tableNumber}`}</span>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}>
                                 <Users size={12} color="var(--text-tertiary)" />
                                 <span style={{ fontSize: '0.875rem', fontWeight: 800, color: 'var(--text-primary)' }}>{capacity}</span>
@@ -1041,24 +1041,74 @@ export default function StaffTableManagement() {
                 )}
               </div>
             )}
-                      {activeTab === 'Timeline View' && (
+                      {activeTab === 'Timeline View' && (() => {
+              // ── Dynamic time range from restaurant's day-specific weekly hours ──
+              const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const
+              const selectedDayOfWeek = dayNames[new Date(selectedDate + 'T00:00:00').getDay()]
+              const weeklyHours = orgData?.weeklyHours
+              const dayConfig = weeklyHours?.[selectedDayOfWeek]
+              const isDayClosed = dayConfig?.closed === true || dayConfig?.closed === 'true'
+
+              // Use day-specific hours if available, otherwise fall back to global defaults
+              const rawOpen = (dayConfig && !isDayClosed && dayConfig.open) ? dayConfig.open : (orgData?.openingTime || '08:00')
+              const rawClose = (dayConfig && !isDayClosed && dayConfig.close) ? dayConfig.close : (orgData?.closingTime || '23:00')
+              const startHour = parseInt(rawOpen.split(':')[0], 10)
+              const closeHour = parseInt(rawClose.split(':')[0], 10)
+              
+              // If closeHour is before startHour, it means the restaurant closes past midnight (next day)
+              const actualCloseHour = closeHour <= startHour ? closeHour + 24 : closeHour
+              
+              // Add exactly 1-hour buffer at the end of the timeline so the closing time block is rendered cleanly
+              const endHour = actualCloseHour + 1
+              const totalHours = Math.max(endHour - startHour, 1)
+              const totalHalfHours = totalHours * 2
+              const totalMinutesSpan = totalHours * 60
+
+              // If restaurant is closed on this day, show a message
+              if (isDayClosed) {
+                return (
+                  <div style={{ padding: '32px' }}>
+                    <div style={{ border: `1px solid var(--border-secondary)`, borderRadius: '16px', backgroundColor: 'var(--bg-card)', boxShadow: 'var(--shadow-md)', padding: '64px 32px', textAlign: 'center' }}>
+                      <div style={{ fontSize: '2rem', marginBottom: '16px' }}>🔒</div>
+                      <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 8px 0' }}>Restaurant Closed</h3>
+                      <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', margin: 0 }}>
+                        The restaurant is closed on {selectedDayOfWeek.charAt(0).toUpperCase() + selectedDayOfWeek.slice(1)}s. Select a different day to manage reservations.
+                      </p>
+                    </div>
+                  </div>
+                )
+              }
+
+              return (
               <div style={{ padding: '32px' }}>
-                <div style={{ border: `1px solid var(--border-secondary)`, borderRadius: '16px', overflow: 'hidden', backgroundColor: 'var(--bg-card)', boxShadow: 'var(--shadow-md)', transition: 'background-color 0.3s' }}>
+                {/* Day hours info bar */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedDayOfWeek.charAt(0).toUpperCase() + selectedDayOfWeek.slice(1)}</span>
+                  <span>•</span>
+                  <span>{rawOpen} – {rawClose}</span>
+                </div>
+                <div style={{ border: `1px solid var(--border-secondary)`, borderRadius: '16px', overflow: 'auto', maxHeight: 'calc(100vh - 380px)', backgroundColor: 'var(--bg-card)', boxShadow: 'var(--shadow-md)', transition: 'background-color 0.3s' }}>
                   
                   {/* Timeline Header */}
                   <div style={{ display: 'flex', backgroundColor: 'var(--calendar-header-bg)', borderBottom: `1px solid var(--border-secondary)`, position: 'sticky', top: 0, zIndex: 30 }}>
-                    <div style={{ width: '160px', flexShrink: 0, borderRight: `1px solid var(--border-secondary)` }}></div>
-                    <div style={{ flex: 1, display: 'flex' }}>
-                      {Array.from({ length: 10 }).map((_, i) => (
-                        <div key={i} style={{ flex: 1, position: 'relative', borderRight: `1px solid var(--border-secondary)` }}>
-                          <div style={{ textAlign: 'center', padding: '16px 0', fontSize: '0.875rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                            {12 + i}
+                    <div style={{ width: '160px', minWidth: '160px', flexShrink: 0, borderRight: `1px solid var(--border-secondary)`, position: 'sticky', left: 0, backgroundColor: 'var(--calendar-header-bg)', zIndex: 31 }}></div>
+                    <div style={{ flex: 1, display: 'flex', minWidth: `${totalHours * 120}px` }}>
+                      {Array.from({ length: totalHours }).map((_, i) => {
+                        const hour = startHour + i
+                        const actualHour = hour % 24
+                        const displayHour = actualHour === 0 ? '12 AM' : actualHour > 12 ? `${actualHour - 12} PM` : actualHour === 12 ? '12 PM' : `${actualHour} AM`
+                        return (
+                        <div key={i} style={{ flex: 1, position: 'relative', borderRight: `1px solid var(--border-secondary)`, minWidth: '120px' }}>
+                          <div style={{ textAlign: 'center', padding: '16px 0', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                            {displayHour}
                           </div>
                           {/* Half-hour marker at the bottom center of the hour block */}
                           <div style={{ position: 'absolute', bottom: 0, left: '50%', width: '1px', height: '8px', backgroundColor: 'var(--border-secondary)' }} />
                         </div>
-                      ))}
+                      )})}
                     </div>
+                    {/* Right spacer for scroll breathing room */}
+                    <div style={{ minWidth: '32px', flexShrink: 0, backgroundColor: 'var(--calendar-header-bg)' }}></div>
                   </div>
 
                   {/* Grid Rows by Area */}
@@ -1073,25 +1123,13 @@ export default function StaffTableManagement() {
                     const sortedTables = [...(tables as any[])].sort((a, b) => {
                       const aName = String(a.name || a.tableNumber || a.table_number || '')
                       const bName = String(b.name || b.tableNumber || b.table_number || '')
-                      // Prefer explicit numeric fields when available
-                      const aNumField = Number(a.tableNumber ?? a.table_number)
-                      const bNumField = Number(b.tableNumber ?? b.table_number)
-                      if (Number.isFinite(aNumField) && Number.isFinite(bNumField)) {
-                        return aNumField - bNumField
-                      }
-                      // Fallback: first number found in name
-                      const aNum = parseInt((aName.match(/\d+/)?.[0] || ''), 10)
-                      const bNum = parseInt((bName.match(/\d+/)?.[0] || ''), 10)
-                      if (Number.isFinite(aNum) && Number.isFinite(bNum) && aNum !== bNum) {
-                        return aNum - bNum
-                      }
                       return aName.localeCompare(bName, undefined, { numeric: true, sensitivity: 'base' })
                     })
                     return (
                     <div key={area} style={{ display: 'flex', borderBottom: areaIdx === arr.length - 1 ? 'none' : `1px solid var(--border-secondary)` }}>
                       
                       {/* Area Name Column (Vertical) */}
-                      <div style={{ width: '60px', borderRight: `1px solid var(--border-secondary)`, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--calendar-header-bg)' }}>
+                      <div style={{ width: '60px', minWidth: '60px', borderRight: `1px solid var(--border-secondary)`, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--calendar-header-bg)', position: 'sticky', left: 0, zIndex: 20 }}>
                         <span style={{ fontWeight: 700, fontSize: '0.875rem', color: 'var(--text-primary)', writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
                           {area}
                         </span>
@@ -1103,23 +1141,22 @@ export default function StaffTableManagement() {
                           <div key={table.id} style={{ display: 'flex', minHeight: '60px', borderBottom: tIdx === (tables as any[]).length - 1 ? 'none' : `1px solid var(--border-secondary)` }}>
                             
                             {/* Table Number & Capacity */}
-                            <div style={{ width: '100px', borderRight: `1px solid var(--border-secondary)`, display: 'flex', alignItems: 'center', padding: '0 16px', justifyContent: 'space-between' }}>
+                            <div style={{ width: '100px', minWidth: '100px', borderRight: `1px solid var(--border-secondary)`, display: 'flex', alignItems: 'center', padding: '0 16px', justifyContent: 'space-between', backgroundColor: 'var(--calendar-header-bg)', position: 'sticky', left: '60px', zIndex: 20 }}>
                               <span style={{ fontWeight: 700, fontSize: '0.875rem', color: 'var(--text-primary)' }}>{table.name || table.tableNumber || '—'}</span>
                               <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>{table.capacity}</span>
                             </div>
 
-                            {/* Timeline Grid (20 half-hour columns) */}
-                            <div style={{ flex: 1, display: 'flex', position: 'relative', backgroundColor: 'var(--calendar-row-bg)' }}>
-                              {Array.from({ length: 20 }).map((_, colIdx) => (
+                            {/* Timeline Grid (dynamic half-hour columns) */}
+                            <div style={{ flex: 1, display: 'flex', position: 'relative', backgroundColor: 'var(--calendar-row-bg)', minWidth: `${totalHours * 120}px` }}>
+                              {Array.from({ length: totalHalfHours }).map((_, colIdx) => (
                                 <div
                                   key={colIdx}
                                   onClick={() => {
-                                    // Timeline columns represent half-hour slots starting at 12:00
                                     const totalMins = colIdx * 30
-                                    const hour = 12 + Math.floor(totalMins / 60)
+                                    const hour = startHour + Math.floor(totalMins / 60)
+                                    const actualHour = hour % 24
                                     const min = totalMins % 60
-                                    const slot = `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`
-                                    // Wizard will skip table selection step (table is preselected here)
+                                    const slot = `${String(actualHour).padStart(2, '0')}:${String(min).padStart(2, '0')}`
                                     setWizardPreset({
                                       table: {
                                         id: table.id,
@@ -1133,21 +1170,30 @@ export default function StaffTableManagement() {
                                     })
                                     setShowCreateModal(true)
                                   }}
-                                  style={{ flex: 1, borderRight: `1px solid var(--border-primary)`, cursor: 'pointer' }}
-                                  title="Create reservation"
+                                  style={{ flex: 1, borderRight: `1px solid var(--border-primary)`, cursor: 'pointer', minWidth: '60px' }}
+                                  onMouseOver={e => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+                                  onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                                  title="Click to create reservation"
                                 />
                               ))}
 
-                              {/* Overlay Reservations — only active ones */}
                               {dbReservations.filter(r => r.table?.id === table.id && !['completed', 'cancelled', 'no_show'].includes(r.status)).map((r, rIdx) => {
-                                const startTime = r.startTime || '12:00'
-                                const [h, m] = startTime.split(':').map(Number)
-                                // Clamp to 12:00 - 22:00 (600 minutes span)
-                                const totalMins = (h - 12) * 60 + m
-                                const startPos = Math.max(0, Math.min(90, (totalMins / 600) * 100))
+                                const rStartTime = r.startTime || `${String(startHour % 24).padStart(2, '0')}:00`
+                                const rEndTime = r.endTime || ''
+                                const [h, m] = rStartTime.split(':').map(Number)
+                                const actualH = h < startHour ? h + 24 : h
+                                const totalMins = (actualH - startHour) * 60 + m
+                                const startPos = Math.max(0, Math.min(99, (totalMins / totalMinutesSpan) * 100))
                                 
-                                // Default width based on typical 90 min reservation (90/600 * 100 = 15%)
-                                const width = 15
+                                // Calculate width based on actual duration if endTime available
+                                let durationMins = 90 // default
+                                if (rEndTime) {
+                                  let [eh, em] = rEndTime.split(':').map(Number)
+                                  if (eh < actualH || (eh === actualH && em < m)) eh += 24
+                                  durationMins = (eh * 60 + em) - (actualH * 60 + m)
+                                }
+                                const rawWidth = (durationMins / totalMinutesSpan) * 100
+                                const width = Math.max(2, Math.min(rawWidth, 100 - startPos))
                                 
                                 // Colors strictly from the UI design reference
                                 const isSeated = r.status === 'seated'
@@ -1162,28 +1208,45 @@ export default function StaffTableManagement() {
                                       position: 'absolute', 
                                       left: `${startPos}%`,
                                       width: `${width}%`, 
-                                      top: `${8 + (rIdx * 4)}px`, 
-                                      bottom: '8px',
+                                      minWidth: '44px',
+                                      top: `${14 + (rIdx * 36)}px`, 
+                                      height: '32px',
                                       backgroundColor: bgColor,
-                                      borderRadius: '8px',
+                                      borderRadius: '10px',
                                       display: 'flex',
                                       alignItems: 'center',
                                       cursor: 'pointer',
                                       color: '#ffffff',
                                       overflow: 'hidden',
-                                      zIndex: 10,
-                                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                                      zIndex: 10 + rIdx,
+                                      boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+                                      transition: 'all 0.2s ease',
+                                      padding: '0 6px'
                                     }}>
-                                    <div style={{ padding: '0 12px', height: '100%', backgroundColor: 'rgba(0,0,0,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 700 }}>
+                                    <div style={{ 
+                                      width: '24px', 
+                                      height: '24px', 
+                                      backgroundColor: 'rgba(0,0,0,0.2)', 
+                                      display: 'flex', 
+                                      alignItems: 'center', 
+                                      justifyContent: 'center', 
+                                      fontSize: '0.75rem', 
+                                      fontWeight: 800,
+                                      borderRadius: '6px',
+                                      flexShrink: 0,
+                                      marginRight: '8px'
+                                    }}>
                                       {r.partySize}
                                     </div>
-                                    <div style={{ padding: '0 12px', fontSize: '0.75rem', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    <div style={{ fontSize: '0.85rem', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
                                       {r.guestFirstName} {r.guestLastName}
                                     </div>
                                   </div>
                                 )
                               })}
                             </div>
+                            {/* Right spacer for scroll breathing room */}
+                            <div style={{ minWidth: '32px', flexShrink: 0, backgroundColor: 'var(--calendar-row-bg)' }}></div>
                           </div>
                         ))}
                       </div>
@@ -1193,44 +1256,84 @@ export default function StaffTableManagement() {
                   {/* Unassigned / Drag Drop Catcher */}
                   {dbReservations.filter(r => (!r.table?.id || !dbTables.some(t => t.id === r.table?.id)) && !['completed', 'cancelled', 'no_show'].includes(r.status)).length > 0 && (
                     <div style={{ display: 'flex', borderTop: `2px dashed var(--border-secondary)`, backgroundColor: 'var(--bg-tertiary)' }}>
-                       <div style={{ width: '160px', borderRight: `1px solid var(--border-secondary)`, display: 'flex', alignItems: 'center', padding: '0 16px' }}>
+                       <div style={{ width: '160px', minWidth: '160px', borderRight: `1px solid var(--border-secondary)`, display: 'flex', alignItems: 'center', padding: '0 16px', position: 'sticky', left: 0, backgroundColor: 'var(--bg-tertiary)', zIndex: 20 }}>
                           <span style={{ fontWeight: 700, fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Unassigned</span>
                        </div>
-                       <div style={{ flex: 1, display: 'flex', position: 'relative', minHeight: '60px' }}>
-                          {Array.from({ length: 20 }).map((_, colIdx) => (
-                            <div key={colIdx} style={{ flex: 1, borderRight: `1px solid var(--border-primary)` }} />
+                       <div style={{ flex: 1, display: 'flex', position: 'relative', minHeight: '60px', minWidth: `${totalHours * 120}px` }}>
+                          {Array.from({ length: totalHalfHours }).map((_, colIdx) => (
+                            <div key={colIdx} style={{ flex: 1, borderRight: `1px solid var(--border-primary)`, minWidth: '60px' }} />
                           ))}
                           {dbReservations.filter(r => (!r.table?.id || !dbTables.some(t => t.id === r.table?.id)) && !['completed', 'cancelled', 'no_show'].includes(r.status)).map((r, rIdx) => {
-                             const startTime = r.startTime || '12:00'
-                             const [h, m] = startTime.split(':').map(Number)
-                             const totalMins = (h - 12) * 60 + m
-                             const startPos = Math.max(0, Math.min(90, (totalMins / 600) * 100))
+                             const rStartTime = r.startTime || `${String(startHour % 24).padStart(2, '0')}:00`
+                             const rEndTime = r.endTime || ''
+                             const [h, m] = rStartTime.split(':').map(Number)
+                             const actualH = h < startHour ? h + 24 : h
+                             const totalMins = (actualH - startHour) * 60 + m
+                             const startPos = Math.max(0, Math.min(99, (totalMins / totalMinutesSpan) * 100))
+                             
+                             let durationMins = 90
+                             if (rEndTime) {
+                               let [eh, em] = rEndTime.split(':').map(Number)
+                               if (eh < actualH || (eh === actualH && em < m)) eh += 24
+                               durationMins = (eh * 60 + em) - (actualH * 60 + m)
+                             }
+                             const rawWidth = (durationMins / totalMinutesSpan) * 100
+                             const width = Math.max(2, Math.min(rawWidth, 100 - startPos))
+                             
                              return (
                                 <div 
                                   key={r.id}
                                   onClick={() => setSelectedBooking(r)}
                                   style={{ 
-                                    position: 'absolute', left: `${startPos}%`, width: `15%`, 
-                                    top: `${8 + (rIdx * 4)}px`, bottom: '8px',
-                                    backgroundColor: 'var(--bg-card)', border: `1px dashed var(--border-secondary)`, color: 'var(--text-primary)',
-                                    borderRadius: '8px', display: 'flex', alignItems: 'center',
-                                    cursor: 'pointer', overflow: 'hidden', zIndex: 10
+                                    position: 'absolute', 
+                                    left: `${startPos}%`, 
+                                    width: `${width}%`, 
+                                    minWidth: '44px',
+                                    top: `${14 + (rIdx * 36)}px`, 
+                                    height: '32px',
+                                    backgroundColor: 'var(--bg-card)', 
+                                    border: `1px solid var(--border-secondary)`, 
+                                    color: 'var(--text-primary)',
+                                    borderRadius: '10px', 
+                                    display: 'flex', 
+                                    alignItems: 'center',
+                                    cursor: 'pointer', 
+                                    overflow: 'hidden', 
+                                    zIndex: 10 + rIdx,
+                                    boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
+                                    padding: '0 6px'
                                   }}>
-                                  <div style={{ padding: '0 12px', height: '100%', borderRight: `1px dashed var(--border-secondary)`, display: 'flex', alignItems: 'center', backgroundColor: 'var(--bg-tertiary)', fontSize: '0.75rem', fontWeight: 700 }}>
+                                  <div style={{ 
+                                    width: '24px', 
+                                    height: '24px', 
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    justifyContent: 'center',
+                                    backgroundColor: 'var(--bg-tertiary)', 
+                                    fontSize: '0.75rem', 
+                                    fontWeight: 800,
+                                    borderRadius: '6px',
+                                    flexShrink: 0,
+                                    marginRight: '8px',
+                                    border: `1px solid var(--border-primary)`
+                                  }}>
                                     {r.partySize}
                                   </div>
-                                  <div style={{ padding: '0 12px', fontSize: '0.75rem', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                                  <div style={{ fontSize: '0.85rem', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
                                     {r.guestFirstName} {r.guestLastName}
                                   </div>
                                 </div>
                              )
                           })}
                        </div>
+                       {/* Right spacer for scroll breathing room */}
+                       <div style={{ minWidth: '32px', flexShrink: 0, backgroundColor: 'var(--bg-tertiary)' }}></div>
                     </div>
                   )}
                 </div>
               </div>
-            )}
+              )
+              })()}
             
             {activeTab === 'Calendar View' && (
               <div style={{ padding: '32px' }}>

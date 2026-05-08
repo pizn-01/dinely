@@ -334,10 +334,10 @@ export default function FloorMapTab({ theme, orgId }: FloorMapTabProps) {
             zIndex: isSelected ? 10 : 1
           }}
         >
-          <span style={{ fontWeight: 700, fontSize: '1.125rem' }}>
+          <span style={{ fontWeight: 700, fontSize: table.isMerged ? '0.8rem' : '1.125rem', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', wordBreak: 'break-word', lineHeight: '1.2', maxWidth: '100%', padding: '0 4px', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const }}>
             {table.name || `#${table.tableNumber}`}
           </span>
-          <span style={{ fontSize: '0.75rem', color: isDark ? '#9CA3AF' : '#6B7280', marginTop: '4px' }}>
+          <span style={{ fontSize: '0.7rem', color: isDark ? '#9CA3AF' : '#6B7280', marginTop: '2px', textAlign: 'center' }}>
             {table.capacity} Seats
           </span>
         </div>

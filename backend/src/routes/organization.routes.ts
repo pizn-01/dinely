@@ -21,7 +21,7 @@ router.get('/:orgId',
 // PUT /organizations/:orgId
 router.put('/:orgId',
   requireRestaurantAccess,
-  requireMinRole(UserRole.RESTAURANT_ADMIN),
+  requireMinRole(UserRole.MANAGER),
   validate(updateOrganizationSchema),
   (req, res, next) => organizationController.update(req, res, next)
 );
