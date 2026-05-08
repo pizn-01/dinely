@@ -37,8 +37,8 @@ export default function Autologin() {
           if (refreshToken) localStorage.setItem('refreshToken', refreshToken)
           localStorage.setItem('restaurant', JSON.stringify(restaurant))
 
-          // Redirect to slug-based staff login (which will then redirect to tables if authenticated)
-          navigate(`/staff-login/${slug}`)
+          // Redirect to slug-based dashboard
+          navigate(`/staff/${slug}/tables`)
         } else {
           setError('Autologin failed')
         }

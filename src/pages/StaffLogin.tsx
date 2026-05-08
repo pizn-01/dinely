@@ -13,10 +13,12 @@ export default function StaffLogin() {
   
   // Redirect if already authenticated
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && slug) {
+      navigate(`/staff/${slug}/tables`)
+    } else if (isAuthenticated) {
       navigate('/staff/tables')
     }
-  }, [isAuthenticated, navigate])
+  }, [isAuthenticated, slug, navigate])
 
   const urlEmail = searchParams.get('email') || ''
 
