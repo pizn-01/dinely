@@ -9,17 +9,8 @@ export default function StaffLogin() {
   const navigate = useNavigate()
   const { slug } = useParams<{ slug?: string }>()
   const [searchParams] = useSearchParams()
-  const { login, isAuthenticated } = useAuth()
+  const { login } = useAuth()
   
-  // Redirect if already authenticated
-  useEffect(() => {
-    if (isAuthenticated && slug) {
-      navigate(`/staff/${slug}/tables`)
-    } else if (isAuthenticated) {
-      navigate('/staff/tables')
-    }
-  }, [isAuthenticated, slug, navigate])
-
   const urlEmail = searchParams.get('email') || ''
 
   const [email, setEmail] = useState(urlEmail)

@@ -895,6 +895,7 @@ export class AuthService {
         email: staffMember.email,
         role,
         name: staffMember.name,
+        restaurantId: org.id,
       },
       token,
       refreshToken,

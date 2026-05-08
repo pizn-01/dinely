@@ -211,6 +211,7 @@ export interface AuthResponse {
     role: UserRole;
     name: string;
     isVip?: boolean;
+    restaurantId?: string;
   };
   token: string;
   refreshToken?: string;
