@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { supabaseAdmin } from '../config/database';
 import { generateToken, generateRefreshToken } from '../middleware/auth';
@@ -809,7 +810,6 @@ export class AuthService {
     });
 
     const refreshToken = generateRefreshToken(userId);
-
     return {
       user: {
         id: userId,
@@ -820,6 +820,91 @@ export class AuthService {
       },
       token,
       refreshToken,
+    };
+  }
+
+  /**
+   * Autologin for ePOS integration.
+   * Verifies a signed hash (HMAC-SHA256) and issues a staff JWT.
+   */
+  async autologin(slug: string, email: string, hash: string): Promise<AuthResponse> {
+    if (!slug || !email || !hash) {
+      throw new AppError('Missing required autologin parameters', 400);
+    }
+
+    // Find organization
+    const { data: org } = await supabaseAdmin
+      .from('organizations')
+      .select('id, name, slug, autologin_secret')
+      .eq('slug', slug)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (!org) {
+      throw new AppError('Restaurant not found', 404);
+    }
+
+    if (!org.autologin_secret) {
+      throw new AppError('Autologin is not configured for this restaurant', 403);
+    }
+
+    // Verify hash: hmac_sha256(secret, slug + email)
+    const expectedHash = crypto
+      .createHmac('sha256', org.autologin_secret)
+      .update(`${slug}|${email}`)
+      .digest('hex');
+
+    if (hash !== expectedHash) {
+      throw new AppError('Invalid autologin signature', 401);
+    }
+
+    // Find the specific staff member
+    const { data: staffMember } = await supabaseAdmin
+      .from('staff_members')
+      .select('id, user_id, role, name, email')
+      .eq('restaurant_id', org.id)
+      .eq('email', email)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (!staffMember?.user_id) {
+      throw new AppError('No active staff account found for this email', 401);
+    }
+
+    const roleMap: Record<string, UserRole> = {
+      admin: UserRole.RESTAURANT_ADMIN,
+      manager: UserRole.MANAGER,
+      host: UserRole.HOST,
+      viewer: UserRole.VIEWER,
+    };
+
+    const role = roleMap[staffMember.role] || UserRole.VIEWER;
+
+    const token = generateToken({
+      sub: staffMember.user_id,
+      email: staffMember.email,
+      role,
+      restaurantId: org.id,
+    });
+
+    const refreshToken = generateRefreshToken(staffMember.user_id);
+
+    return {
+      user: {
+        id: staffMember.user_id,
+        email: staffMember.email,
+        role,
+        name: staffMember.name,
+      },
+      token,
+      refreshToken,
+      restaurant: {
+        id: org.id,
+        name: org.name,
+        slug: org.slug,
+        setupCompleted: true,
+        openingTime: undefined as any,
+      },
     };
   }
 }

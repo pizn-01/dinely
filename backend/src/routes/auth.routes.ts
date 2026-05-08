@@ -23,6 +23,7 @@ router.post('/customer-signup', authLimiter, validate(customerSignupSchema), (re
 router.post('/forgot-password', validate(forgotPasswordSchema), (req, res, next) => authController.forgotPassword(req, res, next));
 router.post('/reset-password', validate(resetPasswordSchema), (req, res, next) => authController.resetPassword(req, res, next));
 router.post('/refresh', validate(refreshTokenSchema), (req, res, next) => authController.refreshToken(req, res, next));
+router.get('/autologin', (req, res, next) => authController.autologin(req, res, next));
 
 // Accept staff invitation — no rate limit needed; UUID tokens can't be brute-forced
 router.post('/accept-invite', validate(acceptInviteSchema), async (req, res, next) => {

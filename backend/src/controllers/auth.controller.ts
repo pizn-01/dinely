@@ -61,6 +61,20 @@ export class AuthController {
     }
   }
 
+  async autologin(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const { slug, email, hash } = req.query;
+      const result = await authService.autologin(
+        slug as string,
+        email as string,
+        hash as string
+      );
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async superAdminLogin(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const result = await authService.superAdminLogin(req.body);

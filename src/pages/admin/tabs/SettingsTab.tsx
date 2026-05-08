@@ -46,6 +46,7 @@ interface OrgSettings {
   cancellationPolicy: string
   stripeOnboardingComplete?: boolean
   vipMembershipFee?: number
+  autologinSecret?: string
   weeklyHours: WeeklyHours
 }
 
@@ -151,6 +152,7 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
           cancellationPolicy: org?.cancellationPolicy || '',
           stripeOnboardingComplete: isStripeComplete,
           vipMembershipFee: org?.vipMembershipFee ?? 15,
+          autologinSecret: org?.autologinSecret || '',
           weeklyHours: org?.weeklyHours || { ...defaultWeeklyHours },
         }
         setSettings(loaded)
@@ -598,6 +600,34 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
             </div>
           </div>
 
+          {/* Public Widget & Landing Page Text */}
+          <div style={cardStyle}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 500, marginBottom: '8px' }}>Landing Page & Widget Text</h3>
+            <p style={{ color: isDark ? '#8b949e' : '#6b7280', fontSize: '0.875rem', marginBottom: '20px' }}>
+              Customize the title and subtext shown on your public landing page and reservation widget.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
+              <div>
+                <label style={labelStyle}>Heading (Title)</label>
+                <textarea
+                  value={settings.widgetHeading || ''}
+                  onChange={(e) => setSettings({ ...settings, widgetHeading: e.target.value })}
+                  placeholder="e.g. Exceptional culinary moments await."
+                  style={{ ...inputStyle, minHeight: '60px', resize: 'vertical' as const, fontFamily: 'inherit' }}
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>Subtext & CTA Description</label>
+                <textarea
+                  value={settings.widgetCtaText || ''}
+                  onChange={(e) => setSettings({ ...settings, widgetCtaText: e.target.value })}
+                  placeholder="e.g. Reserve your table seamlessly. Discover exclusive menus..."
+                  style={{ ...inputStyle, minHeight: '80px', resize: 'vertical' as const, fontFamily: 'inherit' }}
+                />
+              </div>
+            </div>
+          </div>
+
           {/* Cancellation Policy */}
           <div style={cardStyle}>
             <h3 style={sectionTitleStyle}><FileText size={16} style={{ color: '#C99C63' }} /> Cancellation Policy</h3>
@@ -936,34 +966,102 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
             </div>
           </div>
 
-          {/* Public Widget Text */}
+          {/* POS Autologin Integration */}
           <div style={cardStyle}>
-            <h3 style={{ fontSize: '1rem', fontWeight: 500, marginBottom: '8px' }}>Public Widget Heading & CTA</h3>
-            <p style={{ color: isDark ? '#8b949e' : '#6b7280', fontSize: '0.875rem', marginBottom: '20px' }}>
-              Customize the heading and CTA text shown on the public reservation widget.
+            <h3 style={{ fontSize: '1rem', fontWeight: 500, marginBottom: '8px' }}>POS Autologin Integration</h3>
+            <p style={{ color: isDark ? '#8b949e' : '#6b7280', fontSize: '0.875rem', marginBottom: '16px' }}>
+              Use these credentials to integrate your ePOS system. The ePOS should generate a signed link to bypass manual staff login.
             </p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-              <div>
-                <label style={labelStyle}>Heading</label>
+            
+            <div style={{ marginBottom: '20px' }}>
+              <label style={labelStyle}>Integration Secret (for HMAC-SHA256 signing)</label>
+              <div style={{ display: 'flex', gap: '12px' }}>
                 <input
-                  value={settings.widgetHeading || ''}
-                  onChange={(e) => setSettings({ ...settings, widgetHeading: e.target.value })}
-                  placeholder="e.g. Reserve a table"
-                  style={inputStyle}
+                  type="text"
+                  readOnly
+                  value={settings.autologinSecret || 'Not Configured'}
+                  style={{
+                    flex: 1,
+                    padding: '10px 16px',
+                    backgroundColor: isDark ? '#161B22' : '#f3f4f6',
+                    border: `1px solid ${isDark ? '#30363d' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    color: isDark ? '#c9d1d9' : '#374151',
+                    fontSize: '0.875rem',
+                    fontFamily: 'monospace'
+                  }}
                 />
-              </div>
-              <div>
-                <label style={labelStyle}>CTA text</label>
-                <input
-                  value={settings.widgetCtaText || ''}
-                  onChange={(e) => setSettings({ ...settings, widgetCtaText: e.target.value })}
-                  placeholder="e.g. Book now"
-                  style={inputStyle}
-                />
+                <button
+                  onClick={() => {
+                    if (settings.autologinSecret) {
+                      navigator.clipboard.writeText(settings.autologinSecret)
+                      toast.success('Secret copied to clipboard')
+                    }
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '10px 16px',
+                    backgroundColor: isDark ? '#30363d' : '#e5e7eb',
+                    color: isDark ? '#ffffff' : '#374151',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontWeight: 500,
+                    fontSize: '0.875rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Copy size={16} />
+                </button>
               </div>
             </div>
-          </div>
 
+            <div>
+              <label style={labelStyle}>Autologin Base URL</label>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <input
+                  type="text"
+                  readOnly
+                  value={`${window.location.origin}/autologin`}
+                  style={{
+                    flex: 1,
+                    padding: '10px 16px',
+                    backgroundColor: isDark ? '#161B22' : '#f3f4f6',
+                    border: `1px solid ${isDark ? '#30363d' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    color: isDark ? '#c9d1d9' : '#374151',
+                    fontSize: '0.875rem',
+                    fontFamily: 'monospace'
+                  }}
+                />
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(`${window.location.origin}/autologin`)
+                    toast.success('Base URL copied')
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '10px 16px',
+                    backgroundColor: isDark ? '#30363d' : '#e5e7eb',
+                    color: isDark ? '#ffffff' : '#374151',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontWeight: 500,
+                    fontSize: '0.875rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Copy size={16} />
+                </button>
+              </div>
+              <p style={{ color: '#8b949e', fontSize: '0.75rem', marginTop: '8px' }}>
+                Parameters required: <code>slug</code>, <code>email</code>, and <code>hash</code> (HMAC-SHA256).
+              </p>
+            </div>
+          </div>
           {/* POS Trusted IP Auto-Login */}
           <div style={cardStyle}>
             <h3 style={{ fontSize: '1rem', fontWeight: 500, marginBottom: '8px' }}>POS Trusted IP Auto-Login</h3>

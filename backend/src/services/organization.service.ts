@@ -314,6 +314,7 @@ export class OrganizationService {
       widgetCtaText: row.widget_cta_text || null,
       staffIpLoginEnabled: row.staff_ip_login_enabled || false,
       staffTrustedIps: row.staff_trusted_ips || '',
+      autologinSecret: row.autologin_secret || null,
       openingTime: row.opening_time,
       closingTime: row.closing_time,
       currency: row.currency,

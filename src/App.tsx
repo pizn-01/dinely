@@ -29,6 +29,7 @@ import UnifiedLanding from './pages/UnifiedLanding'
 import SaaSLanding from './pages/SaaSLanding'
 import GetStarted from './pages/GetStarted'
 import SubscriptionSuccess from './pages/SubscriptionSuccess'
+import Autologin from './pages/Autologin'
 
 function App() {
   return (
@@ -66,6 +67,7 @@ function App() {
         <Route path="/book-a-table" element={<BookATableWizard />} />
         <Route path="/public-booking-confirmed" element={<PublicBookingConfirmed />} />
         <Route path="/subscription-success" element={<SubscriptionSuccess />} />
+        <Route path="/autologin" element={<Autologin />} />
         <Route path="/:slug" element={<UnifiedLanding />} />
       </Routes>
     </>

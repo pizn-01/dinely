@@ -74,11 +74,15 @@ export default function UnifiedLanding() {
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '6px 16px', backgroundColor: 'rgba(201, 156, 99, 0.1)', color: '#C99C63', borderRadius: '100px', fontSize: '0.875rem', fontWeight: 600, marginBottom: '24px' }}>
             <Star size={16} /> Premium Dining Experience
           </div>
-          <h2 className="res-unified-hero-title" style={{ fontSize: '4rem', fontWeight: 800, margin: '0 0 24px 0', lineHeight: 1.1, letterSpacing: '-0.03em', maxWidth: '800px' }}>
-            Exceptional culinary <br/>moments await.
+          <h2 className="res-unified-hero-title" style={{ fontSize: '4rem', fontWeight: 800, margin: '0 0 24px 0', lineHeight: 1.1, letterSpacing: '-0.03em', maxWidth: '800px', whiteSpace: 'pre-line' }}>
+            {orgData?.widgetHeading?.trim() 
+              ? orgData.widgetHeading 
+              : <>Exceptional culinary <br/>moments await.</>}
           </h2>
-          <p style={{ fontSize: '1.25rem', color: '#8b949e', maxWidth: '600px', margin: '0 auto 48px auto', lineHeight: 1.6 }}>
-            Reserve your table seamlessly. Discover exclusive menus, priority seating, and unmatched hospitality.
+          <p style={{ fontSize: '1.25rem', color: '#8b949e', maxWidth: '600px', margin: '0 auto 48px auto', lineHeight: 1.6, whiteSpace: 'pre-line' }}>
+            {orgData?.widgetCtaText?.trim()
+              ? orgData.widgetCtaText
+              : 'Reserve your table seamlessly. Discover exclusive menus, priority seating, and unmatched hospitality.'}
           </p>
 
           <div className="res-unified-cta-row" style={{ display: 'flex', gap: '20px', justifyContent: 'center' }}>
