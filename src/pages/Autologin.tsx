@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { api } from '../services/api'
 import { Loader2, AlertCircle } from 'lucide-react'
+import { useAuth } from '../context/AuthContext'
 
 export default function Autologin() {
   const navigate = useNavigate()
   const location = useLocation()
+  const { login } = useAuth()
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -27,9 +29,12 @@ export default function Autologin() {
 
         if (data.success && data.data) {
           const { token, refreshToken, user, restaurant } = data.data
-          localStorage.setItem('token', token)
+          
+          // Use AuthContext to hydrate the session state
+          login(token, user)
+          
+          // Store additional items
           if (refreshToken) localStorage.setItem('refreshToken', refreshToken)
-          localStorage.setItem('user', JSON.stringify(user))
           localStorage.setItem('restaurant', JSON.stringify(restaurant))
 
           // Redirect to staff dashboard
