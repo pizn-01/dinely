@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link, Copy, Check, Upload, Image as ImageIcon, Save, Clock, Users, CreditCard, Merge, Footprints, FileText, DollarSign, CalendarDays, Settings2 } from 'lucide-react'
+import { Link, Copy, Check, Upload, Image as ImageIcon, Save, Clock, Users, CreditCard, Merge, Footprints, FileText, DollarSign, CalendarDays, Settings2, RefreshCw } from 'lucide-react'
 import { api } from '../../../services/api'
 import { toast } from 'react-hot-toast'
 
@@ -991,6 +991,38 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
                     fontFamily: 'monospace'
                   }}
                 />
+                <button
+                  onClick={async () => {
+                    const newSecret = crypto.randomUUID()
+                    try {
+                      const { data } = await api.put(`/organizations/${orgId}`, {
+                        autologinSecret: newSecret
+                      })
+                      if (data.success) {
+                        setSettings(prev => ({ ...prev, autologinSecret: newSecret }))
+                        toast.success('Secret regenerated successfully')
+                      }
+                    } catch (err) {
+                      toast.error('Failed to regenerate secret')
+                    }
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '10px 16px',
+                    backgroundColor: isDark ? '#30363d' : '#e5e7eb',
+                    color: isDark ? '#ffffff' : '#374151',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontWeight: 500,
+                    fontSize: '0.875rem',
+                    cursor: 'pointer'
+                  }}
+                  title="Regenerate Secret"
+                >
+                  <RefreshCw size={16} />
+                </button>
                 <button
                   onClick={() => {
                     if (settings.autologinSecret) {

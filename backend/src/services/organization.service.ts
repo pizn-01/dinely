@@ -71,6 +71,7 @@ export class OrganizationService {
     if (dto.setupCompleted !== undefined) updateData.setup_completed = dto.setupCompleted;
     if (dto.logoUrl !== undefined) updateData.logo_url = dto.logoUrl;
     if (dto.vipMembershipFee !== undefined) updateData.vip_membership_fee = dto.vipMembershipFee;
+    if (dto.autologinSecret !== undefined) updateData.autologin_secret = dto.autologinSecret;
     if (dto.weeklyHours !== undefined) updateData.weekly_hours = dto.weeklyHours;
 
     const { data, error } = await supabaseAdmin
