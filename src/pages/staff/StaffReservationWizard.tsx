@@ -41,11 +41,19 @@ const getLocalISODate = (date: Date = new Date()) => {
   return `${y}-${m}-${d}`
 }
 
+const getDefaultTime = () => {
+  const now = new Date()
+  const m = now.getMinutes()
+  const roundedM = m < 30 ? '30' : '00'
+  const h = m < 30 ? now.getHours() : (now.getHours() + 1) % 24
+  return `${String(h).padStart(2, '0')}:${roundedM}`
+}
+
 const defaultDate = getLocalISODate()
 
 const initialData: ReservationData = {
   date: defaultDate,
-  time: '18:30',
+  time: getDefaultTime(),
   guests: 2,
   tableId: null,
   tableName: '',

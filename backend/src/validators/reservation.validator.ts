@@ -14,8 +14,9 @@ export const createReservationSchema = z.object({
   reservationDate: z.string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format')
     .refine(d => {
-      const today = new Date().toISOString().split('T')[0];
-      return d >= today;
+      // Allow yesterday to prevent timezone boundary rejections for users behind UTC
+      const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+      return d >= yesterday;
     }, { message: 'Reservation date cannot be in the past' }),
   startTime: z.string().regex(/^\d{2}:\d{2}$/, 'Time must be in HH:MM format'),
   endTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
