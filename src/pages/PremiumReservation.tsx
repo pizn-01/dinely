@@ -57,10 +57,18 @@ export default function PremiumReservation() {
   const [error, setError] = useState<string | null>(null)
 
   // Date state — default to today
-  const [date, setDate] = useState(() => {
-    const today = new Date()
-    return today.toISOString().split('T')[0] // YYYY-MM-DD format
-  })
+  const getLocalISODate = (date: Date = new Date()) => {
+    const y = date.getFullYear()
+    const m = String(date.getMonth() + 1).padStart(2, '0')
+    const d = String(date.getDate()).padStart(2, '0')
+    return `${y}-${m}-${d}`
+  }
+  
+  const getTodayString = () => {
+    return getLocalISODate()
+  }
+
+  const [date, setDate] = useState(getTodayString)
 
   const predefinedGuests = [2, 4, 6, 8]
 
@@ -307,7 +315,7 @@ export default function PremiumReservation() {
                       type="date"
                       value={date}
                       onChange={(e) => setDate(e.target.value)}
-                      min={new Date().toISOString().split('T')[0]}
+                      min={getTodayString()}
                       style={{
                         width: '100%',
                         padding: '16px',

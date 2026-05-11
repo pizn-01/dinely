@@ -34,6 +34,13 @@ const IconContainer = ({ children, color = '#6B9E78' }: { children: React.ReactN
   </div>
 )
 
+const getLocalISODate = (date: Date = new Date()) => {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
 export default function StaffTableManagement() {
   const { slug: urlSlug } = useParams<{ slug: string }>()
   const { user, logout, isLoading: authLoading } = useAuth()
@@ -44,7 +51,7 @@ export default function StaffTableManagement() {
   const [loading, setLoading] = useState(true)
   
   // Dynamic State
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
+  const [selectedDate, setSelectedDate] = useState(getLocalISODate())
   const [dbTables, setDbTables] = useState<any[]>([])
   const [dbAreas, setDbAreas] = useState<any[]>([])
   const [dbReservations, setDbReservations] = useState<any[]>([])
@@ -69,7 +76,7 @@ export default function StaffTableManagement() {
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState<{ imported: number; failed: number; total: number; errors: Array<{ row: number; error: string }> } | null>(null)
   const [newRes, setNewRes] = useState({
-    date: new Date().toISOString().split('T')[0],
+    date: getLocalISODate(),
     time: '18:30',
     partySize: 2,
     guestEmail: '',
@@ -214,7 +221,7 @@ export default function StaffTableManagement() {
     for (let i = 0; i < 5; i++) {
       const d = new Date(now)
       d.setDate(now.getDate() + i)
-      const iso = d.toISOString().split('T')[0]
+      const iso = getLocalISODate(d)
       let label = d.toLocaleDateString('en-GB', { weekday: 'short' })
       if (i === 0) label = 'Today'
       if (i === 1) label = 'Tomorrow'
@@ -845,7 +852,7 @@ export default function StaffTableManagement() {
                         
                         const now = new Date()
                         const currentTotalMins = now.getHours() * 60 + now.getMinutes()
-                        const isToday = selectedDate === now.toISOString().split('T')[0]
+                        const isToday = selectedDate === getLocalISODate(now)
                         
                         if (isToday) {
                           // 1. Is someone seated?
@@ -1445,7 +1452,7 @@ export default function StaffTableManagement() {
                         style={{ padding: '8px', borderRadius: '8px', backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-secondary)', color: 'var(--text-secondary)', cursor: 'pointer' }}
                       ><ChevronLeft size={20} /></button>
                       <button 
-                        onClick={() => { setCalendarMonth(new Date()); setSelectedDate(new Date().toISOString().split('T')[0]); }}
+                        onClick={() => { setCalendarMonth(new Date()); setSelectedDate(getLocalISODate()); }}
                         style={{ padding: '8px 16px', borderRadius: '8px', backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-secondary)', color: 'var(--text-primary)', fontWeight: 600, cursor: 'pointer' }}
                       >Today</button>
                       <button 
@@ -1856,7 +1863,7 @@ export default function StaffTableManagement() {
         <StaffReservationWizard
           restaurantId={restaurantId}
           preselectedTable={wizardPreset?.table}
-          initialDate={wizardPreset?.date}
+          initialDate={selectedDate}
           initialTime={wizardPreset?.time}
           onClose={() => { setShowCreateModal(false); setWizardPreset(null) }}
           onSuccess={() => {
