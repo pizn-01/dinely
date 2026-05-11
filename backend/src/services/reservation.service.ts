@@ -11,7 +11,7 @@ import { emailService } from './email.service';
 const VALID_TRANSITIONS: Record<string, string[]> = {
   [ReservationStatus.PENDING]: [ReservationStatus.CONFIRMED, ReservationStatus.CANCELLED],
   [ReservationStatus.CONFIRMED]: [ReservationStatus.ARRIVING, ReservationStatus.SEATED, ReservationStatus.CANCELLED, ReservationStatus.NO_SHOW],
-  [ReservationStatus.ARRIVING]: [ReservationStatus.SEATED, ReservationStatus.CANCELLED, ReservationStatus.NO_SHOW],
+  [ReservationStatus.ARRIVING]: [ReservationStatus.SEATED, ReservationStatus.CANCELLED, ReservationStatus.NO_SHOW, ReservationStatus.CONFIRMED],
   [ReservationStatus.SEATED]: [ReservationStatus.COMPLETED],
   [ReservationStatus.COMPLETED]: [],
   [ReservationStatus.CANCELLED]: [],
@@ -152,8 +152,8 @@ export class ReservationService {
         const { data: newCustomer } = await supabaseAdmin
           .from('customers')
           .insert({
-            first_name: dto.guestFirstName,
-            last_name: dto.guestLastName || null,
+            first_name: (dto.guestFirstName && dto.guestFirstName.trim()) || 'Guest',
+            last_name: dto.guestLastName?.trim() || null,
             email: normalizedGuestEmail,
             phone: dto.guestPhone || null,
           })
@@ -173,8 +173,8 @@ export class ReservationService {
       p_start_time: dto.startTime,
       p_end_time: endTime,
       p_party_size: dto.partySize,
-      p_guest_first_name: dto.guestFirstName,
-      p_guest_last_name: dto.guestLastName || null,
+      p_guest_first_name: dto.guestFirstName?.trim() || null,
+      p_guest_last_name: dto.guestLastName?.trim() || null,
       p_guest_email: normalizedGuestEmail,
       p_guest_phone: dto.guestPhone || null,
       p_source: dto.source || 'app',
@@ -246,27 +246,76 @@ export class ReservationService {
    * If table_id, date, or time is being changed, we check for conflicts first.
    */
   async update(reservationId: string, restaurantId: string, dto: UpdateReservationDto) {
+    const dtoRecord = dto as Record<string, unknown>;
+    const wantsClearTable =
+      Object.prototype.hasOwnProperty.call(dtoRecord, 'tableId') && dto.tableId === null;
+
+    const buildGuestPayload = () => {
+      const updatePayload: Record<string, any> = {
+        updated_at: new Date().toISOString(),
+      };
+      if (dto.reservationDate !== undefined) updatePayload.reservation_date = dto.reservationDate;
+      if (dto.startTime !== undefined) updatePayload.start_time = dto.startTime;
+      if (dto.endTime !== undefined) updatePayload.end_time = dto.endTime;
+      if (dto.partySize !== undefined) updatePayload.party_size = dto.partySize;
+      if (dto.guestFirstName !== undefined) updatePayload.guest_first_name = dto.guestFirstName;
+      if (dto.guestLastName !== undefined) updatePayload.guest_last_name = dto.guestLastName;
+      if (dto.guestEmail !== undefined) updatePayload.guest_email = dto.guestEmail;
+      if (dto.guestPhone !== undefined) updatePayload.guest_phone = dto.guestPhone;
+      if (dto.specialRequests !== undefined) updatePayload.special_requests = dto.specialRequests;
+      if (dto.internalNotes !== undefined) updatePayload.internal_notes = dto.internalNotes;
+      return updatePayload;
+    };
+
+    // Clearing table_id: Postgres RPC uses COALESCE(p_table_id, current) so NULL cannot unassign — use direct update.
+    if (wantsClearTable) {
+      const updatePayload = buildGuestPayload();
+      updatePayload.table_id = null;
+
+      const { error: updateErr } = await supabaseAdmin
+        .from('reservations')
+        .update(updatePayload)
+        .eq('id', reservationId)
+        .eq('restaurant_id', restaurantId);
+
+      if (updateErr) {
+        throw new AppError('Failed to update reservation: ' + updateErr.message, 500);
+      }
+
+      const { data: updatedRes, error: fetchErr } = await supabaseAdmin
+        .from('reservations')
+        .select('*, tables(id, table_number, name, floor_areas(name))')
+        .eq('id', reservationId)
+        .eq('restaurant_id', restaurantId)
+        .single();
+
+      if (fetchErr || !updatedRes) throw new NotFoundError('Reservation');
+      return this.formatReservation(updatedRes);
+    }
+
     // 1. Rely on atomic DB-level locking via an RPC instead of JS memory checks
-    // This assumes you create a matching 'update_reservation_atomic' Postgres function
     let rpcSuccess = false;
-    let rpcData;
+
+    const rpcParams: Record<string, unknown> = {
+      p_reservation_id: reservationId,
+      p_restaurant_id: restaurantId,
+      p_reservation_date: dto.reservationDate ?? null,
+      p_start_time: dto.startTime ?? null,
+      p_end_time: dto.endTime ?? null,
+      p_party_size: dto.partySize ?? null,
+      p_guest_first_name: dto.guestFirstName ?? null,
+      p_guest_last_name: dto.guestLastName ?? null,
+      p_guest_email: dto.guestEmail ?? null,
+      p_guest_phone: dto.guestPhone ?? null,
+      p_special_requests: dto.specialRequests ?? null,
+      p_internal_notes: dto.internalNotes ?? null,
+    };
+    if (dto.tableId !== undefined && dto.tableId !== null) {
+      rpcParams.p_table_id = dto.tableId;
+    }
 
     try {
-      const { data, error } = await supabaseAdmin.rpc('update_reservation_atomic', {
-        p_reservation_id: reservationId,
-        p_restaurant_id: restaurantId,
-        p_table_id: dto.tableId ?? null,
-        p_reservation_date: dto.reservationDate ?? null,
-        p_start_time: dto.startTime ?? null,
-        p_end_time: dto.endTime ?? null,
-        p_party_size: dto.partySize ?? null,
-        p_guest_first_name: dto.guestFirstName ?? null,
-        p_guest_last_name: dto.guestLastName ?? null,
-        p_guest_email: dto.guestEmail ?? null,
-        p_guest_phone: dto.guestPhone ?? null,
-        p_special_requests: dto.specialRequests ?? null,
-        p_internal_notes: dto.internalNotes ?? null
-      });
+      const { data, error } = await supabaseAdmin.rpc('update_reservation_atomic', rpcParams);
 
       if (error) {
         if (error.message.includes('overlap') || error.message.includes('booked')) {
@@ -275,7 +324,6 @@ export class ReservationService {
         console.warn('[ReservationService] RPC update failed, using fallback:', error.message);
       } else {
         rpcSuccess = true;
-        rpcData = data;
       }
     } catch (err: any) {
       if (err instanceof AppError) throw err;
@@ -283,7 +331,6 @@ export class ReservationService {
     }
 
     if (!rpcSuccess) {
-      // Fallback: Direct update without strict atomic conflict checking
       const updatePayload: Record<string, any> = {};
       if (dto.tableId !== undefined) updatePayload.table_id = dto.tableId;
       if (dto.reservationDate !== undefined) updatePayload.reservation_date = dto.reservationDate;
@@ -298,6 +345,7 @@ export class ReservationService {
       if (dto.internalNotes !== undefined) updatePayload.internal_notes = dto.internalNotes;
 
       if (Object.keys(updatePayload).length > 0) {
+        updatePayload.updated_at = new Date().toISOString();
         const { error: updateErr } = await supabaseAdmin
           .from('reservations')
           .update(updatePayload)
@@ -519,7 +567,7 @@ export class ReservationService {
       .select('id, start_time, end_time')
       .eq('table_id', tableId)
       .eq('reservation_date', date)
-      .not('status', 'in', `(${ReservationStatus.CANCELLED},${ReservationStatus.NO_SHOW})`);
+      .not('status', 'in', `(${ReservationStatus.CANCELLED},${ReservationStatus.NO_SHOW},${ReservationStatus.COMPLETED})`);
 
     if (!conflicts || conflicts.length === 0) return true;
 
@@ -676,7 +724,7 @@ export class ReservationService {
       .select('table_id, start_time, end_time')
       .eq('restaurant_id', restaurantId)
       .eq('reservation_date', date)
-      .not('status', 'in', `(${ReservationStatus.CANCELLED},${ReservationStatus.NO_SHOW})`);
+      .not('status', 'in', `(${ReservationStatus.CANCELLED},${ReservationStatus.NO_SHOW},${ReservationStatus.COMPLETED})`);
 
     const reservations = dayReservations || [];
 
@@ -933,7 +981,7 @@ export class ReservationService {
       .eq('restaurant_id', restaurantId)
       .gte('reservation_date', startDate)
       .lte('reservation_date', endDateStr)
-      .not('status', 'in', `(${ReservationStatus.CANCELLED},${ReservationStatus.NO_SHOW})`);
+      .not('status', 'in', `(${ReservationStatus.CANCELLED},${ReservationStatus.NO_SHOW},${ReservationStatus.COMPLETED})`);
 
     if (error) throw new AppError('Failed to fetch monthly reservation counts', 500);
 

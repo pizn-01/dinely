@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useParams } from 'react-router-dom'
+import { restaurantLoginPath } from '../utils/restaurantRoutes'
 import { api } from '../services/api'
 import dinelyLogo from '../assets/dinely-logo.png'
 
@@ -10,8 +11,9 @@ export default function ForgotPassword() {
   const [error, setError] = useState('')
 
   const location = useLocation()
+  const { slug: slugParam } = useParams<{ slug?: string }>()
   const searchParams = new URLSearchParams(location.search)
-  const defaultSlug = searchParams.get('restaurant') || ''
+  const defaultSlug = slugParam || searchParams.get('restaurant') || ''
   const [logoUrl, setLogoUrl] = useState('')
 
   useEffect(() => {
@@ -153,7 +155,7 @@ export default function ForgotPassword() {
 
         <p style={{ textAlign: 'center', color: '#8b949e', fontSize: '0.875rem', margin: '24px 0 0 0' }}>
           Remember your password?{' '}
-          <Link to={defaultSlug && defaultSlug !== 'demo-restaurant' ? `/login?restaurant=${defaultSlug}` : '/login'} style={{ color: '#6B9E78', textDecoration: 'none', fontWeight: 500 }}>
+          <Link to={restaurantLoginPath(defaultSlug || undefined)} style={{ color: '#6B9E78', textDecoration: 'none', fontWeight: 500 }}>
             Back to login
           </Link>
         </p>

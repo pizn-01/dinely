@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { staffLoginPath, staffTablesPath } from '../utils/restaurantRoutes'
 import { api } from '../services/api'
 import { Loader2, AlertCircle } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
@@ -30,15 +31,18 @@ export default function Autologin() {
         if (data.success && data.data) {
           const { token, refreshToken, user, restaurant } = data.data
           
-          // Use AuthContext to hydrate the session state
-          login(token, user)
+          const rs = restaurant?.slug || slug
+          login(token, {
+            ...user,
+            restaurantId: restaurant?.id ?? user.restaurantId,
+            restaurantSlug: rs,
+          })
           
-          // Store additional items
           if (refreshToken) localStorage.setItem('refreshToken', refreshToken)
           localStorage.setItem('restaurant', JSON.stringify(restaurant))
 
-          // Redirect to staff dashboard
-          navigate('/staff/tables')
+          if (rs) navigate(staffTablesPath(rs))
+          else navigate('/staff/tables')
         } else {
           setError('Autologin failed')
         }
@@ -86,7 +90,7 @@ export default function Autologin() {
             <h1 style={{ fontSize: '1.5rem', fontWeight: 600, marginBottom: '12px' }}>Authentication Failed</h1>
             <p style={{ color: '#8b949e', marginBottom: '24px' }}>{error}</p>
             <button
-              onClick={() => navigate('/staff-login')}
+              onClick={() => navigate(staffLoginPath(slug || undefined))}
               style={{
                 padding: '10px 24px',
                 backgroundColor: '#C99C63',

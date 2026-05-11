@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { forgotPasswordPath, staffForgotPasswordPath } from '../utils/restaurantRoutes'
 import { useTheme } from '../context/ThemeContext'
 import { CircleUser, LogOut, Moon, Sun, KeyRound, Shield } from 'lucide-react'
 
@@ -246,9 +247,9 @@ export default function Navbar({ variant = 'public', logoUrl, onSignOut, userNam
                     // Determine which password reset flow to use
                     const isStaff = displayRole === 'manager' || displayRole === 'host' || displayRole === 'viewer'
                     if (isStaff) {
-                      navigate(orgSlug ? `/staff-forgot-password/${orgSlug}` : '/staff-forgot-password')
+                      navigate(staffForgotPasswordPath(orgSlug))
                     } else {
-                      navigate(orgSlug ? `/forgot-password/${orgSlug}` : '/forgot-password')
+                      navigate(forgotPasswordPath(orgSlug))
                     }
                   }}
                   style={menuItemStyle}

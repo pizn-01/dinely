@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { staffLoginPath, staffTablesPath } from '../utils/restaurantRoutes'
 import { Eye, EyeOff } from 'lucide-react'
 import { api } from '../services/api'
 import { useAuth } from '../context/AuthContext'
@@ -79,11 +80,14 @@ export default function AcceptInvite() {
       login(jwtToken, {
         ...user,
         restaurantId: restaurant?.id,
+        restaurantSlug: restaurant?.slug,
       });
 
       // Redirect them to the dashboard
       setTimeout(() => {
-        navigate('/staff/tables') // or staff-dashboard
+        const rs = restaurant?.slug || defaultSlug || undefined
+        if (rs) navigate(staffTablesPath(rs))
+        else navigate('/staff/tables')
       }, 1500)
       
     } catch (err: any) {
@@ -262,7 +266,7 @@ export default function AcceptInvite() {
           marginBottom: 0
         }}>
           Already accepted?{' '}
-          <Link to={defaultSlug ? `/staff-login/${defaultSlug}` : "/staff-login"} style={{
+          <Link to={staffLoginPath(defaultSlug || undefined)} style={{
             color: '#5E8B6A',
             textDecoration: 'none',
             fontWeight: 600,

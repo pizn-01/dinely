@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Calendar, Table, Settings, LogOut, CheckCircle2, Users, MapPin, Clock, Star } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { userReservePath } from '../utils/restaurantRoutes'
 import { useAuth } from '../context/AuthContext'
 import { api } from '../services/api'
 import { toast } from 'react-hot-toast'
@@ -177,7 +178,7 @@ export default function Welcome() {
         </div>
         <button
           className="res-welcome-cta-btn"
-          onClick={() => navigate((customerProfile?.isVip || user?.isVip) ? `/premium-reserve/${slug}` : `/user-reserve?restaurant=${slug}`)}
+          onClick={() => navigate((customerProfile?.isVip || user?.isVip) ? `/premium-reserve/${slug}` : userReservePath(slug))}
           style={{
             backgroundColor: '#C99C63',
             color: '#ffffff',

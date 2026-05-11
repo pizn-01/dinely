@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
-import { Link, useNavigate, useLocation } from 'react-router-dom'
+import { Link, useNavigate, useLocation, useParams } from 'react-router-dom'
+import { restaurantLoginPath } from '../utils/restaurantRoutes'
 import { Eye, EyeOff } from 'lucide-react'
 import { api } from '../services/api'
 import dinelyLogo from '../assets/dinely-logo.png'
 
 export default function CustomerSignUp() {
   const navigate = useNavigate()
+  const { slug: slugParam } = useParams<{ slug?: string }>()
 
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
@@ -17,7 +19,7 @@ export default function CustomerSignUp() {
   const location = useLocation()
   
   const searchParams = new URLSearchParams(location.search)
-  const defaultSlug = searchParams.get('restaurant') || 'demo-restaurant'
+  const defaultSlug = slugParam || searchParams.get('restaurant') || 'demo-restaurant'
   const [logoUrl, setLogoUrl] = useState('')
 
   useEffect(() => {
@@ -51,7 +53,7 @@ export default function CustomerSignUp() {
       })
       
       // Successfully registered, send them to login with the preserved slug
-      navigate(`/login?restaurant=${defaultSlug}`)
+      navigate(restaurantLoginPath(defaultSlug))
     } catch (err: any) {
       const errorMessage = err.response?.data?.details?.[0]?.message 
         || err.response?.data?.error 
@@ -267,7 +269,7 @@ export default function CustomerSignUp() {
 
         <p style={{ textAlign: 'center', color: '#8b949e', fontSize: '0.875rem', margin: '16px 0 0 0' }}>
           Already have an account?{' '}
-          <Link to={`/login?restaurant=${defaultSlug}`} style={{ color: '#6B9E78', textDecoration: 'none', fontWeight: 500 }}>
+          <Link to={restaurantLoginPath(defaultSlug)} style={{ color: '#6B9E78', textDecoration: 'none', fontWeight: 500 }}>
             Log in
           </Link>
         </p>

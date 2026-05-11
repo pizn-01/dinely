@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Link, useNavigate, useLocation } from 'react-router-dom'
+import { Link, useNavigate, useLocation, useParams } from 'react-router-dom'
+import { customerSignupPath, staffTablesPath } from '../utils/restaurantRoutes'
 import { Eye, EyeOff } from 'lucide-react'
 import { api } from '../services/api'
 import { useAuth } from '../context/AuthContext'
@@ -8,6 +9,7 @@ import dinelyLogo from '../assets/dinely-logo.png'
 export default function Login() {
   const navigate = useNavigate()
   const location = useLocation()
+  const { slug: slugParam } = useParams<{ slug?: string }>()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -17,9 +19,9 @@ export default function Login() {
   const [logoUrl, setLogoUrl] = useState('')
 
 
-  // Capture restaurant slug if provided
+  // Slug from path (`/login/:slug`) or query (`?restaurant=`) for restaurant-scoped login
   const searchParams = new URLSearchParams(location.search)
-  const defaultSlug = searchParams.get('restaurant') || 'demo-restaurant'
+  const defaultSlug = slugParam || searchParams.get('restaurant') || 'demo-restaurant'
 
   useEffect(() => {
     if (!defaultSlug || defaultSlug === 'demo-restaurant') return
@@ -52,7 +54,8 @@ export default function Login() {
       // Store in auth context. Add restaurantId for staff/admins
       login(token, {
         ...user,
-        restaurantId: restaurant?.id
+        restaurantId: restaurant?.id,
+        restaurantSlug: restaurant?.slug,
       })
       
       if (user.role === 'super_admin') {
@@ -66,7 +69,9 @@ export default function Login() {
           navigate('/admin')
         }
       } else if (user.role === 'manager' || user.role === 'host') {
-        navigate('/staff/tables')
+        const staffSlug = restaurant?.slug || (defaultSlug !== 'demo-restaurant' ? defaultSlug : '')
+        if (staffSlug) navigate(staffTablesPath(staffSlug))
+        else navigate('/staff/tables')
       } else {
         // Customer role:
         // Always pass the current slug onto the customer dashboard so that "Book A Table" hits premium routing
@@ -237,7 +242,7 @@ export default function Login() {
 
           {/* Forgot Password */}
           <div style={{ textAlign: 'right', marginBottom: '16px' }}>
-            <Link to={defaultSlug !== 'demo-restaurant' ? `/forgot-password?restaurant=${defaultSlug}` : '/forgot-password'} style={{ color: '#6B9E78', fontSize: '0.875rem', textDecoration: 'none', fontWeight: 500 }}>
+            <Link to={defaultSlug !== 'demo-restaurant' ? `/forgot-password/${encodeURIComponent(defaultSlug)}` : '/forgot-password'} style={{ color: '#6B9E78', fontSize: '0.875rem', textDecoration: 'none', fontWeight: 500 }}>
               Forgot Password?
             </Link>
           </div>
@@ -265,7 +270,10 @@ export default function Login() {
 
         <p style={{ textAlign: 'center', color: '#8b949e', fontSize: '0.875rem', margin: '24px 0 0 0' }}>
           Don't have an account?{' '}
-          <Link to="/get-started?tab=user" style={{ color: '#6B9E78', textDecoration: 'none', fontWeight: 500 }}>
+          <Link
+            to={defaultSlug !== 'demo-restaurant' ? customerSignupPath(defaultSlug) : '/get-started?tab=user'}
+            style={{ color: '#6B9E78', textDecoration: 'none', fontWeight: 500 }}
+          >
             Sign Up
           </Link>
         </p>

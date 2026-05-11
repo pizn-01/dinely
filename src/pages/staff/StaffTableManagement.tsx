@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { Users, MapPin, Coffee, ChevronLeft, ChevronRight, Upload, Plus, Calendar, Clock, Layout, Moon, Sun, CircleUser, LogOut, KeyRound, Link2, Unlink, X } from 'lucide-react'
 import { api } from '../../services/api'
 import { toast } from 'react-hot-toast'
@@ -8,6 +8,7 @@ import { useTheme } from '../../context/ThemeContext'
 import { useRealtimeReservations } from '../../hooks/useRealtimeReservations'
 import PoweredByFooter from '../../components/PoweredByFooter'
 import StaffReservationWizard from './StaffReservationWizard'
+import { staffForgotPasswordPath, staffLoginPath, staffTablesPath } from '../../utils/restaurantRoutes'
 
 interface TableData {
   id: string
@@ -34,7 +35,8 @@ const IconContainer = ({ children, color = '#6B9E78' }: { children: React.ReactN
 )
 
 export default function StaffTableManagement() {
-  const { user, logout } = useAuth()
+  const { slug: urlSlug } = useParams<{ slug: string }>()
+  const { user, logout, isLoading: authLoading } = useAuth()
   const { isDark, toggleTheme } = useTheme()
   const [activeTab, setActiveTab] = useState('Table View') // Default to Table View
   const [calendarMonth, setCalendarMonth] = useState(new Date())
@@ -113,7 +115,7 @@ export default function StaffTableManagement() {
       setLoading(true)
       const [tablesRes, resvRes, orgRes, areasRes] = await Promise.all([
         api.get(`/organizations/${rid}/tables`),
-        api.get(`/organizations/${rid}/reservations?date=${d}`),
+        api.get(`/organizations/${rid}/reservations?date=${d}&limit=500&sortBy=start_time&sortOrder=asc`),
         api.get(`/organizations/${rid}`),
         api.get(`/organizations/${rid}/tables/areas`)
       ])
@@ -132,12 +134,16 @@ export default function StaffTableManagement() {
   }, [restaurantId, selectedDate])
 
   useEffect(() => {
+    if (authLoading) return
     if (restaurantId) {
       fetchData(selectedDate, restaurantId)
     } else if (user === null) {
       setLoading(false)
+    } else if (user && !restaurantId) {
+      // Logged in but no org id on persisted user (should be rare after JWT merge on rehydrate)
+      setLoading(false)
     }
-  }, [user, selectedDate, restaurantId])
+  }, [authLoading, user, selectedDate, restaurantId, fetchData])
 
   const fetchMonthlyCounts = useCallback(async () => {
     if (!restaurantId) return
@@ -174,13 +180,22 @@ export default function StaffTableManagement() {
     fetchMonthlyCounts()
   }, [fetchMonthlyCounts])
 
-  // Redirect if not logged in
+  // Redirect if not logged in — keep restaurant context via slug-scoped staff login
   const navigate = useNavigate()
   useEffect(() => {
-    if (!loading && !user) {
-      navigate('/')
+    if (authLoading) return
+    if (!user) {
+      navigate(urlSlug ? staffLoginPath(urlSlug) : staffLoginPath())
     }
-  }, [user, loading, navigate])
+  }, [user, authLoading, navigate, urlSlug])
+
+  // URL slug must match the signed-in organization (prevents wrong-tenant bookmarks)
+  useEffect(() => {
+    if (!orgData?.slug || !urlSlug) return
+    if (orgData.slug !== urlSlug) {
+      navigate(staffTablesPath(orgData.slug), { replace: true })
+    }
+  }, [orgData?.slug, urlSlug, navigate])
 
   // Close account dropdown on outside click
   useEffect(() => {
@@ -281,6 +296,52 @@ export default function StaffTableManagement() {
       toast.error(error.response?.data?.error || 'Failed to update reservation status.')
     }
   }
+
+  /** Free the physical table while keeping the booking (arriving → confirmed, unassign). */
+  const handleClearSeatKeepBooking = async (resId: string) => {
+    if (!restaurantId) return
+    try {
+      await api.patch(`/organizations/${restaurantId}/reservations/${resId}/status`, { status: 'confirmed' })
+      await api.put(`/organizations/${restaurantId}/reservations/${resId}`, { tableId: null })
+      toast.success('Table cleared — reservation moved back to confirmed (unassigned).')
+      setSelectedBooking(null)
+      setSelectedTable(null)
+      fetchData(selectedDate, restaurantId)
+    } catch (error: any) {
+      console.error('Failed to clear seat:', error)
+      toast.error(error.response?.data?.error || error.response?.data?.message || 'Failed to clear seat.')
+    }
+  }
+
+  const guestDisplayName = (r: { guestFirstName?: string; guestLastName?: string }) => {
+    const n = `${r.guestFirstName || ''} ${r.guestLastName || ''}`.trim()
+    return n || 'Guest'
+  }
+
+  const timelineScrollRef = useRef<HTMLDivElement | null>(null)
+
+  const handleTimelineHeaderMouseDown = useCallback((e: React.MouseEvent) => {
+    if (e.button !== 0) return
+    const el = timelineScrollRef.current
+    if (!el) return
+    const startX = e.clientX
+    const startScroll = el.scrollLeft
+    const onMove = (ev: MouseEvent) => {
+      el.scrollLeft = startScroll - (ev.clientX - startX)
+    }
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [])
+
+  const dayViewReservations = useMemo(
+    () =>
+      dbReservations.filter((r) => !['completed', 'cancelled', 'no_show'].includes(r.status)),
+    [dbReservations]
+  )
 
   const handleCreateArea = async () => {
     if (!newAreaName.trim()) return
@@ -421,7 +482,7 @@ export default function StaffTableManagement() {
     }
   }
 
-  if (loading && dbTables.length === 0) {
+  if ((authLoading || loading) && dbTables.length === 0) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', backgroundColor: 'var(--bg-primary)' }}>
         <p style={{ color: 'var(--text-secondary)', fontSize: '1rem', fontWeight: 500 }}>Loading Dashboard...</p>
@@ -566,7 +627,7 @@ export default function StaffTableManagement() {
                       {isDark ? 'Light Mode' : 'Dark Mode'}
                     </button>
                     <button
-                      onClick={() => { setShowAccountDropdown(false); navigate(orgData?.slug ? `/staff-forgot-password/${orgData.slug}` : '/staff-forgot-password') }}
+                      onClick={() => { setShowAccountDropdown(false); navigate(staffForgotPasswordPath(orgData?.slug || urlSlug)) }}
                       style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', background: 'none', border: 'none', borderRadius: '6px', color: isDark ? '#e6edf3' : '#1f2937', fontSize: '0.875rem', cursor: 'pointer', textAlign: 'left' as const, transition: 'background-color 0.15s' }}
                       onMouseOver={(e) => e.currentTarget.style.backgroundColor = isDark ? '#30363d' : '#f3f4f6'}
                       onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
@@ -576,7 +637,12 @@ export default function StaffTableManagement() {
                     </button>
                     <div style={{ height: '1px', backgroundColor: isDark ? '#30363d' : '#e5e7eb', margin: '4px 0' }} />
                     <button
-                      onClick={() => { setShowAccountDropdown(false); logout(); navigate('/') }}
+                      onClick={() => {
+                        const signOutSlug = orgData?.slug || user?.restaurantSlug || urlSlug
+                        setShowAccountDropdown(false)
+                        logout()
+                        navigate(staffLoginPath(signOutSlug))
+                      }}
                       style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', background: 'none', border: 'none', borderRadius: '6px', color: '#ef4444', fontSize: '0.875rem', cursor: 'pointer', textAlign: 'left' as const, transition: 'background-color 0.15s' }}
                       onMouseOver={(e) => e.currentTarget.style.backgroundColor = isDark ? 'rgba(239,68,68,0.1)' : 'rgba(239,68,68,0.05)'}
                       onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
@@ -772,7 +838,7 @@ export default function StaffTableManagement() {
                             <div style={{ padding: '0 60px', display: 'flex', flexWrap: 'wrap', gap: '100px', justifyContent: 'center' }}>
                       {(areaTables as any[]).map(table => {
                         // Get all valid reservations for this table today
-                        const tableReservations = dbReservations.filter(r => r.table?.id === table.id && !['cancelled', 'no_show'].includes(r.status))
+                        const tableReservations = dbReservations.filter(r => r.table?.id === table.id && !['cancelled', 'no_show', 'completed'].includes(r.status))
                         
                         let status = 'available'
                         let nextReservationTime: string | null = null
@@ -975,7 +1041,7 @@ export default function StaffTableManagement() {
                            onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--text-tertiary)'}
                            onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border-secondary)'}
                          >
-                           <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>{res.guestFirstName} {res.guestLastName}</span>
+                           <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>{guestDisplayName(res)}</span>
                            <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginTop: '4px' }}>{res.partySize} Guests • {res.startTime?.slice(0, 5)}</span>
                            <span style={{ marginTop: '12px', fontSize: '0.625rem', fontWeight: 800, color: '#C2410C', backgroundColor: isDark ? 'rgba(194,65,12,0.15)' : '#FFF7ED', padding: '4px 10px', borderRadius: '100px', letterSpacing: '0.05em' }}>NEEDS TABLE</span>
                          </div>
@@ -988,14 +1054,15 @@ export default function StaffTableManagement() {
 
             {activeTab === 'Day View' && (
               <div style={{ padding: '40px', display: 'grid', gridTemplateColumns: 'repeat(1, 1fr)', gap: '12px' }}>
-                {dbReservations.length === 0 ? (
+                {dayViewReservations.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '80px', color: 'var(--text-secondary)' }}>
                     <Calendar size={48} style={{ opacity: 0.1, marginBottom: '16px' }} />
-                    <p>No reservations found for {selectedDate}</p>
+                    <p>No active reservations for {selectedDate}</p>
                   </div>
                 ) : (
-                  dbReservations.sort((a,b) => (a.startTime || '').localeCompare(b.startTime || '')).map(res => {
+                  dayViewReservations.sort((a,b) => (a.startTime || '').localeCompare(b.startTime || '')).map(res => {
                     const style = getStatusStyle(res.status)
+                    const initials = `${res.guestFirstName?.[0] || ''}${res.guestLastName?.[0] || ''}`.trim() || 'G'
                     return (
                       <div 
                         key={res.id} 
@@ -1015,11 +1082,11 @@ export default function StaffTableManagement() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
                           <div style={{ fontSize: '1.125rem', fontWeight: 800, color: 'var(--text-primary)', width: '70px' }}>{res.startTime?.slice(0, 5)}</div>
                           <div style={{ width: '40px', height: '40px', borderRadius: '12px', backgroundColor: style.bg, color: style.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.875rem', fontWeight: 700 }}>
-                            {res.guestFirstName?.[0]}{res.guestLastName?.[0]}
+                            {initials}
                           </div>
                           <div>
-                            <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>{res.guestFirstName} {res.guestLastName}</div>
-                            <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginTop: '2px' }}>Table {res.table?.tableNumber || 'N/A'} • {res.partySize} Guests</div>
+                            <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>{guestDisplayName(res)}</div>
+                            <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginTop: '2px' }}>Table {res.table?.tableNumber || res.table?.name || 'N/A'} • {res.partySize} Guests</div>
                           </div>
                         </div>
                         <div style={{ 
@@ -1063,6 +1130,8 @@ export default function StaffTableManagement() {
               const totalHours = Math.max(endHour - startHour, 1)
               const totalHalfHours = totalHours * 2
               const totalMinutesSpan = totalHours * 60
+              /** Minimum width as % of row so end-of-day blocks stay readable */
+              const MIN_BAR_PCT = 14
 
               // If restaurant is closed on this day, show a message
               if (isDayClosed) {
@@ -1080,19 +1149,38 @@ export default function StaffTableManagement() {
               }
 
               return (
-              <div style={{ padding: '32px' }}>
+              <div style={{ padding: '32px', width: '100%', boxSizing: 'border-box' as const }}>
                 {/* Day hours info bar */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
                   <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedDayOfWeek.charAt(0).toUpperCase() + selectedDayOfWeek.slice(1)}</span>
                   <span>•</span>
                   <span>{rawOpen} – {rawClose}</span>
+                  <span style={{ marginLeft: '8px', fontSize: '0.72rem', opacity: 0.85 }}>Drag the timeline header to scroll sideways.</span>
                 </div>
-                <div style={{ border: `1px solid var(--border-secondary)`, borderRadius: '16px', overflow: 'auto', maxHeight: 'calc(100vh - 380px)', backgroundColor: 'var(--bg-card)', boxShadow: 'var(--shadow-md)', transition: 'background-color 0.3s' }}>
+                <div
+                  ref={timelineScrollRef}
+                  className="staff-timeline-scroll"
+                  style={{
+                    border: `1px solid var(--border-secondary)`,
+                    borderRadius: '16px',
+                    overflowX: 'auto',
+                    overflowY: 'auto',
+                    maxHeight: 'min(72vh, calc(100vh - 220px))',
+                    width: '100%',
+                    backgroundColor: 'var(--bg-card)',
+                    boxShadow: 'var(--shadow-md)',
+                    transition: 'background-color 0.3s',
+                  }}
+                >
                   
                   {/* Timeline Header */}
                   <div style={{ display: 'flex', backgroundColor: 'var(--calendar-header-bg)', borderBottom: `1px solid var(--border-secondary)`, position: 'sticky', top: 0, zIndex: 30 }}>
                     <div style={{ width: '160px', minWidth: '160px', flexShrink: 0, borderRight: `1px solid var(--border-secondary)`, position: 'sticky', left: 0, backgroundColor: 'var(--calendar-header-bg)', zIndex: 31 }}></div>
-                    <div style={{ flex: 1, display: 'flex', minWidth: `${totalHours * 120}px` }}>
+                    <div
+                      className="staff-timeline-header-drag"
+                      onMouseDown={handleTimelineHeaderMouseDown}
+                      style={{ flex: 1, display: 'flex', minWidth: `${totalHours * 120}px` }}
+                    >
                       {Array.from({ length: totalHours }).map((_, i) => {
                         const hour = startHour + i
                         const actualHour = hour % 24
@@ -1183,7 +1271,8 @@ export default function StaffTableManagement() {
                                 const [h, m] = rStartTime.split(':').map(Number)
                                 const actualH = h < startHour ? h + 24 : h
                                 const totalMins = (actualH - startHour) * 60 + m
-                                const startPos = Math.max(0, Math.min(99, (totalMins / totalMinutesSpan) * 100))
+                                let startPos = (totalMins / totalMinutesSpan) * 100
+                                startPos = Math.max(0, Math.min(100 - MIN_BAR_PCT, startPos))
                                 
                                 // Calculate width based on actual duration if endTime available
                                 let durationMins = 90 // default
@@ -1193,7 +1282,7 @@ export default function StaffTableManagement() {
                                   durationMins = (eh * 60 + em) - (actualH * 60 + m)
                                 }
                                 const rawWidth = (durationMins / totalMinutesSpan) * 100
-                                const width = Math.max(2, Math.min(rawWidth, 100 - startPos))
+                                const width = Math.max(MIN_BAR_PCT, Math.min(rawWidth, 100 - startPos))
                                 
                                 // Colors strictly from the UI design reference
                                 const isSeated = r.status === 'seated'
@@ -1239,7 +1328,7 @@ export default function StaffTableManagement() {
                                       {r.partySize}
                                     </div>
                                     <div style={{ fontSize: '0.85rem', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
-                                      {r.guestFirstName} {r.guestLastName}
+                                      {guestDisplayName(r)}
                                     </div>
                                   </div>
                                 )
@@ -1269,7 +1358,8 @@ export default function StaffTableManagement() {
                              const [h, m] = rStartTime.split(':').map(Number)
                              const actualH = h < startHour ? h + 24 : h
                              const totalMins = (actualH - startHour) * 60 + m
-                             const startPos = Math.max(0, Math.min(99, (totalMins / totalMinutesSpan) * 100))
+                             let startPos = (totalMins / totalMinutesSpan) * 100
+                             startPos = Math.max(0, Math.min(100 - MIN_BAR_PCT, startPos))
                              
                              let durationMins = 90
                              if (rEndTime) {
@@ -1278,7 +1368,7 @@ export default function StaffTableManagement() {
                                durationMins = (eh * 60 + em) - (actualH * 60 + m)
                              }
                              const rawWidth = (durationMins / totalMinutesSpan) * 100
-                             const width = Math.max(2, Math.min(rawWidth, 100 - startPos))
+                             const width = Math.max(MIN_BAR_PCT, Math.min(rawWidth, 100 - startPos))
                              
                              return (
                                 <div 
@@ -1320,7 +1410,7 @@ export default function StaffTableManagement() {
                                     {r.partySize}
                                   </div>
                                   <div style={{ fontSize: '0.85rem', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
-                                    {r.guestFirstName} {r.guestLastName}
+                                    {guestDisplayName(r)}
                                   </div>
                                 </div>
                              )
@@ -1486,7 +1576,7 @@ export default function StaffTableManagement() {
             {selectedTable && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '32px', maxHeight: '400px', overflowY: 'auto' }}>
                 {(() => {
-                  const tableReservations = dbReservations.filter(r => r.table?.id === selectedTable.id && !['cancelled', 'no_show'].includes(r.status)).sort((a,b) => (a.startTime || '00:00').localeCompare(b.startTime || '00:00'))
+                  const tableReservations = dbReservations.filter(r => r.table?.id === selectedTable.id && !['cancelled', 'no_show', 'completed'].includes(r.status)).sort((a,b) => (a.startTime || '00:00').localeCompare(b.startTime || '00:00'))
                   
                   if (tableReservations.length === 0) {
                     return (
@@ -1499,7 +1589,7 @@ export default function StaffTableManagement() {
                   return tableReservations.map(res => (
                     <div key={res.id} style={{ backgroundColor: 'var(--bg-tertiary)', borderRadius: '16px', padding: '20px', border: `1px solid var(--border-primary)` }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                        <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>{res.guestFirstName} {res.guestLastName}</span>
+                        <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>{guestDisplayName(res)}</span>
                         <span style={{ color: '#C99C63', fontWeight: 800 }}>{res.startTime?.slice(0, 5)}</span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1507,24 +1597,51 @@ export default function StaffTableManagement() {
                         <span style={{ fontSize: '0.625rem', fontWeight: 800, color: getStatusStyle(res.status).color, backgroundColor: getStatusStyle(res.status).bg, padding: '2px 8px', borderRadius: '100px', textTransform: 'uppercase' }}>{res.status}</span>
                       </div>
                       <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                         {['pending', 'confirmed'].includes(res.status) && (
-                           <div style={{ display: 'flex', gap: '8px' }}>
-                             <button onClick={() => handleStatusUpdate(res.id, 'arriving')} style={{ flex: 1, padding: '10px', borderRadius: '12px', backgroundColor: isDark ? '#5EEA7A' : '#111827', color: isDark ? '#0B1517' : '#fff', border: 'none', fontWeight: 600, cursor: 'pointer', fontSize: '0.875rem' }}>Mark Arriving</button>
-                             <button onClick={() => handleStatusUpdate(res.id, 'no_show')} style={{ flex: 1, padding: '10px', borderRadius: '12px', backgroundColor: 'transparent', color: '#E05D5D', border: '1px solid #E05D5D', fontWeight: 600, cursor: 'pointer', fontSize: '0.875rem' }}>No-Show</button>
-                           </div>
-                         )}
-                         {res.status === 'arriving' && (
-                           <div style={{ display: 'flex', gap: '8px' }}>
-                             <button onClick={() => handleStatusUpdate(res.id, 'seated')} style={{ flex: 1, padding: '10px', borderRadius: '12px', backgroundColor: '#6B9E78', color: '#fff', border: 'none', fontWeight: 600, cursor: 'pointer', fontSize: '0.875rem' }}>Seat Guests</button>
-                             <button onClick={() => handleStatusUpdate(res.id, 'no_show')} style={{ flex: 1, padding: '10px', borderRadius: '12px', backgroundColor: 'transparent', color: '#E05D5D', border: '1px solid #E05D5D', fontWeight: 600, cursor: 'pointer', fontSize: '0.875rem' }}>No-Show</button>
-                           </div>
-                         )}
-                         {res.status === 'seated' && (
-                           <button onClick={() => handleStatusUpdate(res.id, 'completed')} style={{ width: '100%', padding: '10px', borderRadius: '12px', backgroundColor: isDark ? '#5EEA7A' : '#111827', color: isDark ? '#0B1517' : '#fff', border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: '0.875rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                             Clear Table — Mark Complete
-                           </button>
-                         )}
+                        <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Update status</label>
+                        <select
+                          key={`${res.id}-${res.status}`}
+                          defaultValue=""
+                          onChange={async (e) => {
+                            const v = e.target.value
+                            e.target.selectedIndex = 0
+                            if (!v) return
+                            if (v === '__clear_seat') await handleClearSeatKeepBooking(res.id)
+                            else await handleStatusUpdate(res.id, v)
+                          }}
+                          style={{
+                            width: '100%',
+                            padding: '12px 14px',
+                            borderRadius: '12px',
+                            backgroundColor: 'var(--bg-secondary)',
+                            border: '1px solid var(--border-primary)',
+                            color: 'var(--text-primary)',
+                            fontSize: '0.875rem',
+                            fontWeight: 600,
+                            fontFamily: 'inherit',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <option value="" disabled>Choose an action…</option>
+                          {['pending', 'confirmed'].includes(res.status) && (
+                            <>
+                              <option value="arriving">Mark arriving</option>
+                              <option value="no_show">No-show</option>
+                            </>
+                          )}
+                          {res.status === 'arriving' && (
+                            <>
+                              <option value="seated">Seat guests</option>
+                              <option value="__clear_seat">Clear seat (unassign table)</option>
+                              <option value="no_show">No-show</option>
+                            </>
+                          )}
+                          {res.status === 'seated' && (
+                            <>
+                              <option value="" disabled>Current: seated</option>
+                              <option value="completed">Clear table — mark complete</option>
+                            </>
+                          )}
+                        </select>
                       </div>
                     </div>
                   ))
@@ -1533,26 +1650,28 @@ export default function StaffTableManagement() {
             )}
 
             {selectedBooking && (!selectedTable || selectedTable.id !== (selectedBooking.table?.id || selectedBooking.tableId)) && ( // Single Booking Focus Modal
-              <div style={{ backgroundColor: 'var(--bg-tertiary)', borderRadius: '24px', padding: '24px', marginBottom: '32px', border: `1px solid var(--border-primary)` }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary)' }}>{selectedBooking.guestFirstName} {selectedBooking.guestLastName}</span>
+              <div style={{ backgroundColor: 'var(--bg-tertiary)', borderRadius: '24px', padding: '24px', marginBottom: '32px', border: `1px solid var(--border-primary)`, boxSizing: 'border-box' as const, maxWidth: '100%' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', gap: '12px', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary)' }}>{guestDisplayName(selectedBooking)}</span>
                   <span style={{ color: '#C99C63', fontWeight: 800 }}>{selectedBooking.startTime?.slice(0, 5)}</span>
                 </div>
                 <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
                   {selectedBooking.partySize} Guests • {selectedBooking.table?.name || selectedBooking.table?.tableNumber ? `Table ${selectedBooking.table.name || selectedBooking.table.tableNumber}` : 'Unassigned'}
                 </p>
                 
-                {/* Table Re-assignment */}
-                <div style={{ marginTop: '16px', padding: '16px', backgroundColor: 'var(--bg-secondary)', borderRadius: '12px', border: '1px solid var(--border-secondary)' }}>
+                {/* Table Re-assignment — hide for finished / cancelled bookings */}
+                {!['completed', 'cancelled', 'no_show'].includes(selectedBooking.status) && (
+                <div style={{ marginTop: '16px', padding: '16px', backgroundColor: 'var(--bg-secondary)', borderRadius: '12px', border: '1px solid var(--border-secondary)', maxWidth: '100%', boxSizing: 'border-box' as const }}>
                   <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>
                     Assign to Table
                   </label>
-                  <div style={{ display: 'flex', gap: '8px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%', minWidth: 0 }}>
                     <select
                       id="reassign-table-select"
                       defaultValue={selectedBooking.table?.id || selectedBooking.tableId || ""}
                       style={{
-                        flex: 1,
+                        width: '100%',
+                        minWidth: 0,
                         padding: '10px 14px',
                         borderRadius: '8px',
                         backgroundColor: 'var(--bg-tertiary)',
@@ -1560,6 +1679,7 @@ export default function StaffTableManagement() {
                         color: 'var(--text-primary)',
                         fontSize: '0.875rem',
                         fontFamily: 'inherit',
+                        boxSizing: 'border-box' as const,
                       }}
                     >
                       <option value="" disabled>Select a table...</option>
@@ -1587,6 +1707,7 @@ export default function StaffTableManagement() {
                         }
                       }}
                       style={{
+                        width: '100%',
                         padding: '10px 20px',
                         borderRadius: '8px',
                         backgroundColor: '#C99C63',
@@ -1595,20 +1716,41 @@ export default function StaffTableManagement() {
                         fontWeight: 600,
                         cursor: 'pointer',
                         fontSize: '0.875rem',
-                        whiteSpace: 'nowrap',
+                        boxSizing: 'border-box' as const,
                       }}
                     >
                       Assign
                     </button>
                   </div>
                 </div>
+                )}
 
                 <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                    {['pending', 'confirmed'].includes(selectedBooking.status) && (
-                     <div style={{ display: 'flex', gap: '8px' }}>
-                       <button onClick={() => handleStatusUpdate(selectedBooking.id, 'arriving')} style={{ flex: 1, padding: '12px', borderRadius: '12px', backgroundColor: isDark ? '#5EEA7A' : '#111827', color: isDark ? '#0B1517' : '#fff', border: 'none', fontWeight: 600, cursor: 'pointer' }}>Mark Arriving</button>
-                       <button onClick={() => handleStatusUpdate(selectedBooking.id, 'no_show')} style={{ flex: 1, padding: '12px', borderRadius: '12px', backgroundColor: 'transparent', color: '#E05D5D', border: '1px solid #E05D5D', fontWeight: 600, cursor: 'pointer' }}>No-Show</button>
+                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                       <button onClick={() => handleStatusUpdate(selectedBooking.id, 'arriving')} style={{ flex: 1, minWidth: '120px', padding: '12px', borderRadius: '12px', backgroundColor: isDark ? '#5EEA7A' : '#111827', color: isDark ? '#0B1517' : '#fff', border: 'none', fontWeight: 600, cursor: 'pointer' }}>Mark Arriving</button>
+                       <button onClick={() => handleStatusUpdate(selectedBooking.id, 'no_show')} style={{ flex: 1, minWidth: '120px', padding: '12px', borderRadius: '12px', backgroundColor: 'transparent', color: '#E05D5D', border: '1px solid #E05D5D', fontWeight: 600, cursor: 'pointer' }}>No-Show</button>
                      </div>
+                   )}
+                   {selectedBooking.status === 'arriving' && (
+                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                         <button onClick={() => handleStatusUpdate(selectedBooking.id, 'seated')} style={{ flex: 1, minWidth: '120px', padding: '12px', borderRadius: '12px', backgroundColor: '#6B9E78', color: '#fff', border: 'none', fontWeight: 600, cursor: 'pointer' }}>Seat Guests</button>
+                         <button onClick={() => handleStatusUpdate(selectedBooking.id, 'no_show')} style={{ flex: 1, minWidth: '120px', padding: '12px', borderRadius: '12px', backgroundColor: 'transparent', color: '#E05D5D', border: '1px solid #E05D5D', fontWeight: 600, cursor: 'pointer' }}>No-Show</button>
+                       </div>
+                       <button
+                         type="button"
+                         onClick={() => handleClearSeatKeepBooking(selectedBooking.id)}
+                         style={{ width: '100%', padding: '12px', borderRadius: '12px', backgroundColor: 'transparent', color: '#C99C63', border: '1px solid rgba(201,156,99,0.45)', fontWeight: 600, cursor: 'pointer' }}
+                       >
+                         Clear seat — free table (keep booking as confirmed)
+                       </button>
+                     </div>
+                   )}
+                   {selectedBooking.status === 'seated' && (
+                     <button onClick={() => handleStatusUpdate(selectedBooking.id, 'completed')} style={{ width: '100%', padding: '12px', borderRadius: '12px', backgroundColor: isDark ? '#5EEA7A' : '#111827', color: isDark ? '#0B1517' : '#fff', border: 'none', fontWeight: 700, cursor: 'pointer' }}>
+                       Clear Table — Mark Complete
+                     </button>
                    )}
                 </div>
               </div>

@@ -251,6 +251,8 @@ export class StaffService {
         email: staffRecord.email,
         role: userRole,
         name,
+        restaurantId: org.id,
+        restaurantSlug: org.slug,
       },
       token,
       refreshToken,

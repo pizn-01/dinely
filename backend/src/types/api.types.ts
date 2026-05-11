@@ -121,16 +121,17 @@ export interface CreateReservationDto {
   startTime: string;
   endTime?: string;
   partySize: number;
-  guestFirstName: string;
+  guestFirstName?: string;
   guestLastName?: string;
-  guestEmail: string;
+  guestEmail?: string;
   guestPhone?: string;
   specialRequests?: string;
   source?: string;
   paymentMethod?: string;
 }
 
-export interface UpdateReservationDto extends Partial<CreateReservationDto> {
+export interface UpdateReservationDto extends Partial<Omit<CreateReservationDto, 'tableId'>> {
+  tableId?: string | null;
   internalNotes?: string;
 }
 
@@ -212,6 +213,8 @@ export interface AuthResponse {
     name: string;
     isVip?: boolean;
     restaurantId?: string;
+    /** Present for staff flows; used for slug-scoped staff URLs */
+    restaurantSlug?: string;
   };
   token: string;
   refreshToken?: string;

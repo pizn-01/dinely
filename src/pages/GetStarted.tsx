@@ -65,7 +65,7 @@ export default function GetStarted() {
       })
 
       const { token, user, restaurant } = response.data.data
-      login(token, { ...user, restaurantId: restaurant?.id })
+      login(token, { ...user, restaurantId: restaurant?.id, restaurantSlug: restaurant?.slug })
 
       // Start Stripe checkout for the selected plan
       if (selectedPlan && restaurant?.id) {

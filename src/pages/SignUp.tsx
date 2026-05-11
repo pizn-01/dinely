@@ -49,6 +49,7 @@ export default function SignUp() {
       login(token, {
         ...user,
         restaurantId: restaurant?.id,
+        restaurantSlug: restaurant?.slug,
       });
 
       // If a paid plan was selected from the landing page, redirect to Stripe Checkout

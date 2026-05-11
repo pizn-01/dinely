@@ -228,3 +228,19 @@ input[type=number] {
   -moz-appearance: textfield;
   appearance: textfield;
 }
+
+/* Staff dashboard — timeline horizontal pan without visible scrollbar */
+.staff-timeline-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.staff-timeline-scroll::-webkit-scrollbar {
+  display: none;
+}
+.staff-timeline-header-drag {
+  cursor: grab;
+  user-select: none;
+}
+.staff-timeline-header-drag:active {
+  cursor: grabbing;
+}

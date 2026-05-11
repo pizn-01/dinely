@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, Link, useParams, useSearchParams } from 'react-router-dom'
+import { staffForgotPasswordPath, staffTablesPath } from '../utils/restaurantRoutes'
 import { Eye, EyeOff } from 'lucide-react'
 import { api } from '../services/api'
 import { useAuth } from '../context/AuthContext'
@@ -35,8 +36,10 @@ export default function StaffLogin() {
         const { data } = await api.post('/auth/staff-login-ip', { restaurantSlug: slug })
         const { token, refreshToken: rToken, user, restaurant } = data.data
         if (rToken) localStorage.setItem('refreshToken', rToken)
-        login(token, { ...user, restaurantId: restaurant?.id })
-        navigate('/staff/tables')
+        const rs = restaurant?.slug || slug
+        login(token, { ...user, restaurantId: restaurant?.id, restaurantSlug: rs })
+        if (rs) navigate(staffTablesPath(rs))
+        else navigate('/staff/tables')
       } catch {
         // Silent failure – user can still log in manually
       } finally {
@@ -69,17 +72,24 @@ export default function StaffLogin() {
     setError('')
 
     try {
-      const { data } = await api.post('/auth/staff-login', { email, password })
+      const { data } = await api.post('/auth/staff-login', {
+        email,
+        password,
+        ...(slug ? { restaurantSlug: slug } : {}),
+      })
       const { token, refreshToken: rToken, user, restaurant } = data.data
       
       if (rToken) localStorage.setItem('refreshToken', rToken)
       
+      const rs = restaurant?.slug || slug
       login(token, {
         ...user,
-        restaurantId: restaurant?.id
+        restaurantId: restaurant?.id,
+        restaurantSlug: rs,
       })
       
-      navigate('/staff/tables')
+      if (rs) navigate(staffTablesPath(rs))
+      else navigate('/staff/tables')
     } catch (err: any) {
       console.error('Staff login failed:', err)
       setError(err.response?.data?.error || 'Failed to login. Please check your credentials.')
@@ -229,7 +239,7 @@ export default function StaffLogin() {
 
           {/* Forgot Password */}
           <div style={{ textAlign: 'right', marginBottom: '24px' }}>
-            <Link to={slug ? `/staff-forgot-password/${slug}` : "/staff-forgot-password"} style={{ fontSize: '0.875rem', color: '#4A9E6B', textDecoration: 'none', fontWeight: 500 }}>
+            <Link to={staffForgotPasswordPath(slug)} style={{ fontSize: '0.875rem', color: '#4A9E6B', textDecoration: 'none', fontWeight: 500 }}>
               Forgot Password?
             </Link>
           </div>

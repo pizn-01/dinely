@@ -8,6 +8,7 @@ import AdminDashboard from './pages/admin/AdminDashboard'
 import SetupWizard from './pages/setup/SetupWizard'
 import StaffLogin from './pages/StaffLogin'
 import StaffTableManagement from './pages/staff/StaffTableManagement'
+import LegacyStaffTablesRedirect from './pages/LegacyStaffTablesRedirect'
 import LoggedInTabRes from './pages/LoggedInTabRes'
 import Welcome from './pages/Welcome'
 import PremiumReservation from './pages/PremiumReservation'
@@ -37,10 +38,13 @@ function App() {
       <GlobalBanner />
       <Routes>
         <Route path="/" element={<SaaSLanding />} />
+        <Route path="/login/:slug" element={<Login />} />
         <Route path="/login" element={<Login />} />
         <Route path="/get-started" element={<GetStarted />} />
         <Route path="/signup" element={<SignUp />} />
+        <Route path="/customer-signup/:slug" element={<CustomerSignUp />} />
         <Route path="/customer-signup" element={<CustomerSignUp />} />
+        <Route path="/forgot-password/:slug" element={<ForgotPassword />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/staff-forgot-password" element={<StaffForgotPassword />} />
         <Route path="/staff-forgot-password/:slug" element={<StaffForgotPassword />} />
@@ -56,14 +60,17 @@ function App() {
         <Route path="/setup" element={<SetupWizard />} />
         <Route path="/staff-login" element={<StaffLogin />} />
         <Route path="/staff-login/:slug" element={<StaffLogin />} />
-        <Route path="/staff/tables" element={<StaffTableManagement />} />
+        <Route path="/staff/:slug/tables" element={<StaffTableManagement />} />
+        <Route path="/staff/tables" element={<LegacyStaffTablesRedirect />} />
         <Route path="/accept-invite" element={<AcceptInvite />} />
         <Route path="/logged-in-tab-res" element={<LoggedInTabRes />} />
         <Route path="/welcome" element={<Welcome />} />
         <Route path="/premium-reserve/:slug" element={<PremiumReservation />} />
         <Route path="/premium-booking-confirmed" element={<PremiumBookingConfirmed />} />
+        <Route path="/user-reserve/:slug" element={<UserReservationWizard />} />
         <Route path="/user-reserve" element={<UserReservationWizard />} />
         <Route path="/user-booking-confirmed" element={<UserBookingConfirmed />} />
+        <Route path="/book-a-table/:slug" element={<BookATableWizard />} />
         <Route path="/book-a-table" element={<BookATableWizard />} />
         <Route path="/public-booking-confirmed" element={<PublicBookingConfirmed />} />
         <Route path="/subscription-success" element={<SubscriptionSuccess />} />

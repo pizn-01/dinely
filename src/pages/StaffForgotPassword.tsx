@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { staffLoginPath } from '../utils/restaurantRoutes'
 import { api } from '../services/api'
 import dinelyLogo from '../assets/dinely-logo.png'
 
@@ -132,7 +133,7 @@ export default function StaffForgotPassword() {
 
         <p style={{ textAlign: 'center', color: '#6b7280', fontSize: '0.875rem', margin: '24px 0 0 0' }}>
           Remember your password?{' '}
-          <Link to={slug ? `/staff-login/${slug}` : "/staff-login"} style={{ color: '#4A9E6B', textDecoration: 'none', fontWeight: 500 }}>
+          <Link to={staffLoginPath(slug)} style={{ color: '#4A9E6B', textDecoration: 'none', fontWeight: 500 }}>
             Back to login
           </Link>
         </p>

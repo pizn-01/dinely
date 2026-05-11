@@ -10,6 +10,8 @@ export interface User {
   name: string;
   isVip?: boolean;
   restaurantId?: string;
+  /** Organization slug for staff/host/manager — used in slug-scoped staff URLs */
+  restaurantSlug?: string;
 }
 
 interface AuthContextType {
@@ -25,12 +27,16 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 /**
  * Decode a JWT payload without external libraries.
+ * Staff tokens carry `restaurantId`; the persisted `user` JSON may omit it
+ * (older clients / API shape), so callers can merge claims on rehydrate.
  */
-function decodeJwt(token: string): { exp?: number; sub?: string } | null {
+function decodeJwt(token: string): { exp?: number; sub?: string; restaurantId?: string } | null {
   try {
     const parts = token.split('.');
     if (parts.length !== 3) return null;
-    const payload = JSON.parse(atob(parts[1]));
+    const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4);
+    const payload = JSON.parse(atob(padded));
     return payload;
   } catch {
     return null;
@@ -49,7 +55,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     if (storedToken && storedUserStr) {
       try {
-        const storedUser = JSON.parse(storedUserStr);
+        const storedUser = JSON.parse(storedUserStr) as User;
 
         // Check if token is expired
         const payload = decodeJwt(storedToken);
@@ -60,8 +66,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           return;
         }
 
+        // Merge `restaurantId` from JWT when missing on stored user (staff sessions).
+        let userToStore: User = storedUser;
+        if (payload?.restaurantId && !storedUser.restaurantId) {
+          userToStore = { ...storedUser, restaurantId: payload.restaurantId };
+          localStorage.setItem('user', JSON.stringify(userToStore));
+        }
+
         setToken(storedToken);
-        setUser(storedUser);
+        setUser(userToStore);
       } catch (err) {
         console.error('Failed to parse stored user', err);
         localStorage.removeItem('token');

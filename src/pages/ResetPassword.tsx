@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
 import { api } from '../services/api'
+import { staffLoginPath } from '../utils/restaurantRoutes'
 import dinelyLogo from '../assets/dinely-logo.png'
 
 export default function ResetPassword() {
@@ -58,7 +59,7 @@ export default function ResetPassword() {
       // Redirect after a short delay
       setTimeout(() => {
         if (slug) {
-          navigate(`/staff-login/${slug}`)
+          navigate(staffLoginPath(slug))
         } else {
           navigate('/login')
         }

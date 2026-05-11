@@ -1,5 +1,14 @@
 import { z } from 'zod';
 
+const trimmedOptionalName = z
+  .union([z.string(), z.null(), z.undefined()])
+  .optional()
+  .transform((v) => {
+    if (v == null) return undefined;
+    const s = String(v).trim();
+    return s === '' ? undefined : s;
+  });
+
 export const createReservationSchema = z.object({
   tableId: z.string().uuid().optional(),
   reservationDate: z.string()
@@ -11,8 +20,8 @@ export const createReservationSchema = z.object({
   startTime: z.string().regex(/^\d{2}:\d{2}$/, 'Time must be in HH:MM format'),
   endTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
   partySize: z.number().int().min(1).max(50), // Org-specific maxPartySize enforced in service layer
-  guestFirstName: z.string().min(1).max(100),
-  guestLastName: z.string().max(100).optional(),
+  guestFirstName: trimmedOptionalName,
+  guestLastName: trimmedOptionalName,
   // Staff-created bookings (POS / walk-in / phone) may omit email.
   // Public flows should still provide it; service layer handles nulls safely.
   guestEmail: z.string().email().optional(),
@@ -22,9 +31,12 @@ export const createReservationSchema = z.object({
   paymentMethod: z.string().max(50).optional(),
 });
 
-export const updateReservationSchema = createReservationSchema.partial().extend({
-  internalNotes: z.string().max(2000).optional(),
-});
+export const updateReservationSchema = createReservationSchema
+  .partial()
+  .extend({
+    tableId: z.union([z.string().uuid(), z.null()]).optional(),
+    internalNotes: z.string().max(2000).optional(),
+  });
 
 export const updateReservationStatusSchema = z.object({
   status: z.enum(['pending', 'confirmed', 'arriving', 'seated', 'completed', 'cancelled', 'no_show']),

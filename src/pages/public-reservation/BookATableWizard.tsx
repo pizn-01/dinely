@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react'
 import PoweredByFooter from '../../components/PoweredByFooter'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { api } from '../../services/api'
 import DarkProgressBar from '../../components/DarkProgressBar'
 import UserStepDateTime from '../user-reservation/UserStepDateTime'
@@ -47,8 +47,9 @@ const initialData: ReservationData = {
 export default function BookATableWizard() {
   const navigate = useNavigate()
   const location = useLocation()
-  const searchParams = new URLSearchParams(window.location.search)
-  const restaurantSlug = searchParams.get('restaurant') || 'default-restaurant'
+  const { slug: pathSlug } = useParams<{ slug?: string }>()
+  const [searchParams] = useSearchParams()
+  const restaurantSlug = pathSlug || searchParams.get('restaurant') || 'default-restaurant'
   const returnUrl = searchParams.get('return_url') || searchParams.get('origin')
 
   const [currentStep, setCurrentStep] = useState(1)

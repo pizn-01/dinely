@@ -4,6 +4,7 @@ import { LogIn, User, ArrowRight, Star } from 'lucide-react'
 import mainBg from '../assets/main-bg.png'
 import dinelyLogo from '../assets/dinely-logo.png'
 import { api } from '../services/api'
+import { bookTablePath, staffLoginPath, restaurantLoginPath } from '../utils/restaurantRoutes'
 
 export default function UnifiedLanding() {
   const { slug } = useParams()
@@ -16,9 +17,9 @@ export default function UnifiedLanding() {
       .catch(() => {}) // Silently fail — fallback to Dinely branding
   }, [slug])
   
-  // Construct dynamic links based on whether a slug was provided
-  const guestLink = slug ? `/book-a-table?restaurant=${slug}` : '/book-a-table'
-  const loginLink = slug ? `/login?restaurant=${slug}` : '/login'
+  const guestLink = slug ? bookTablePath(slug) : '/book-a-table'
+  const restaurantLogin = slug ? restaurantLoginPath(slug) : '/login'
+  const staffPortalLink = slug ? staffLoginPath(slug) : '/staff-login'
 
   return (
     <div style={{
@@ -107,7 +108,7 @@ export default function UnifiedLanding() {
             </Link>
 
             {/* Member Flow */}
-            <Link to={loginLink} className="res-unified-cta-btn" style={{
+            <Link to={restaurantLogin} className="res-unified-cta-btn" style={{
               display: 'flex', alignItems: 'center', gap: '12px',
               padding: '16px 32px', backgroundColor: '#C99C63', border: '1px solid #C99C63',
               borderRadius: '100px', textDecoration: 'none', color: '#101A1C', transition: 'all 0.3s',

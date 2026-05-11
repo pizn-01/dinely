@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { api } from '../../services/api'
 import { toast } from 'react-hot-toast'
 import { useAuth } from '../../context/AuthContext'
@@ -46,14 +46,15 @@ const initialData: ReservationData = {
 
 export default function UserReservationWizard() {
   const navigate = useNavigate()
+  const { slug: pathSlug } = useParams<{ slug?: string }>()
+  const [searchParams] = useSearchParams()
   const [currentStep, setCurrentStep] = useState(1)
   const [data, setData] = useState<ReservationData>(initialData)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const { user } = useAuth()
-  const searchParams = new URLSearchParams(window.location.search)
-  const restaurantSlug = searchParams.get('restaurant') || 'default-restaurant'
+  const restaurantSlug = pathSlug || searchParams.get('restaurant') || 'default-restaurant'
 
   // Promotional popup state
   const [showPromoModal, setShowPromoModal] = useState(false)

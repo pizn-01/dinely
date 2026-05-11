@@ -172,7 +172,8 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
   const baseUrl = window.location.origin
 
   const staffUrl = restaurantSlug ? `${baseUrl}/staff-login/${restaurantSlug}` : `${baseUrl}/staff-login`
-  const bookingUrl = restaurantSlug ? `${baseUrl}/${restaurantSlug}` : 'Loading...'
+  const landingPageUrl = restaurantSlug ? `${baseUrl}/${restaurantSlug}` : 'Loading...'
+  const publicWidgetUrl = restaurantSlug ? `${baseUrl}/book-a-table/${restaurantSlug}` : 'Loading...'
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -1122,13 +1123,14 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
           <div style={cardStyle}>
             <h3 style={{ fontSize: '1rem', fontWeight: 500, marginBottom: '8px' }}>Public Reservation Widget</h3>
             <p style={{ color: isDark ? '#8b949e' : '#6b7280', fontSize: '0.875rem', marginBottom: '16px' }}>
-              Link the "Reserve a Table" button on your main website to this URL.
+              Point your “Reserve a Table” button to this slug-based booking flow. Your branded landing page stays at{' '}
+              <span style={{ fontFamily: 'monospace', color: isDark ? '#c9d1d9' : '#374151' }}>{landingPageUrl}</span>.
             </p>
             <div className="res-settings-link-row" style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
               <input
                 type="text"
                 readOnly
-                value={bookingUrl}
+                value={publicWidgetUrl}
                 style={{
                   flex: 1,
                   padding: '10px 16px',
@@ -1141,7 +1143,7 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
                 }}
               />
               <button
-                onClick={() => copyToClipboard(bookingUrl, 'booking')}
+                onClick={() => copyToClipboard(publicWidgetUrl, 'booking')}
                 disabled={!restaurantSlug}
                 style={{
                   display: 'flex',

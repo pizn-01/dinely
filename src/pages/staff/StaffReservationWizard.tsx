@@ -144,10 +144,6 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
       setError(null)
       setCurrentStep(prev => prev + 1)
     } else if (content === 'guest') {
-      if (!data.firstName || !data.lastName) {
-        setError('First and Last name are required.')
-        return
-      }
       setError(null)
       setCurrentStep(prev => prev + 1)
     } else if (content === 'review') {
@@ -160,13 +156,15 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
       setLoading(true)
       setError(null)
       
+      const fn = data.firstName?.trim()
+      const ln = data.lastName?.trim()
       const payload = {
         reservationDate: data.date,
         startTime: data.time,
         partySize: data.guests,
         tableId: data.tableId || undefined,
-        guestFirstName: data.firstName,
-        guestLastName: data.lastName,
+        guestFirstName: fn || undefined,
+        guestLastName: ln || undefined,
         guestEmail: data.email?.trim() ? data.email.trim() : undefined,
         guestPhone: data.phone || undefined,
         specialRequests: data.specialRequest || undefined,
@@ -283,11 +281,11 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
         <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '16px', borderBottom: '1px solid var(--border-secondary)', paddingBottom: '8px' }}>Guest Information</h4>
       </div>
       <div>
-        <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '4px' }}>First Name *</label>
+        <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '4px' }}>First name (optional)</label>
         <input type="text" value={data.firstName} onChange={e => updateData({ firstName: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-input)', fontSize: '0.875rem', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)', outline: 'none' }} placeholder="John" />
       </div>
       <div>
-        <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '4px' }}>Last Name *</label>
+        <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '4px' }}>Last name (optional)</label>
         <input type="text" value={data.lastName} onChange={e => updateData({ lastName: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-input)', fontSize: '0.875rem', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)', outline: 'none' }} placeholder="Doe" />
       </div>
       <div>
@@ -325,7 +323,7 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
           </div>
           <div>
             <span style={{ color: 'var(--text-tertiary)', display: 'block' }}>Guest</span>
-            <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{data.firstName} {data.lastName}</span>
+            <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{`${data.firstName || ''} ${data.lastName || ''}`.trim() || 'Guest (no name)'}</span>
           </div>
         </div>
         
