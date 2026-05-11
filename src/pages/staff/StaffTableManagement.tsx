@@ -122,7 +122,7 @@ export default function StaffTableManagement() {
 
       setDbTables(tablesRes.data.data || [])
       setDbAreas(areasRes.data.data || [])
-      setDbReservations(resvRes.data.reservations || []) 
+      setDbReservations(resvRes.data.data?.reservations || []) 
       setRestaurantName(orgRes.data.data?.name || 'Staff Dashboard')
       setOrgData(orgRes.data.data)
       setLastRefreshed(new Date())

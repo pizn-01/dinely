@@ -49,7 +49,7 @@ export const reservationFilterSchema = z.object({
   tableId: z.string().uuid().optional(),
   search: z.string().optional(),
   page: z.coerce.number().int().min(1).optional().default(1),
-  limit: z.coerce.number().int().min(1).max(100).optional().default(20),
+  limit: z.coerce.number().int().min(1).max(500).optional().default(20),
   sortBy: z.string().optional().default('start_time'),
   sortOrder: z.enum(['asc', 'desc']).optional().default('asc'),
 });
