@@ -11,9 +11,10 @@ export default function Autologin() {
   const { login } = useAuth()
   const [error, setError] = useState<string | null>(null)
 
+  const searchParams = new URLSearchParams(location.search)
+  const slug = searchParams.get('slug')
+
   useEffect(() => {
-    const searchParams = new URLSearchParams(location.search)
-    const slug = searchParams.get('slug')
     const email = searchParams.get('email')
     const hash = searchParams.get('hash')
 

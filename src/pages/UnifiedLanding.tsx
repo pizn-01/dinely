@@ -60,10 +60,10 @@ export default function UnifiedLanding() {
       <nav className="res-unified-nav" style={{ padding: '32px 48px', position: 'relative', zIndex: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <img src={orgData?.logoUrl || dinelyLogo} alt={orgData?.name || 'Dinely'} style={{ height: '36px', objectFit: 'contain' }} />
         <div className="res-unified-nav-btns" style={{ display: 'flex', gap: '16px' }}>
-          <Link to={loginLink} style={{ color: '#8b949e', textDecoration: 'none', fontSize: '0.875rem', fontWeight: 500, padding: '8px 16px', borderRadius: '8px', transition: 'all 0.2s' }}>
+          <Link to={staffPortalLink} style={{ color: '#8b949e', textDecoration: 'none', fontSize: '0.875rem', fontWeight: 500, padding: '8px 16px', borderRadius: '8px', transition: 'all 0.2s' }}>
             Staff Login
           </Link>
-          <Link to={loginLink} style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#101A1C', backgroundColor: '#C99C63', textDecoration: 'none', fontSize: '0.875rem', fontWeight: 600, padding: '8px 20px', borderRadius: '100px', transition: 'all 0.2s' }}>
+          <Link to={restaurantLogin} style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#101A1C', backgroundColor: '#C99C63', textDecoration: 'none', fontSize: '0.875rem', fontWeight: 600, padding: '8px 20px', borderRadius: '100px', transition: 'all 0.2s' }}>
             <LogIn size={16} /> Restaurant Login
           </Link>
         </div>
