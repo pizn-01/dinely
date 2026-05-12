@@ -185,6 +185,37 @@ export class ReservationController {
       next(error);
     }
   }
+
+  async cancelReservation(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const { reason } = req.body;
+      const result = await reservationService.cancelReservation(
+        param(req, 'id'),
+        param(req, 'orgId'),
+        reason
+      );
+      
+      // Broadcast state change
+      supabaseAdmin.channel(`restaurant_${param(req, 'orgId')}`).send({
+        type: 'broadcast',
+        event: 'RESERVATION_CANCELLED',
+        payload: result
+      });
+      
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getPublicReservation(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const result = await reservationService.getPublicReservation(param(req, 'id'));
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
   async importCsv(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const file = (req as any).file;

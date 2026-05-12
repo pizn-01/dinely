@@ -154,4 +154,41 @@ router.post('/:slug/reserve',
   }
 );
 
+// GET /public/reservations/:id — Get public reservation details
+router.get('/reservations/:id', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await reservationService.getPublicReservation(param(req, 'id'));
+    res.json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /public/reservations/:id/cancel — Cancel reservation (public)
+router.post('/reservations/:id/cancel', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { reason } = req.body;
+    if (!reason || reason.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Cancellation reason is required'
+      });
+    }
+
+    // Get reservation details to find restaurant ID
+    const reservation = await reservationService.getPublicReservation(param(req, 'id'));
+    
+    // Cancel the reservation
+    const result = await reservationService.cancelReservation(
+      param(req, 'id'),
+      reservation.restaurant?.id || '',
+      reason.trim()
+    );
+
+    res.json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;

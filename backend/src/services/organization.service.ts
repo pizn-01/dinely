@@ -73,6 +73,8 @@ export class OrganizationService {
     if (dto.vipMembershipFee !== undefined) updateData.vip_membership_fee = dto.vipMembershipFee;
     if (dto.autologinSecret !== undefined) updateData.autologin_secret = dto.autologinSecret;
     if (dto.weeklyHours !== undefined) updateData.weekly_hours = dto.weeklyHours;
+    if (dto.brandingColor !== undefined) updateData.branding_color = dto.brandingColor;
+    if (dto.emailCustomNote !== undefined) updateData.email_custom_note = dto.emailCustomNote;
 
     const { data, error } = await supabaseAdmin
       .from('organizations')
@@ -334,6 +336,8 @@ export class OrganizationService {
       vipMembershipFee: row.vip_membership_fee,
       weeklyHours: row.weekly_hours || null,
       widgetBgUrl: row.widget_bg_url || null,
+      brandingColor: row.branding_color || '#0B1517',
+      emailCustomNote: row.email_custom_note || null,
       isActive: row.is_active,
       createdAt: row.created_at,
       updatedAt: row.updated_at,

@@ -78,6 +78,8 @@ export interface UpdateOrganizationDto {
   vipMembershipFee?: number;
   autologinSecret?: string;
   weeklyHours?: Record<string, { open: string; close: string; closed: boolean }>;
+  brandingColor?: string;
+  emailCustomNote?: string;
 }
 
 // ─── Table Types ───────────────────────────────────────

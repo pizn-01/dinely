@@ -20,6 +20,9 @@ interface TablePosition {
   positionY: number
   isMerged?: boolean
   parentTableId?: string
+  area?: { id: string; name: string }
+  floor_areas?: { id: string; name: string }
+  location?: string
 }
 
 interface Area {
@@ -55,6 +58,9 @@ export default function FloorMapTab({ theme, orgId }: FloorMapTabProps) {
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
+  // Panning state for the canvas
+  const [isPanning, setIsPanning] = useState(false);
+  const [panStart, setPanStart] = useState<{x:number; y:number}>({x:0, y:0});
 
   // Modal State
   const [showModal, setShowModal] = useState(false)
@@ -89,7 +95,10 @@ export default function FloorMapTab({ theme, orgId }: FloorMapTabProps) {
             positionX: t.positionX || 0,
             positionY: t.positionY || 0,
             isMerged: t.isMerged,
-            parentTableId: t.parentTableId
+            parentTableId: t.parentTableId,
+            area: t.area,
+            floor_areas: t.floor_areas,
+            location: t.location
           }))
           // Only show active tables or merged tables that are not parented (children should be hidden)
           setTables(mapped.filter((t: any) => !t.parentTableId))
@@ -443,6 +452,68 @@ export default function FloorMapTab({ theme, orgId }: FloorMapTabProps) {
           </div>
         ) : (
           <>
+            {/* Area Dividers */}
+            {(() => {
+              // Get all areas from the areas array, not just tables
+              const allAreas = areas.map(area => area.name || '').filter(name => name && name !== 'Main Area')
+              
+              // Also add areas from tables that might not be in the areas array
+              const tableAreas = new Set<string>()
+              tables.forEach(table => {
+                const areaName = table.area?.name || table.floor_areas?.name || table.location || 'Main Area'
+                if (areaName !== 'Main Area') {
+                  tableAreas.add(areaName)
+                }
+              })
+
+              // Combine both sets and remove duplicates
+              const uniqueAreas = new Set([...allAreas, ...tableAreas])
+              const areaList = Array.from(uniqueAreas).sort()
+              
+              return areaList.map((areaName, index) => {
+                // Calculate divider position - spread evenly across the canvas
+                const dividerPosition = 100 + (index * 120)
+                
+                return (
+                  <div key={areaName} style={{
+                    position: 'absolute',
+                    top: `${dividerPosition}px`,
+                    left: '20px',
+                    right: '20px',
+                    height: '2px',
+                    background: `linear-gradient(90deg, 
+                      transparent 0%, 
+                      ${isDark ? '#30363d' : '#d1d5db'} 10%, 
+                      ${isDark ? '#4b5563' : '#9ca3af'} 50%, 
+                      ${isDark ? '#30363d' : '#d1d5db'} 90%, 
+                      transparent 100%
+                    )`,
+                    zIndex: 1
+                  }}>
+                    {/* Area label */}
+                    <div style={{
+                      position: 'absolute',
+                      top: '-12px',
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      backgroundColor: isDark ? '#0D1117' : '#F3F4F6',
+                      padding: '4px 12px',
+                      borderRadius: '4px',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      color: isDark ? '#8b949e' : '#6b7280',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      border: `1px solid ${isDark ? '#30363d' : '#e5e7eb'}`
+                    }}>
+                      {areaName}
+                    </div>
+                  </div>
+                )
+              })
+            })()}
+
+            {/* Tables */}
             {tables.map(table => (
               <DraggableTable key={table.id} table={table} />
             ))}

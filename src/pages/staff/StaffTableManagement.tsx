@@ -96,6 +96,12 @@ export default function StaffTableManagement() {
 
   // ── Area Filter State ──────────────────────────────────────────────────────
   const [selectedAreaFilter, setSelectedAreaFilter] = useState<string>('All Areas')
+  
+  // ── Drag and Drop State ──────────────────────────────────────────────
+  const [draggedTable, setDraggedTable] = useState<any>(null)
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
+  const [tablePositions, setTablePositions] = useState<Record<string, { x: number; y: number }>>({})
+
 
   // ── Create Area State ──────────────────────────────────────────────────────
   const [showCreateAreaModal, setShowCreateAreaModal] = useState(false)
@@ -139,6 +145,66 @@ export default function StaffTableManagement() {
       setLoading(false)
     }
   }, [restaurantId, selectedDate])
+
+  // Drag and drop handlers
+  const handleMouseDown = (e: React.MouseEvent, table: any) => {
+    e.preventDefault()
+    setDraggedTable(table)
+    const rect = e.currentTarget.getBoundingClientRect()
+    setDragOffset({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    })
+  }
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!draggedTable) return
+    
+    const areaName = draggedTable.area?.name || draggedTable.floor_areas?.name || draggedTable.location || 'Main Area'
+    const containerId = `table-container-${areaName}`
+    const container = document.getElementById(containerId)
+    if (!container) return
+    
+    const containerRect = container.getBoundingClientRect()
+    const newX = Math.max(0, Math.min(e.clientX - containerRect.left - dragOffset.x, containerRect.width - 120))
+    const newY = Math.max(0, Math.min(e.clientY - containerRect.top - dragOffset.y, containerRect.height - 120))
+    
+    setTablePositions(prev => ({
+      ...prev,
+      [draggedTable.id]: { x: newX, y: newY }
+    }))
+  }, [draggedTable, dragOffset])
+
+  const handleMouseUp = useCallback(() => {
+    if (draggedTable) {
+      // Save new position to database
+      const newPosition = tablePositions[draggedTable.id]
+      if (newPosition) {
+        api.patch(`/organizations/${restaurantId}/tables/${draggedTable.id}`, {
+          positionX: newPosition.x,
+          positionY: newPosition.y
+        }).then(() => {
+          toast.success('Table position updated')
+          fetchData(selectedDate, restaurantId)
+        }).catch(error => {
+          toast.error('Failed to update table position')
+          console.error('Failed to update table position:', error)
+        })
+      }
+    }
+    setDraggedTable(null)
+  }, [draggedTable, tablePositions, restaurantId, selectedDate, fetchData])
+
+  useEffect(() => {
+    if (draggedTable) {
+      document.addEventListener('mousemove', handleMouseMove)
+      document.addEventListener('mouseup', handleMouseUp)
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove)
+        document.removeEventListener('mouseup', handleMouseUp)
+      }
+    }
+  }, [draggedTable, handleMouseMove, handleMouseUp])
 
   useEffect(() => {
     if (authLoading) return
@@ -842,8 +908,33 @@ export default function StaffTableManagement() {
                                 <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>{(areaTables as any[]).length} Tables</p>
                               </div>
                             )}
-                            <div style={{ padding: '0 60px', display: 'flex', flexWrap: 'wrap', gap: '100px', justifyContent: 'center' }}>
+                            <div 
+  id={`table-container-${areaShortName}`}
+  style={{ 
+  padding: '0 60px', 
+  position: 'relative', 
+  minHeight: `${Math.max(600, Math.ceil((areaTables as any[]).length / 4) * 150 + 100)}px`,
+  height: `${Math.max(600, Math.ceil((areaTables as any[]).length / 4) * 150 + 100)}px`
+}}>
                       {(areaTables as any[]).map(table => {
+                        // Calculate area-based position adjustments
+                        let adjustedPositionX = table.positionX || 0
+                        let adjustedPositionY = table.positionY || 0
+                        
+                        // Use dragged position if available, otherwise use database position or default grid
+                        if (tablePositions[table.id]) {
+                          adjustedPositionX = tablePositions[table.id].x
+                          adjustedPositionY = tablePositions[table.id].y
+                        } else if (!table.positionX && !table.positionY) {
+                          // If table has no position, use a default grid layout within this area
+                          const tableIndex = (areaTables as any[]).findIndex(t => t.id === table.id)
+                          adjustedPositionX = (tableIndex % 4) * 150
+                          adjustedPositionY = Math.floor(tableIndex / 4) * 150
+                        } else {
+                          // If table has position, use database position
+                          adjustedPositionX = table.positionX
+                          adjustedPositionY = table.positionY
+                        }
                         // Get all valid reservations for this table today
                         const tableReservations = dbReservations.filter(r => r.table?.id === table.id && !['cancelled', 'no_show', 'completed'].includes(r.status))
                         
@@ -898,7 +989,17 @@ export default function StaffTableManagement() {
                           <div 
                             key={table.id}
                             onClick={(e) => handleTableClick(table, e)}
-                            style={{ position: 'relative', width: '120px', height: '120px', cursor: 'pointer', opacity: isMergeMode && table.isMerged ? 0.45 : 1, transition: 'opacity 0.2s' }}>
+                            onMouseDown={(e) => handleMouseDown(e, table)}
+                            style={{ 
+                              position: 'absolute',
+                              left: `${adjustedPositionX}px`,
+                              top: `${adjustedPositionY}px`,
+                              width: '120px', 
+                              height: '120px', 
+                              cursor: draggedTable?.id === table.id ? 'grabbing' : 'pointer', 
+                              opacity: isMergeMode && table.isMerged ? 0.45 : 1, 
+                              transition: 'opacity 0.2s'
+                            }}>
                             {/* Selected checkmark badge */}
                             {selectedTableIds.has(table.id) && (
                               <div style={{ position: 'absolute', top: '-10px', right: '-10px', width: '24px', height: '24px', borderRadius: '50%', backgroundColor: '#C99C63', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 20, boxShadow: '0 2px 8px rgba(201,156,99,0.5)' }}>

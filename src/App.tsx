@@ -31,6 +31,7 @@ import SaaSLanding from './pages/SaaSLanding'
 import GetStarted from './pages/GetStarted'
 import SubscriptionSuccess from './pages/SubscriptionSuccess'
 import Autologin from './pages/Autologin'
+import CancelReservation from './pages/CancelReservation'
 
 function App() {
   return (
@@ -75,6 +76,7 @@ function App() {
         <Route path="/public-booking-confirmed" element={<PublicBookingConfirmed />} />
         <Route path="/subscription-success" element={<SubscriptionSuccess />} />
         <Route path="/autologin" element={<Autologin />} />
+        <Route path="/cancel/:reservationId" element={<CancelReservation />} />
         <Route path="/:slug" element={<UnifiedLanding />} />
       </Routes>
     </>

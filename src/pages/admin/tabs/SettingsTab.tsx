@@ -48,6 +48,8 @@ interface OrgSettings {
   vipMembershipFee?: number
   autologinSecret?: string
   weeklyHours: WeeklyHours
+  brandingColor?: string
+  emailCustomNote?: string
 }
 
 const defaultWeeklyHours: WeeklyHours = {
@@ -83,6 +85,8 @@ const defaultSettings: OrgSettings = {
   stripeOnboardingComplete: false,
   vipMembershipFee: 15,
   weeklyHours: { ...defaultWeeklyHours },
+  brandingColor: '#0B1517',
+  emailCustomNote: '',
 }
 
 export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
@@ -154,6 +158,8 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
           vipMembershipFee: org?.vipMembershipFee ?? 15,
           autologinSecret: org?.autologinSecret || '',
           weeklyHours: org?.weeklyHours || { ...defaultWeeklyHours },
+          brandingColor: org?.brandingColor || '#0B1517',
+          emailCustomNote: org?.emailCustomNote || '',
         }
         setSettings(loaded)
         setOriginalSettings(loaded)
@@ -263,6 +269,8 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
         cancellationPolicy: settings.cancellationPolicy,
         vipMembershipFee: settings.vipMembershipFee,
         weeklyHours: settings.weeklyHours,
+        brandingColor: settings.brandingColor,
+        emailCustomNote: settings.emailCustomNote,
       })
       setOriginalSettings({ ...settings })
       setSaveSuccess(true)
@@ -624,6 +632,58 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
                   onChange={(e) => setSettings({ ...settings, widgetCtaText: e.target.value })}
                   placeholder="e.g. Reserve your table seamlessly. Discover exclusive menus..."
                   style={{ ...inputStyle, minHeight: '80px', resize: 'vertical' as const, fontFamily: 'inherit' }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Email Branding Settings */}
+          <div style={cardStyle}>
+            <h3 style={sectionTitleStyle}><Settings2 size={16} style={{ color: '#C99C63' }} /> Email Branding</h3>
+            <p style={sectionDescStyle}>Customize the appearance and content of your confirmation emails.</p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
+              <div>
+                <label style={labelStyle}>Email Background Color</label>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                  <input
+                    type="color"
+                    value={settings.brandingColor || '#0B1517'}
+                    onChange={(e) => setSettings({ ...settings, brandingColor: e.target.value })}
+                    style={{
+                      width: '60px',
+                      height: '40px',
+                      border: `1px solid ${isDark ? '#30363d' : '#d1d5db'}`,
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      backgroundColor: 'transparent'
+                    }}
+                  />
+                  <input
+                    type="text"
+                    value={settings.brandingColor || '#0B1517'}
+                    onChange={(e) => setSettings({ ...settings, brandingColor: e.target.value })}
+                    placeholder="#0B1517"
+                    style={{
+                      ...inputStyle,
+                      flex: 1,
+                      fontFamily: 'monospace',
+                      textTransform: 'uppercase'
+                    }}
+                  />
+                </div>
+              </div>
+              <div>
+                <label style={labelStyle}>Custom Email Note</label>
+                <textarea
+                  value={settings.emailCustomNote || ''}
+                  onChange={(e) => setSettings({ ...settings, emailCustomNote: e.target.value })}
+                  placeholder="Add a personal message to your confirmation emails (optional)"
+                  style={{
+                    ...inputStyle,
+                    minHeight: '80px',
+                    resize: 'vertical' as const,
+                    fontFamily: 'inherit',
+                  }}
                 />
               </div>
             </div>

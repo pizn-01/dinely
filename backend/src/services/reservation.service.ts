@@ -217,7 +217,7 @@ export class ReservationService {
         // Get restaurant name, phone and cancellation policy for the email
         const { data: orgData } = await supabaseAdmin
           .from('organizations')
-          .select('name, phone, cancellation_policy')
+          .select('name, phone, cancellation_policy, logo_url, branding_color, email_custom_note')
           .eq('id', restaurantId)
           .single();
 
@@ -232,6 +232,10 @@ export class ReservationService {
           tableName: createdRes.tables?.name || createdRes.tables?.table_number || undefined,
           restaurantPhone: orgData?.phone || undefined,
           cancellationPolicy: orgData?.cancellation_policy || undefined,
+          logoUrl: orgData?.logo_url || undefined,
+          brandingColor: orgData?.branding_color || undefined,
+          customNote: orgData?.email_custom_note || undefined,
+          cancellationUrl: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/cancel/${rpcData.id}`,
         });
       } catch (emailErr: any) {
         console.error('[ReservationService] Confirmation email failed:', emailErr.message);
@@ -994,6 +998,119 @@ export class ReservationService {
     }
 
     return counts;
+  }
+
+  /**
+   * Cancel a reservation and send notifications.
+   */
+  async cancelReservation(reservationId: string, restaurantId: string, reason?: string) {
+    // Get reservation details first
+    const { data: reservation, error: fetchError } = await supabaseAdmin
+      .from('reservations')
+      .select('*, tables(id, table_number, name), organizations(name, email, phone, logo_url, branding_color, email_custom_note)')
+      .eq('id', reservationId)
+      .eq('restaurant_id', restaurantId)
+      .single();
+
+    if (fetchError || !reservation) {
+      throw new NotFoundError('Reservation');
+    }
+
+    // Update status to cancelled
+    const { data: updatedReservation, error: updateError } = await supabaseAdmin
+      .from('reservations')
+      .update({ 
+        status: ReservationStatus.CANCELLED,
+        cancelled_at: new Date().toISOString(),
+        cancellation_reason: reason || null
+      })
+      .eq('id', reservationId)
+      .eq('restaurant_id', restaurantId)
+      .select()
+      .single();
+
+    if (updateError) {
+      throw new AppError('Failed to cancel reservation', 500);
+    }
+
+    // Send cancellation email to guest
+    if (reservation.guest_email) {
+      try {
+        await emailService.sendReservationCancellation({
+          to: reservation.guest_email,
+          guestName: `${reservation.guest_first_name || ''} ${reservation.guest_last_name || ''}`.trim() || 'Guest',
+          restaurantName: reservation.organizations?.name || 'Restaurant',
+          date: reservation.reservation_date,
+          time: reservation.start_time,
+          reason: reason
+        });
+      } catch (emailErr: any) {
+        console.error('[ReservationService] Cancellation email failed:', emailErr.message);
+      }
+    }
+
+    // Send notification to admin
+    if (reservation.organizations?.email) {
+      try {
+        await emailService.sendReservationChangeNotification({
+          to: reservation.organizations.email,
+          adminName: 'Restaurant Admin',
+          restaurantName: reservation.organizations.name,
+          guestName: `${reservation.guest_first_name || ''} ${reservation.guest_last_name || ''}`.trim() || 'Guest',
+          guestEmail: reservation.guest_email || '',
+          date: reservation.reservation_date,
+          time: reservation.start_time,
+          partySize: reservation.party_size,
+          changeType: 'cancelled',
+          reason: reason,
+          confirmationId: reservationId
+        });
+      } catch (emailErr: any) {
+        console.error('[ReservationService] Admin notification failed:', emailErr.message);
+      }
+    }
+
+    return this.formatReservation(updatedReservation);
+  }
+
+  /**
+   * Get public reservation details (no authentication required).
+   */
+  async getPublicReservation(reservationId: string) {
+    const { data, error } = await supabaseAdmin
+      .from('reservations')
+      .select(`
+        *,
+        tables(id, table_number, name),
+        organizations(name, logo_url)
+      `)
+      .eq('id', reservationId)
+      .single();
+
+    if (error || !data) {
+      throw new NotFoundError('Reservation');
+    }
+
+    // Return limited public information
+    return {
+      id: data.id,
+      reservation_date: data.reservation_date,
+      start_time: data.start_time,
+      party_size: data.party_size,
+      status: data.status,
+      guest_first_name: data.guest_first_name,
+      guest_last_name: data.guest_last_name,
+      tables: data.tables ? {
+        id: data.tables.id,
+        name: data.tables.name,
+        table_number: data.tables.table_number
+      } : null,
+      restaurant: data.organizations ? {
+        id: data.restaurant_id,
+        name: data.organizations.name,
+        logo_url: data.organizations.logo_url
+      } : null
+    };
   }
 }
 
