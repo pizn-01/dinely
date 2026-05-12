@@ -11,7 +11,7 @@ export class ReservationController {
   async list(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const result = await reservationService.list(param(req, 'orgId'), req.query as any);
-      res.json({ success: true, ...result });
+      res.json({ success: true, data: result });
     } catch (error) {
       next(error);
     }
