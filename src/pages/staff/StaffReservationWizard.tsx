@@ -86,6 +86,7 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
   // Table Selection State
   const [availableTables, setAvailableTables] = useState<any[]>([])
   const [loadingTables, setLoadingTables] = useState(false)
+  const [selectedTableMode, setSelectedTableMode] = useState<'suitable' | 'mergeable'>('suitable')
 
   const updateData = useCallback((updates: Partial<ReservationData>) => {
     setData((prev) => ({ ...prev, ...updates }))
@@ -258,7 +259,13 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
     if (loadingTables) return <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>Loading available tables...</div>
     if (availableTables.length === 0) return <div style={{ textAlign: 'center', padding: '40px', color: 'var(--accent-red)' }}>No tables available for {data.guests} guests at {data.time}.</div>
 
-    const tablesByArea = availableTables.reduce((acc, table) => {
+    const suitableTables = availableTables.filter(t => t.capacity >= data.guests)
+    const mergeableTables = availableTables.filter(t => t.isMergeable && t.capacity < data.guests)
+
+    const activeMode = (suitableTables.length === 0 && mergeableTables.length > 0) ? 'mergeable' : selectedTableMode
+    const displayedTables = activeMode === 'mergeable' ? mergeableTables : suitableTables
+
+    const tablesByArea = displayedTables.reduce((acc, table) => {
       const areaName = table.area?.name || 'Main Area'
       if (!acc[areaName]) acc[areaName] = []
       acc[areaName].push(table)
@@ -266,41 +273,78 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
     }, {} as Record<string, any[]>)
 
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', maxHeight: '400px', overflowY: 'auto', paddingRight: '8px' }}>
-        {Object.entries(tablesByArea).map(([area, tables]) => (
-          <div key={area}>
-            <h4 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-tertiary)', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{area}</h4>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
-              {(tables as any[]).map(table => (
-                <div
-                  key={table.id}
-                  onClick={() => updateData({ tableId: table.id, tableName: table.name || `Table ${table.tableNumber}`, tableCapacity: table.capacity, tableLocation: area, isPremium: table.isPremium, premiumPrice: table.premiumPrice })}
-                  style={{
-                    padding: '16px',
-                    borderRadius: '12px',
-                    border: `2px solid ${data.tableId === table.id ? 'var(--accent-gold)' : 'var(--border-secondary)'}`,
-                    backgroundColor: data.tableId === table.id ? 'var(--bg-hover)' : 'var(--bg-card)',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    position: 'relative',
-                    transition: 'all 0.2s'
-                  }}
-                >
-                  {table.isPremium && (
-                    <span style={{ position: 'absolute', top: '-10px', backgroundColor: '#C99C63', color: '#fff', fontSize: '0.625rem', padding: '2px 8px', borderRadius: '100px', fontWeight: 800 }}>PREMIUM</span>
-                  )}
-                  <span style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: table.isPremium ? '8px' : '0' }}>{table.name || `Table ${table.tableNumber}`}</span>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px' }}>Up to {table.capacity} Guests</span>
-                  {table.isPremium && (
-                    <span style={{ fontSize: '0.75rem', color: '#D97706', fontWeight: 700, marginTop: '4px' }}>£{table.premiumPrice?.toFixed(2) || '0.00'}</span>
-                  )}
-                </div>
-              ))}
-            </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxHeight: '420px', overflowY: 'auto', paddingRight: '8px' }}>
+        {displayedTables.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+            No individual tables large enough for {data.guests} guests. Please select the mergeable tables option below.
           </div>
-        ))}
+        ) : (
+          Object.entries(tablesByArea).map(([area, tables]) => (
+            <div key={area}>
+              <h4 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-tertiary)', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{area}</h4>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+                {(tables as any[]).map(table => (
+                  <div
+                    key={table.id}
+                    onClick={() => updateData({ tableId: table.id, tableName: table.name || `Table ${table.tableNumber}`, tableCapacity: table.capacity, tableLocation: area, isPremium: table.isPremium, premiumPrice: table.premiumPrice })}
+                    style={{
+                      padding: '16px',
+                      borderRadius: '12px',
+                      border: `2px solid ${data.tableId === table.id ? 'var(--accent-gold)' : 'var(--border-secondary)'}`,
+                      backgroundColor: data.tableId === table.id ? 'var(--bg-hover)' : 'var(--bg-card)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      position: 'relative',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    {table.isPremium && (
+                      <span style={{ position: 'absolute', top: '-10px', backgroundColor: '#C99C63', color: '#fff', fontSize: '0.625rem', padding: '2px 8px', borderRadius: '100px', fontWeight: 800 }}>PREMIUM</span>
+                    )}
+                    <span style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: table.isPremium ? '8px' : '0' }}>{table.name || `Table ${table.tableNumber}`}</span>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                      {activeMode === 'mergeable' ? `Base Cap: ${table.capacity} (Mergeable)` : `Up to ${table.capacity} Guests`}
+                    </span>
+                    {table.isPremium && (
+                      <span style={{ fontSize: '0.75rem', color: '#D97706', fontWeight: 700, marginTop: '4px' }}>£{table.premiumPrice?.toFixed(2) || '0.00'}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))
+        )}
+
+        {/* Radio buttons underneath to show available mergeable tables */}
+        {mergeableTables.length > 0 && (
+          <div style={{ marginTop: '12px', borderTop: '1px solid var(--border-secondary)', paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '10px', backgroundColor: 'var(--bg-tertiary)', padding: '16px', borderRadius: '12px' }}>
+            <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Table View Options
+            </span>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+              <input
+                type="radio"
+                name="tableMode"
+                checked={activeMode === 'suitable'}
+                onChange={() => setSelectedTableMode('suitable')}
+                style={{ accentColor: 'var(--accent-gold)', width: '16px', height: '16px' }}
+              />
+              <span>Show individual suitable tables ({suitableTables.length})</span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+              <input
+                type="radio"
+                name="tableMode"
+                checked={activeMode === 'mergeable'}
+                onChange={() => setSelectedTableMode('mergeable')}
+                style={{ accentColor: 'var(--accent-gold)', width: '16px', height: '16px' }}
+              />
+              <span>Show available mergeable tables ({mergeableTables.length}) — Combinable for larger groups</span>
+            </label>
+          </div>
+        )}
       </div>
     )
   }

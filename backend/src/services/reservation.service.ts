@@ -601,7 +601,7 @@ export class ReservationService {
       .select('*, floor_areas(id, name)')
       .eq('restaurant_id', restaurantId)
       .eq('is_active', true)
-      .gte('capacity', partySize)
+      .or(`capacity.gte.${partySize},is_mergeable.eq.true`)
       .order('capacity', { ascending: true });
 
     if (!tables || tables.length === 0) return [];
@@ -619,6 +619,7 @@ export class ReservationService {
           shape: table.shape,
           isPremium: table.is_premium || false,
           premiumPrice: table.premium_price || 0,
+          isMergeable: table.is_mergeable || false,
         });
       }
     }
