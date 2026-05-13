@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Upload, Download, Save, Grid, Plus, X } from 'lucide-react'
+import { Upload, Download, Save, Grid, Plus, X, RefreshCw } from 'lucide-react'
 import Draggable, { DraggableData, DraggableEvent } from 'react-draggable'
 import { api } from '../../../services/api'
 import { toast } from 'react-hot-toast'
@@ -51,7 +51,8 @@ const emptyForm: TableForm = {
 export default function FloorMapTab({ theme, orgId }: FloorMapTabProps) {
   const isDark = theme === 'dark'
   const fileInputRef = useRef<HTMLInputElement>(null)
-  
+  const canvasContainerRef = useRef<HTMLDivElement>(null)
+
   const [tables, setTables] = useState<TablePosition[]>([])
   const [areas, setAreas] = useState<Area[]>([])
   const [loading, setLoading] = useState(true)
@@ -60,7 +61,7 @@ export default function FloorMapTab({ theme, orgId }: FloorMapTabProps) {
   const [hasChanges, setHasChanges] = useState(false)
   // Panning state for the canvas
   const [isPanning, setIsPanning] = useState(false);
-  const [panStart, setPanStart] = useState<{x:number; y:number}>({x:0, y:0});
+  const [panStart, setPanStart] = useState<{x:number; y:number; scrollLeft:number; scrollTop:number}>({x:0, y:0, scrollLeft:0, scrollTop:0});
 
   // Modal State
   const [showModal, setShowModal] = useState(false)
@@ -197,6 +198,35 @@ export default function FloorMapTab({ theme, orgId }: FloorMapTabProps) {
     }
   }
 
+  const resetCanvasView = () => {
+    if (canvasContainerRef.current) {
+      canvasContainerRef.current.scrollTo({ top: 0, left: 0, behavior: 'smooth' })
+    }
+  }
+
+  const handleCanvasMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Only pan when clicking the canvas background directly (not a table)
+    if ((e.target as HTMLElement).closest('[data-table-card]')) return
+    setIsPanning(true)
+    setPanStart({
+      x: e.clientX,
+      y: e.clientY,
+      scrollLeft: canvasContainerRef.current?.scrollLeft ?? 0,
+      scrollTop: canvasContainerRef.current?.scrollTop ?? 0,
+    })
+    e.preventDefault()
+  }
+
+  const handleCanvasMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isPanning || !canvasContainerRef.current) return
+    const dx = e.clientX - panStart.x
+    const dy = e.clientY - panStart.y
+    canvasContainerRef.current.scrollLeft = panStart.scrollLeft - dx
+    canvasContainerRef.current.scrollTop = panStart.scrollTop - dy
+  }
+
+  const handleCanvasMouseUp = () => setIsPanning(false)
+
   // Handle Drag
   const handleDragStop = (id: string, e: DraggableEvent, data: DraggableData) => {
     setTables(prev => prev.map(t => {
@@ -327,8 +357,9 @@ export default function FloorMapTab({ theme, orgId }: FloorMapTabProps) {
         disabled={mergeMode}
         onStop={(e, data) => handleDragStop(table.id, e, data)}
       >
-        <div 
+        <div
           ref={nodeRef}
+          data-table-card="true"
           onClick={() => toggleTableSelection(table.id, table.isMerged)}
           style={{
             ...getShapeStyle(table.shape),
@@ -404,6 +435,21 @@ export default function FloorMapTab({ theme, orgId }: FloorMapTabProps) {
           </button>
           
           <button
+            onClick={resetCanvasView}
+            title="Scroll back to the top-left corner of the canvas"
+            style={{
+              display: 'flex', alignItems: 'center', gap: '8px',
+              padding: '8px 16px', backgroundColor: 'transparent',
+              border: `1px solid ${isDark ? '#4B5563' : '#D1D5DB'}`,
+              color: isDark ? '#E5E7EB' : '#374151', borderRadius: '6px',
+              cursor: 'pointer', fontWeight: 500
+            }}
+          >
+            <RefreshCw size={16} />
+            Reset View
+          </button>
+
+          <button
             onClick={saveFloorPlan}
             disabled={!hasChanges || saving}
             style={{
@@ -424,21 +470,23 @@ export default function FloorMapTab({ theme, orgId }: FloorMapTabProps) {
 
       <input type="file" accept=".csv" style={{ display: 'none' }} ref={fileInputRef} onChange={handleFileChange} />
 
-      {/* Editor Canvas */}
-      <div 
+      {/* Editor Canvas — scrollable outer shell */}
+      <div
+        ref={canvasContainerRef}
         style={{
           width: '100%',
           height: '600px',
           backgroundColor: isDark ? '#0D1117' : '#F3F4F6',
           border: `1px solid ${isDark ? '#30363D' : '#E5E7EB'}`,
           borderRadius: '12px',
+          overflow: loading || tables.length === 0 ? 'hidden' : 'auto',
+          cursor: isPanning ? 'grabbing' : 'default',
           position: 'relative',
-          overflow: 'hidden',
-          backgroundImage: isDark 
-            ? 'linear-gradient(#161B22 1px, transparent 1px), linear-gradient(90deg, #161B22 1px, transparent 1px)' 
-            : 'linear-gradient(#E5E7EB 1px, transparent 1px), linear-gradient(90deg, #E5E7EB 1px, transparent 1px)',
-          backgroundSize: '20px 20px'
         }}
+        onMouseDown={handleCanvasMouseDown}
+        onMouseMove={handleCanvasMouseMove}
+        onMouseUp={handleCanvasMouseUp}
+        onMouseLeave={handleCanvasMouseUp}
       >
         {loading ? (
           <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', color: isDark ? '#9CA3AF' : '#6B7280' }}>
@@ -451,29 +499,30 @@ export default function FloorMapTab({ theme, orgId }: FloorMapTabProps) {
             <p style={{ fontSize: '0.875rem' }}>Add tables via the Tables tab or Import CSV.</p>
           </div>
         ) : (
-          <>
+          /* Inner canvas — large enough for any restaurant layout */
+          <div
+            style={{
+              width: '2400px',
+              height: '1800px',
+              position: 'relative',
+              backgroundImage: isDark
+                ? 'linear-gradient(#161B22 1px, transparent 1px), linear-gradient(90deg, #161B22 1px, transparent 1px)'
+                : 'linear-gradient(#E5E7EB 1px, transparent 1px), linear-gradient(90deg, #E5E7EB 1px, transparent 1px)',
+              backgroundSize: '20px 20px',
+            }}
+          >
             {/* Area Dividers */}
             {(() => {
-              // Get all areas from the areas array, not just tables
               const allAreas = areas.map(area => area.name || '').filter(name => name && name !== 'Main Area')
-              
-              // Also add areas from tables that might not be in the areas array
               const tableAreas = new Set<string>()
               tables.forEach(table => {
                 const areaName = table.area?.name || table.floor_areas?.name || table.location || 'Main Area'
-                if (areaName !== 'Main Area') {
-                  tableAreas.add(areaName)
-                }
+                if (areaName !== 'Main Area') tableAreas.add(areaName)
               })
+              const areaList = Array.from(new Set([...allAreas, ...tableAreas])).sort()
 
-              // Combine both sets and remove duplicates
-              const uniqueAreas = new Set([...allAreas, ...tableAreas])
-              const areaList = Array.from(uniqueAreas).sort()
-              
               return areaList.map((areaName, index) => {
-                // Calculate divider position - spread evenly across the canvas
                 const dividerPosition = 100 + (index * 120)
-                
                 return (
                   <div key={areaName} style={{
                     position: 'absolute',
@@ -481,29 +530,16 @@ export default function FloorMapTab({ theme, orgId }: FloorMapTabProps) {
                     left: '20px',
                     right: '20px',
                     height: '2px',
-                    background: `linear-gradient(90deg, 
-                      transparent 0%, 
-                      ${isDark ? '#30363d' : '#d1d5db'} 10%, 
-                      ${isDark ? '#4b5563' : '#9ca3af'} 50%, 
-                      ${isDark ? '#30363d' : '#d1d5db'} 90%, 
-                      transparent 100%
-                    )`,
+                    background: `linear-gradient(90deg, transparent 0%, ${isDark ? '#30363d' : '#d1d5db'} 10%, ${isDark ? '#4b5563' : '#9ca3af'} 50%, ${isDark ? '#30363d' : '#d1d5db'} 90%, transparent 100%)`,
                     zIndex: 1
                   }}>
-                    {/* Area label */}
                     <div style={{
-                      position: 'absolute',
-                      top: '-12px',
-                      left: '50%',
-                      transform: 'translateX(-50%)',
+                      position: 'absolute', top: '-12px', left: '50%', transform: 'translateX(-50%)',
                       backgroundColor: isDark ? '#0D1117' : '#F3F4F6',
-                      padding: '4px 12px',
-                      borderRadius: '4px',
-                      fontSize: '0.75rem',
-                      fontWeight: 600,
+                      padding: '4px 12px', borderRadius: '4px',
+                      fontSize: '0.75rem', fontWeight: 600,
                       color: isDark ? '#8b949e' : '#6b7280',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.05em',
+                      textTransform: 'uppercase', letterSpacing: '0.05em',
                       border: `1px solid ${isDark ? '#30363d' : '#e5e7eb'}`
                     }}>
                       {areaName}
@@ -518,24 +554,23 @@ export default function FloorMapTab({ theme, orgId }: FloorMapTabProps) {
               <DraggableTable key={table.id} table={table} />
             ))}
 
-            {/* Merge Mode Active Overlay */}
+            {/* Merge Mode overlay — pinned inside inner canvas but visually centered */}
             {mergeMode && tables.length > 0 && (
               <div style={{
-                position: 'absolute', bottom: '24px', left: '50%', transform: 'translateX(-50%)',
-                backgroundColor: isDark ? '#161B22' : '#ffffff', 
+                position: 'sticky', bottom: '24px', left: '50%', transform: 'translateX(-50%)',
+                backgroundColor: isDark ? '#161B22' : '#ffffff',
                 padding: '16px 24px', borderRadius: '12px',
                 border: `1px solid ${isDark ? '#30363d' : '#e5e7eb'}`,
                 boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)',
-                display: 'flex', alignItems: 'center', gap: '16px', zIndex: 100
+                display: 'inline-flex', alignItems: 'center', gap: '16px', zIndex: 100
               }}>
                 <div>
                   <div style={{ fontWeight: 600, color: isDark ? '#ffffff' : '#1f2937' }}>Merge Mode Active</div>
                   <div style={{ fontSize: '0.875rem', color: isDark ? '#9ca3af' : '#6b7280' }}>
-                    Select multiple adjacent tables to merge into one.<br/>
+                    Select multiple adjacent tables to merge into one.<br />
                     Click an already merged table to un-merge it.
                   </div>
                 </div>
-                
                 <button
                   onClick={handleMergeSubmit}
                   disabled={selectedTables.length < 2 || merging}
@@ -552,7 +587,7 @@ export default function FloorMapTab({ theme, orgId }: FloorMapTabProps) {
                 </button>
               </div>
             )}
-          </>
+          </div>
         )}
       </div>
 

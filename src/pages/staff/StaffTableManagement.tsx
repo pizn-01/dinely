@@ -96,6 +96,24 @@ export default function StaffTableManagement() {
 
   // ── Area Filter State ──────────────────────────────────────────────────────
   const [selectedAreaFilter, setSelectedAreaFilter] = useState<string>('All Areas')
+
+  // ── Table View Mode ────────────────────────────────────────────────────────
+  const [tableViewMode, setTableViewMode] = useState<'grid' | 'floormap'>('grid')
+
+  // ── Reservation Edit State ─────────────────────────────────────────────────
+  const [editingBooking, setEditingBooking] = useState(false)
+  const [editFields, setEditFields] = useState<{
+    guestFirstName: string
+    guestLastName: string
+    guestEmail: string
+    guestPhone: string
+    reservationDate: string
+    startTime: string
+    partySize: number
+    specialRequests: string
+    internalNotes: string
+  } | null>(null)
+  const [savingEdit, setSavingEdit] = useState(false)
   
   // ── Drag and Drop State ──────────────────────────────────────────────
   const [draggedTable, setDraggedTable] = useState<any>(null)
@@ -383,6 +401,34 @@ export default function StaffTableManagement() {
     } catch (error: any) {
       console.error('Failed to clear seat:', error)
       toast.error(error.response?.data?.error || error.response?.data?.message || 'Failed to clear seat.')
+    }
+  }
+
+  const handleSaveEdit = async () => {
+    if (!restaurantId || !selectedBooking || !editFields) return
+    try {
+      setSavingEdit(true)
+      await api.put(`/organizations/${restaurantId}/reservations/${selectedBooking.id}`, {
+        guestFirstName: editFields.guestFirstName || undefined,
+        guestLastName: editFields.guestLastName || undefined,
+        guestEmail: editFields.guestEmail || undefined,
+        guestPhone: editFields.guestPhone || undefined,
+        reservationDate: editFields.reservationDate,
+        startTime: editFields.startTime,
+        partySize: editFields.partySize,
+        specialRequests: editFields.specialRequests || undefined,
+        internalNotes: editFields.internalNotes || undefined,
+      })
+      toast.success('Reservation updated successfully')
+      setEditingBooking(false)
+      setEditFields(null)
+      setSelectedBooking(null)
+      setSelectedTable(null)
+      fetchData(selectedDate, restaurantId)
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || err?.response?.data?.message || 'Failed to update reservation')
+    } finally {
+      setSavingEdit(false)
     }
   }
 
@@ -808,15 +854,39 @@ export default function StaffTableManagement() {
           <div style={{ minHeight: '500px' }}>
             {activeTab === 'Table View' && (
               <div style={{ backgroundColor: 'var(--bg-card)', paddingBottom: '60px', transition: 'background-color 0.3s', position: 'relative' }}>
-                {/* Shift+Click hint */}
-                <div style={{ padding: '10px 60px', backgroundColor: isMergeMode ? (isDark ? 'rgba(201,156,99,0.1)' : 'rgba(201,156,99,0.06)') : 'transparent', borderBottom: isMergeMode ? `1px solid rgba(201,156,99,0.2)` : '1px solid transparent', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.3s' }}>
-                  <Link2 size={13} color={isMergeMode ? '#C99C63' : 'var(--text-tertiary)'} />
-                  <span style={{ fontSize: '0.75rem', color: isMergeMode ? '#C99C63' : 'var(--text-tertiary)', fontWeight: 500 }}>
-                    {isMergeMode ? `${selectedTableIds.size} table${selectedTableIds.size !== 1 ? 's' : ''} selected — Shift+Click to add more, or use the bar below` : 'Hold Shift + Click tables to select multiple for a large-party merge'}
-                  </span>
+                {/* Table View Mode Toggle + Shift+Click hint */}
+                <div style={{ padding: '10px 60px', backgroundColor: isMergeMode ? (isDark ? 'rgba(201,156,99,0.1)' : 'rgba(201,156,99,0.06)') : 'transparent', borderBottom: isMergeMode ? `1px solid rgba(201,156,99,0.2)` : '1px solid transparent', display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'all 0.3s' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Link2 size={13} color={isMergeMode ? '#C99C63' : 'var(--text-tertiary)'} />
+                    <span style={{ fontSize: '0.75rem', color: isMergeMode ? '#C99C63' : 'var(--text-tertiary)', fontWeight: 500 }}>
+                      {isMergeMode ? `${selectedTableIds.size} table${selectedTableIds.size !== 1 ? 's' : ''} selected — Shift+Click to add more, or use the bar below` : 'Hold Shift + Click tables to select multiple for a large-party merge'}
+                    </span>
+                  </div>
+                  {/* Grid / Floor Map toggle */}
+                  <div style={{ display: 'flex', gap: '4px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '8px', padding: '3px' }}>
+                    {(['grid', 'floormap'] as const).map(mode => (
+                      <button
+                        key={mode}
+                        onClick={() => setTableViewMode(mode)}
+                        style={{
+                          padding: '5px 14px',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          border: 'none',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          backgroundColor: tableViewMode === mode ? (isDark ? '#C99C63' : '#111827') : 'transparent',
+                          color: tableViewMode === mode ? '#ffffff' : 'var(--text-secondary)',
+                          transition: 'all 0.2s',
+                        }}
+                      >
+                        {mode === 'grid' ? 'Grid' : 'Floor Map'}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                {/* Main Two-Pane Layout */}
-                <div style={{ display: 'flex', alignItems: 'flex-start' }}>
+                {/* Main Two-Pane Layout (Grid mode only) */}
+                <div style={{ display: tableViewMode === 'grid' ? 'flex' : 'none', alignItems: 'flex-start' }}>
                   
                   {/* Left Pane: Sidebar Navigator */}
                   <div style={{ width: '250px', flexShrink: 0, padding: '24px', borderRight: '1px solid var(--border-primary)', minHeight: '500px', display: 'flex', flexDirection: 'column' }}>
@@ -1133,6 +1203,120 @@ export default function StaffTableManagement() {
                         <Link2 size={15} /> Merge Tables
                       </button>
                     </div>
+                  </div>
+                )}
+
+                {/* ── Floor Map View ────────────────────────────────────────────────────── */}
+                {tableViewMode === 'floormap' && (
+                  <div style={{ position: 'relative' }}>
+                    <div
+                      style={{
+                        width: 'calc(100% - 120px)',
+                        height: '680px',
+                        overflow: 'auto',
+                        border: `1px solid var(--border-primary)`,
+                        borderRadius: '12px',
+                        margin: '24px 60px',
+                        cursor: 'default',
+                      }}
+                    >
+                      {/* Inner canvas — matches admin floor plan dimensions */}
+                      <div
+                        style={{
+                          width: '2400px',
+                          height: '1800px',
+                          position: 'relative',
+                          backgroundImage: isDark
+                            ? 'linear-gradient(rgba(48,54,61,0.4) 1px, transparent 1px), linear-gradient(90deg, rgba(48,54,61,0.4) 1px, transparent 1px)'
+                            : 'linear-gradient(#e5e7eb 1px, transparent 1px), linear-gradient(90deg, #e5e7eb 1px, transparent 1px)',
+                          backgroundSize: '20px 20px',
+                          backgroundColor: isDark ? '#0D1117' : '#F9FAFB',
+                        }}
+                      >
+                        {dbTables.map((table, tableIndex) => {
+                          const posX = table.positionX || (tableIndex % 8) * 160 + 40
+                          const posY = table.positionY || Math.floor(tableIndex / 8) * 160 + 40
+
+                          const tableReservations = dbReservations.filter(r => r.table?.id === table.id && !['cancelled', 'no_show', 'completed'].includes(r.status))
+                          let status = 'available'
+                          const now = new Date()
+                          const currentTotalMins = now.getHours() * 60 + now.getMinutes()
+                          const isToday = selectedDate === getLocalISODate(now)
+
+                          if (isToday) {
+                            const seatedRes = tableReservations.find(r => r.status === 'seated')
+                            if (seatedRes) {
+                              status = 'seated'
+                            } else {
+                              const arrivingSoon = tableReservations.filter(r => {
+                                const [h, m] = (r.startTime || '00:00').split(':').map(Number)
+                                const diff = (h * 60 + m) - currentTotalMins
+                                return diff <= 45 && diff >= -30
+                              })
+                              if (arrivingSoon.length > 0) {
+                                status = arrivingSoon[0].status === 'arriving' ? 'arriving' : 'pending_arrival'
+                              }
+                            }
+                          } else {
+                            const activeRes = tableReservations.find(r => !['completed'].includes(r.status))
+                            if (activeRes) status = activeRes.status
+                          }
+
+                          const visualStatus = status === 'pending_arrival' ? 'arriving' : status
+                          const style = getStatusStyle(visualStatus)
+                          const capacity = table.capacity || 4
+                          const areaName = table.area?.name || table.floor_areas?.name || table.location || ''
+
+                          return (
+                            <div
+                              key={table.id}
+                              onClick={(e) => handleTableClick(table, e)}
+                              style={{
+                                position: 'absolute',
+                                left: `${posX}px`,
+                                top: `${posY}px`,
+                                width: '120px',
+                                height: '120px',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              {/* Chair indicators */}
+                              {capacity >= 1 && <div style={{ position: 'absolute', top: '-12px', left: '50%', transform: 'translateX(-50%)', width: '28px', height: '28px', backgroundColor: 'var(--chair-bg)', borderRadius: '6px', border: '1px solid var(--chair-border)' }} />}
+                              {capacity >= 2 && <div style={{ position: 'absolute', bottom: '-12px', left: '50%', transform: 'translateX(-50%)', width: '28px', height: '28px', backgroundColor: 'var(--chair-bg)', borderRadius: '6px', border: '1px solid var(--chair-border)' }} />}
+                              {capacity >= 3 && <div style={{ position: 'absolute', left: '-12px', top: '50%', transform: 'translateY(-50%)', width: '28px', height: '28px', backgroundColor: 'var(--chair-bg)', borderRadius: '6px', border: '1px solid var(--chair-border)' }} />}
+                              {capacity >= 4 && <div style={{ position: 'absolute', right: '-12px', top: '50%', transform: 'translateY(-50%)', width: '28px', height: '28px', backgroundColor: 'var(--chair-bg)', borderRadius: '6px', border: '1px solid var(--chair-border)' }} />}
+
+                              {/* Table card */}
+                              <div style={{
+                                width: '100%',
+                                height: '100%',
+                                borderRadius: '16px',
+                                border: `2px solid ${style.color}`,
+                                backgroundColor: style.bg,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '4px',
+                                boxShadow: 'var(--shadow-sm)',
+                                transition: 'all 0.2s',
+                              }}>
+                                <span style={{ fontSize: '1rem', fontWeight: 700, color: style.color, textAlign: 'center', maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {table.name || `T-${table.tableNumber}`}
+                                </span>
+                                {areaName && (
+                                  <span style={{ fontSize: '0.6rem', color: style.color, opacity: 0.6, textAlign: 'center' }}>{areaName}</span>
+                                )}
+                                <span style={{ fontSize: '0.65rem', fontWeight: 700, color: style.color, opacity: 0.7, textAlign: 'center' }}>{visualStatus.toUpperCase()}</span>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                    <p style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', textAlign: 'center', margin: '-12px 0 16px' }}>
+                      Layout mirrors the admin floor plan. Scroll to navigate. Click a table to manage reservations.
+                    </p>
                   </div>
                 )}
 
@@ -1670,8 +1854,8 @@ export default function StaffTableManagement() {
       {(selectedBooking || selectedTable) && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'var(--modal-overlay)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'var(--modal-backdrop)' }}>
           <div style={{ backgroundColor: 'var(--bg-modal)', borderRadius: '32px', width: '100%', maxWidth: '440px', padding: '40px', position: 'relative', boxShadow: 'var(--shadow-lg)', border: `1px solid var(--border-primary)` }}>
-            <button 
-              onClick={() => { setSelectedBooking(null); setSelectedTable(null); }} 
+            <button
+              onClick={() => { setSelectedBooking(null); setSelectedTable(null); setEditingBooking(false); setEditFields(null); }}
               style={{ position: 'absolute', top: '32px', right: '32px', background: 'var(--bg-tertiary)', border: 'none', cursor: 'pointer', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
               <Plus size={20} style={{ transform: 'rotate(45deg)' }} />
             </button>

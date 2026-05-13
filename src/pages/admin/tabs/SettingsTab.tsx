@@ -601,11 +601,54 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
                 label="Allow Table Merging"
               />
               <div style={{ borderTop: `1px solid ${isDark ? '#21262d' : '#f3f4f6'}` }} />
-              <ToggleSwitch
-                checked={settings.requirePayment}
-                onChange={(v) => setSettings({ ...settings, requirePayment: v })}
-                label="Require Payment for Premium Tables"
-              />
+              <div style={{ padding: '12px 0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '0.875rem', fontWeight: 500, color: settings.stripeOnboardingComplete ? (isDark ? '#d1d5db' : '#374151') : (isDark ? '#484f58' : '#9ca3af') }}>
+                    Require Payment for Premium Tables
+                  </span>
+                  <button
+                    onClick={() => {
+                      if (!settings.stripeOnboardingComplete) {
+                        toast.error('Connect your Stripe account first before enabling payment requirements.')
+                        return
+                      }
+                      setSettings({ ...settings, requirePayment: !settings.requirePayment })
+                    }}
+                    title={settings.stripeOnboardingComplete ? undefined : 'Connect Stripe first to enable this feature'}
+                    style={{
+                      width: '48px',
+                      height: '26px',
+                      borderRadius: '13px',
+                      border: 'none',
+                      backgroundColor: !settings.stripeOnboardingComplete
+                        ? (isDark ? '#21262d' : '#e5e7eb')
+                        : settings.requirePayment ? '#C99C63' : (isDark ? '#30363d' : '#d1d5db'),
+                      position: 'relative',
+                      cursor: settings.stripeOnboardingComplete ? 'pointer' : 'not-allowed',
+                      transition: 'background-color 0.2s ease',
+                      flexShrink: 0,
+                      opacity: settings.stripeOnboardingComplete ? 1 : 0.5,
+                    }}
+                  >
+                    <div style={{
+                      position: 'absolute',
+                      top: '3px',
+                      left: settings.requirePayment && settings.stripeOnboardingComplete ? '24px' : '3px',
+                      width: '20px',
+                      height: '20px',
+                      borderRadius: '50%',
+                      backgroundColor: '#ffffff',
+                      transition: 'left 0.2s ease',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                    }} />
+                  </button>
+                </div>
+                {!settings.stripeOnboardingComplete && (
+                  <p style={{ margin: '6px 0 0 0', fontSize: '0.75rem', color: isDark ? '#8b949e' : '#6b7280' }}>
+                    Connect your Stripe account in the Payment Gateway section below to enable this.
+                  </p>
+                )}
+              </div>
             </div>
           </div>
 
