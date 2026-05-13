@@ -1,7 +1,9 @@
 import axios from 'axios';
 
 // Default to local backend if env var is not set
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api/v1';
+// In production, we use a relative path if served from the same origin
+const API_BASE_URL = import.meta.env.VITE_API_URL || 
+  (import.meta.env.PROD ? '/api/v1' : 'http://localhost:3001/api/v1');
 
 export const api = axios.create({
   baseURL: API_BASE_URL,

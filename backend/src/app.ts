@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import path from 'path';
 import { corsOptions } from './config/cors';
 import { errorHandler } from './middleware/errorHandler';
 
@@ -134,13 +135,24 @@ app.use(`${API_PREFIX}/public`, publicRoutes);
 app.use(`${API_PREFIX}/subscriptions`, subscriptionRoutes);
 app.use(`${API_PREFIX}/integration`, integrationRoutes);
 
-// ─── 404 Handler ────────────────────────────────────────
+// ─── Static Files & Frontend ───────────────────────────
+// Serve the built React app from the 'public' directory (copied from frontend/dist)
+const frontendPath = path.join(__dirname, '../../public_html');
+app.use(express.static(frontendPath));
 
-app.use((_req, res) => {
-  res.status(404).json({
-    success: false,
-    error: 'Endpoint not found',
-  });
+// ─── 404 / SPA Handler ──────────────────────────────────
+
+app.use((req, res, next) => {
+  // If it's an API route that wasn't matched, return 404
+  if (req.path.startsWith(API_PREFIX)) {
+    return res.status(404).json({
+      success: false,
+      error: 'Endpoint not found',
+    });
+  }
+  
+  // Otherwise, serve index.html for SPA routing
+  res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
 // ─── Global Error Handler ───────────────────────────────
