@@ -103,13 +103,14 @@ export class ReservationService {
     const duration = org?.default_reservation_duration_min || 90;
     const maxParty = org?.max_party_size || 20;
 
-    if (dto.partySize > maxParty) {
+    // Staff-created bookings (POS / walk-in / phone) bypass max party size and advance windows
+    const isStaffCreated = !!createdBy || dto.source === 'pos';
+
+    if (!isStaffCreated && dto.partySize > maxParty) {
       throw new AppError(`Party size cannot exceed ${maxParty}`, 400);
     }
 
     // Enforce booking window — only for public/customer bookings.
-    // Staff-created reservations (walk-ins, POS, phone) bypass these rules.
-    const isStaffCreated = !!createdBy;
     const minAdvanceHours = org?.min_advance_booking_hours || 0;
     const maxAdvanceDays = org?.max_advance_booking_days || 365;
     const now = new Date();

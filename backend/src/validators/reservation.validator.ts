@@ -20,7 +20,7 @@ export const createReservationSchema = z.object({
     }, { message: 'Reservation date cannot be in the past' }),
   startTime: z.string().regex(/^\d{2}:\d{2}$/, 'Time must be in HH:MM format'),
   endTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
-  partySize: z.number().int().min(1).max(50), // Org-specific maxPartySize enforced in service layer
+  partySize: z.number().int().min(1).max(500), // Org-specific maxPartySize enforced in service layer
   guestFirstName: trimmedOptionalName,
   guestLastName: trimmedOptionalName,
   // Staff-created bookings (POS / walk-in / phone) may omit email.
