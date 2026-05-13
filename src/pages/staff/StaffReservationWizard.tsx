@@ -87,6 +87,7 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
   const [availableTables, setAvailableTables] = useState<any[]>([])
   const [loadingTables, setLoadingTables] = useState(false)
   const [selectedTableMode, setSelectedTableMode] = useState<'suitable' | 'mergeable'>('suitable')
+  const [selectedMergeableTableIds, setSelectedMergeableTableIds] = useState<string[]>([])
 
   const updateData = useCallback((updates: Partial<ReservationData>) => {
     setData((prev) => ({ ...prev, ...updates }))
@@ -163,9 +164,30 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
       setError(null)
       setCurrentStep(prev => prev + 1)
     } else if (content === 'table') {
-      if (!data.tableId) {
-        setError('Please select a table to continue.')
-        return
+      const suitableTables = availableTables.filter(t => t.capacity >= data.guests)
+      const mergeableTables = availableTables.filter(t => t.isMergeable && t.capacity < data.guests)
+      const activeMode = (suitableTables.length === 0 && mergeableTables.length > 0) ? 'mergeable' : selectedTableMode
+
+      if (activeMode === 'mergeable') {
+        if (selectedMergeableTableIds.length === 0) {
+          setError('Please select one or more tables to combine.')
+          return
+        }
+        const selectedTables = availableTables.filter(t => selectedMergeableTableIds.includes(t.id))
+        const combinedCap = selectedTables.reduce((sum, t) => sum + (t.capacity || 0), 0)
+        if (combinedCap < data.guests) {
+          setError(`Combined capacity of selected tables (${combinedCap}) is insufficient for ${data.guests} guests. Please select additional mergeable tables.`)
+          return
+        }
+      } else {
+        if (!data.tableId) {
+          setError('Please select a table to continue.')
+          return
+        }
+        if (data.tableCapacity < data.guests) {
+          setError(`Selected table capacity (${data.tableCapacity}) is insufficient for ${data.guests} guests.`)
+          return
+        }
       }
       setError(null)
       setCurrentStep(prev => prev + 1)
@@ -181,6 +203,26 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
     try {
       setLoading(true)
       setError(null)
+
+      const suitableTables = availableTables.filter(t => t.capacity >= data.guests)
+      const mergeableTables = availableTables.filter(t => t.isMergeable && t.capacity < data.guests)
+      const activeMode = (suitableTables.length === 0 && mergeableTables.length > 0) ? 'mergeable' : selectedTableMode
+
+      let finalTableId: string | undefined = data.tableId || undefined
+
+      if (activeMode === 'mergeable' && selectedMergeableTableIds.length > 1) {
+        // Merge the selected tables first in the backend
+        const mergeRes = await api.post(`/organizations/${restaurantId}/tables/merge`, {
+          sourceTableIds: selectedMergeableTableIds,
+          mergedTable: {
+            name: data.tableName || 'Merged Table',
+            capacity: data.tableCapacity
+          }
+        })
+        if (mergeRes.data?.data?.id) {
+          finalTableId = mergeRes.data.data.id
+        }
+      }
       
       const fn = data.firstName?.trim()
       const ln = data.lastName?.trim()
@@ -188,7 +230,7 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
         reservationDate: data.date,
         startTime: data.time,
         partySize: data.guests,
-        tableId: data.tableId || undefined,
+        tableId: finalTableId,
         guestFirstName: fn || undefined,
         guestLastName: ln || undefined,
         guestEmail: data.email?.trim() ? data.email.trim() : undefined,
@@ -272,8 +314,59 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
       return acc
     }, {} as Record<string, any[]>)
 
+    // Calculate live selected capacity for UI banner feedback
+    const selectedMergeableList = availableTables.filter(t => selectedMergeableTableIds.includes(t.id))
+    const currentCombinedCap = selectedMergeableList.reduce((sum, t) => sum + (t.capacity || 0), 0)
+
+    const handleTableClick = (table: any, areaName: string) => {
+      if (activeMode === 'mergeable') {
+        let nextIds = [...selectedMergeableTableIds]
+        if (nextIds.includes(table.id)) {
+          nextIds = nextIds.filter(id => id !== table.id)
+        } else {
+          nextIds.push(table.id)
+        }
+        setSelectedMergeableTableIds(nextIds)
+
+        const selTables = availableTables.filter(t => nextIds.includes(t.id))
+        const combCap = selTables.reduce((sum, t) => sum + (t.capacity || 0), 0)
+        const combNames = selTables.map(t => t.name || `Table ${t.tableNumber}`).join(' + ')
+        const combPrem = selTables.reduce((sum, t) => sum + (t.premiumPrice || 0), 0)
+        const hasPrem = selTables.some(t => t.isPremium)
+
+        updateData({
+          tableId: selTables[0]?.id || null,
+          tableName: combNames,
+          tableCapacity: combCap,
+          tableLocation: selTables[0]?.area?.name || areaName,
+          isPremium: hasPrem,
+          premiumPrice: combPrem
+        })
+      } else {
+        updateData({
+          tableId: table.id,
+          tableName: table.name || `Table ${table.tableNumber}`,
+          tableCapacity: table.capacity,
+          tableLocation: areaName,
+          isPremium: table.isPremium,
+          premiumPrice: table.premiumPrice
+        })
+      }
+    }
+
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxHeight: '420px', overflowY: 'auto', paddingRight: '8px' }}>
+        {activeMode === 'mergeable' && (
+          <div style={{ backgroundColor: 'rgba(201,156,99,0.08)', border: '1px solid rgba(201,156,99,0.3)', padding: '12px 16px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.875rem' }}>
+            <span style={{ color: 'var(--text-secondary)' }}>
+              <strong style={{ color: 'var(--accent-gold)' }}>Merge Mode:</strong> Click multiple tables to combine them.
+            </span>
+            <span style={{ fontWeight: 700, color: currentCombinedCap >= data.guests ? '#10B981' : 'var(--accent-red)' }}>
+              Combined Cap: {currentCombinedCap} / {data.guests} Guests
+            </span>
+          </div>
+        )}
+
         {displayedTables.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
             No individual tables large enough for {data.guests} guests. Please select the mergeable tables option below.
@@ -283,35 +376,41 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
             <div key={area}>
               <h4 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-tertiary)', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{area}</h4>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
-                {(tables as any[]).map(table => (
-                  <div
-                    key={table.id}
-                    onClick={() => updateData({ tableId: table.id, tableName: table.name || `Table ${table.tableNumber}`, tableCapacity: table.capacity, tableLocation: area, isPremium: table.isPremium, premiumPrice: table.premiumPrice })}
-                    style={{
-                      padding: '16px',
-                      borderRadius: '12px',
-                      border: `2px solid ${data.tableId === table.id ? 'var(--accent-gold)' : 'var(--border-secondary)'}`,
-                      backgroundColor: data.tableId === table.id ? 'var(--bg-hover)' : 'var(--bg-card)',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      position: 'relative',
-                      transition: 'all 0.2s'
-                    }}
-                  >
-                    {table.isPremium && (
-                      <span style={{ position: 'absolute', top: '-10px', backgroundColor: '#C99C63', color: '#fff', fontSize: '0.625rem', padding: '2px 8px', borderRadius: '100px', fontWeight: 800 }}>PREMIUM</span>
-                    )}
-                    <span style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: table.isPremium ? '8px' : '0' }}>{table.name || `Table ${table.tableNumber}`}</span>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                      {activeMode === 'mergeable' ? `Base Cap: ${table.capacity} (Mergeable)` : `Up to ${table.capacity} Guests`}
-                    </span>
-                    {table.isPremium && (
-                      <span style={{ fontSize: '0.75rem', color: '#D97706', fontWeight: 700, marginTop: '4px' }}>£{table.premiumPrice?.toFixed(2) || '0.00'}</span>
-                    )}
-                  </div>
-                ))}
+                {(tables as any[]).map(table => {
+                  const isSelected = activeMode === 'mergeable'
+                    ? selectedMergeableTableIds.includes(table.id)
+                    : data.tableId === table.id
+
+                  return (
+                    <div
+                      key={table.id}
+                      onClick={() => handleTableClick(table, area)}
+                      style={{
+                        padding: '16px',
+                        borderRadius: '12px',
+                        border: `2px solid ${isSelected ? 'var(--accent-gold)' : 'var(--border-secondary)'}`,
+                        backgroundColor: isSelected ? 'var(--bg-hover)' : 'var(--bg-card)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        position: 'relative',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      {table.isPremium && (
+                        <span style={{ position: 'absolute', top: '-10px', backgroundColor: '#C99C63', color: '#fff', fontSize: '0.625rem', padding: '2px 8px', borderRadius: '100px', fontWeight: 800 }}>PREMIUM</span>
+                      )}
+                      <span style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: table.isPremium ? '8px' : '0' }}>{table.name || `Table ${table.tableNumber}`}</span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                        {activeMode === 'mergeable' ? `Base Cap: ${table.capacity} (Mergeable)` : `Up to ${table.capacity} Guests`}
+                      </span>
+                      {table.isPremium && (
+                        <span style={{ fontSize: '0.75rem', color: '#D97706', fontWeight: 700, marginTop: '4px' }}>£{table.premiumPrice?.toFixed(2) || '0.00'}</span>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             </div>
           ))
@@ -328,7 +427,11 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
                 type="radio"
                 name="tableMode"
                 checked={activeMode === 'suitable'}
-                onChange={() => setSelectedTableMode('suitable')}
+                onChange={() => {
+                  setSelectedTableMode('suitable')
+                  setSelectedMergeableTableIds([])
+                  setError(null)
+                }}
                 style={{ accentColor: 'var(--accent-gold)', width: '16px', height: '16px' }}
               />
               <span>Show individual suitable tables ({suitableTables.length})</span>
@@ -338,7 +441,10 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
                 type="radio"
                 name="tableMode"
                 checked={activeMode === 'mergeable'}
-                onChange={() => setSelectedTableMode('mergeable')}
+                onChange={() => {
+                  setSelectedTableMode('mergeable')
+                  setError(null)
+                }}
                 style={{ accentColor: 'var(--accent-gold)', width: '16px', height: '16px' }}
               />
               <span>Show available mergeable tables ({mergeableTables.length}) — Combinable for larger groups</span>
