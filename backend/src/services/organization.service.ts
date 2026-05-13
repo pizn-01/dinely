@@ -3,6 +3,7 @@ import { CreateOrganizationDto, UpdateOrganizationDto } from '../types/api.types
 import { AppError, NotFoundError } from '../middleware/errorHandler';
 import { generateUniqueSlug } from '../utils/slug';
 import { getTodayDate, resolveIanaTimezone } from '../utils/time';
+import { getPlanLimits } from '../config/planLimits';
 
 export class OrganizationService {
   /**
@@ -64,10 +65,6 @@ export class OrganizationService {
     if (dto.maxPartySize !== undefined) updateData.max_party_size = dto.maxPartySize;
     if (dto.requirePayment !== undefined) updateData.require_payment = dto.requirePayment;
     if (dto.cancellationPolicy !== undefined) updateData.cancellation_policy = dto.cancellationPolicy;
-    if (dto.widgetHeading !== undefined) updateData.widget_heading = dto.widgetHeading;
-    if (dto.widgetCtaText !== undefined) updateData.widget_cta_text = dto.widgetCtaText;
-    if (dto.staffIpLoginEnabled !== undefined) updateData.staff_ip_login_enabled = dto.staffIpLoginEnabled;
-    if (dto.staffTrustedIps !== undefined) updateData.staff_trusted_ips = dto.staffTrustedIps;
     if (dto.setupCompleted !== undefined) updateData.setup_completed = dto.setupCompleted;
     if (dto.logoUrl !== undefined) updateData.logo_url = dto.logoUrl;
     if (dto.vipMembershipFee !== undefined) updateData.vip_membership_fee = dto.vipMembershipFee;
@@ -75,6 +72,22 @@ export class OrganizationService {
     if (dto.weeklyHours !== undefined) updateData.weekly_hours = dto.weeklyHours;
     if (dto.brandingColor !== undefined) updateData.branding_color = dto.brandingColor;
     if (dto.emailCustomNote !== undefined) updateData.email_custom_note = dto.emailCustomNote;
+
+    // ── Plan-gated fields: landing page customization (Professional only) ──
+    // Fetch current plan before allowing these fields to be saved.
+    if (dto.widgetHeading !== undefined || dto.widgetCtaText !== undefined) {
+      const { data: org } = await supabaseAdmin
+        .from('organizations')
+        .select('subscription_plan')
+        .eq('id', id)
+        .single();
+      const limits = getPlanLimits(org?.subscription_plan);
+      if (limits.customizableLandingPage) {
+        if (dto.widgetHeading !== undefined) updateData.widget_heading = dto.widgetHeading;
+        if (dto.widgetCtaText !== undefined) updateData.widget_cta_text = dto.widgetCtaText;
+      }
+      // Silently ignore the fields on Starter — no error thrown (graceful degradation)
+    }
 
     const { data, error } = await supabaseAdmin
       .from('organizations')
@@ -121,6 +134,70 @@ export class OrganizationService {
 
     return this.formatOrganization(data);
   }
+
+  /**
+   * Get the monthly reservation usage for plan limit display.
+   * Applies the on-read reset strategy: if stored reset_at is stale,
+   * re-counts from the DB and updates the cache.
+   */
+  async getMonthlyUsage(orgId: string) {
+    const { data: org } = await supabaseAdmin
+      .from('organizations')
+      .select('subscription_plan, subscription_status, monthly_reservation_count, monthly_reservation_reset_at')
+      .eq('id', orgId)
+      .single();
+
+    if (!org) throw new AppError('Organization not found', 404);
+
+    const plan = org.subscription_plan || 'free';
+    const { getPlanLimits, hasUnlimitedReservations } = await import('../config/planLimits');
+    const limits = getPlanLimits(plan);
+    const monthlyLimit = hasUnlimitedReservations(plan) ? null : limits.monthlyReservations;
+
+    const now = new Date();
+    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const resetAt = org.monthly_reservation_reset_at ? new Date(org.monthly_reservation_reset_at) : null;
+
+    const isStaleMonth =
+      !resetAt ||
+      resetAt.getFullYear() !== now.getFullYear() ||
+      resetAt.getMonth() !== now.getMonth();
+
+    let currentCount = org.monthly_reservation_count ?? 0;
+
+    if (isStaleMonth) {
+      const { count: realCount } = await supabaseAdmin
+        .from('reservations')
+        .select('id', { count: 'exact', head: true })
+        .eq('restaurant_id', orgId)
+        .neq('status', 'cancelled')
+        .gte('created_at', currentMonthStart.toISOString());
+
+      currentCount = realCount ?? 0;
+      // Update cache (fire-and-forget)
+      supabaseAdmin
+        .from('organizations')
+        .update({
+          monthly_reservation_count: currentCount,
+          monthly_reservation_reset_at: currentMonthStart.toISOString(),
+        })
+        .eq('id', orgId)
+        .then(() => {});
+    }
+
+    const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+    return {
+      plan,
+      subscriptionStatus: org.subscription_status || 'none',
+      monthlyCount: currentCount,
+      monthlyLimit,         // null = unlimited
+      resetDate: nextMonthStart.toISOString().split('T')[0],
+      isUnlimited: monthlyLimit === null,
+      percentUsed: monthlyLimit ? Math.min(100, Math.round((currentCount / monthlyLimit) * 100)) : 0,
+    };
+  }
+
 
   /**
    * Upload a logo image and update the organization record.
@@ -315,8 +392,6 @@ export class OrganizationService {
       email: row.email,
       widgetHeading: row.widget_heading || null,
       widgetCtaText: row.widget_cta_text || null,
-      staffIpLoginEnabled: row.staff_ip_login_enabled || false,
-      staffTrustedIps: row.staff_trusted_ips || '',
       autologinSecret: row.autologin_secret || null,
       openingTime: row.opening_time,
       closingTime: row.closing_time,
@@ -341,6 +416,11 @@ export class OrganizationService {
       isActive: row.is_active,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
+      // Subscription info — used by the frontend for plan-aware feature gating
+      subscriptionPlan: row.subscription_plan || 'free',
+      subscriptionStatus: row.subscription_status || 'none',
+      monthlyReservationCount: row.monthly_reservation_count ?? 0,
+      monthlyReservationResetAt: row.monthly_reservation_reset_at || null,
     };
   }
 }

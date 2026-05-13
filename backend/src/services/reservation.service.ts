@@ -8,6 +8,7 @@ import { sanitizeSearch } from '../utils/sanitize';
 import { bookableTableRowsForDate, buildLayoutTableRows } from '../utils/tableMergeLayout';
 import { emailService } from './email.service';
 import { tableService } from './table.service';
+import { getPlanLimits, hasUnlimitedReservations } from '../config/planLimits';
 
 // Valid status transitions
 const VALID_TRANSITIONS: Record<string, string[]> = {
@@ -95,10 +96,12 @@ export class ReservationService {
    * Create a new reservation.
    */
   async create(restaurantId: string, dto: CreateReservationDto, createdBy?: string) {
-    // Get restaurant settings for default duration and booking window
+    // Get restaurant settings for default duration, booking window, and plan limits
     const { data: org } = await supabaseAdmin
       .from('organizations')
-      .select('default_reservation_duration_min, max_party_size, min_advance_booking_hours, max_advance_booking_days')
+      .select(
+        'default_reservation_duration_min, max_party_size, min_advance_booking_hours, max_advance_booking_days, subscription_plan, subscription_status, monthly_reservation_count, monthly_reservation_reset_at'
+      )
       .eq('id', restaurantId)
       .single();
 
@@ -110,6 +113,64 @@ export class ReservationService {
 
     if (!isStaffCreated && dto.partySize > maxParty) {
       throw new AppError(`Party size cannot exceed ${maxParty}`, 400);
+    }
+
+    // ── Monthly Reservation Limit (Starter Plan: 100/month) ──────────────────
+    // Uses on-read reset: if the stored reset date is from a prior month,
+    // re-count from DB and update the cache before checking.
+    const plan = org?.subscription_plan || 'free';
+    const planLimits = getPlanLimits(plan);
+    const subscriptionStatus = org?.subscription_status || 'none';
+
+    // Skip limit check if: unlimited plan, or active trial
+    if (!hasUnlimitedReservations(plan) && subscriptionStatus !== 'trialing') {
+      const monthlyLimit = planLimits.monthlyReservations;
+
+      if (monthlyLimit > 0) {
+        const now = new Date();
+        const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const resetAt = org?.monthly_reservation_reset_at
+          ? new Date(org.monthly_reservation_reset_at)
+          : null;
+
+        let currentCount = org?.monthly_reservation_count ?? 0;
+
+        // On-read reset: if reset_at is from a prior month, recount from DB
+        const isStaleMonth =
+          !resetAt ||
+          resetAt.getFullYear() !== now.getFullYear() ||
+          resetAt.getMonth() !== now.getMonth();
+
+        if (isStaleMonth) {
+          // Count non-cancelled reservations created this calendar month
+          const { count: realCount } = await supabaseAdmin
+            .from('reservations')
+            .select('id', { count: 'exact', head: true })
+            .eq('restaurant_id', restaurantId)
+            .neq('status', ReservationStatus.CANCELLED)
+            .gte('created_at', currentMonthStart.toISOString());
+
+          currentCount = realCount ?? 0;
+
+          // Update the cached counter and reset date (fire-and-forget)
+          supabaseAdmin
+            .from('organizations')
+            .update({
+              monthly_reservation_count: currentCount,
+              monthly_reservation_reset_at: currentMonthStart.toISOString(),
+            })
+            .eq('id', restaurantId)
+            .then(() => {/* intentionally fire-and-forget */});
+        }
+
+        if (currentCount >= monthlyLimit) {
+          throw new AppError(
+            `Monthly reservation limit reached (${monthlyLimit}/month on the ${plan} plan). ` +
+            `Upgrade to Professional for unlimited bookings.`,
+            403
+          );
+        }
+      }
     }
 
     // Enforce booking window — only for public/customer bookings.
@@ -245,8 +306,30 @@ export class ReservationService {
       }
     }
 
+    // Increment monthly counter (fire-and-forget, non-blocking)
+    if (!hasUnlimitedReservations(plan)) {
+      this.incrementMonthlyCount(restaurantId).catch(() => {/* non-critical */});
+    }
+
     return this.formatReservation(createdRes);
+
   }
+
+  /**
+   * Increment the monthly reservation counter for an org (fire-and-forget).
+   * Called internally after a successful reservation creation.
+   * Only meaningful for plans with finite monthly limits.
+   */
+  private async incrementMonthlyCount(restaurantId: string): Promise<void> {
+    try {
+      await supabaseAdmin.rpc('increment_monthly_reservation_count', {
+        p_restaurant_id: restaurantId,
+      });
+    } catch {
+      // Non-critical — counter will self-correct on next on-read reset
+    }
+  }
+
 
   /**
    * Update a reservation with conflict detection.

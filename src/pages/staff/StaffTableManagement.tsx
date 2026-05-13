@@ -103,6 +103,7 @@ export default function StaffTableManagement() {
   const [dbReservations, setDbReservations] = useState<any[]>([])
   const [restaurantName, setRestaurantName] = useState('Staff Dashboard')
   const [orgData, setOrgData] = useState<any>(null)
+  const [usageData, setUsageData] = useState<any>(null)
 
   // Modal State
   const [selectedBooking, setSelectedBooking] = useState<any>(null)
@@ -191,13 +192,14 @@ export default function StaffTableManagement() {
     }
     try {
       setLoading(true)
-      const [tablesRes, resvRes, orgRes, areasRes] = await Promise.all([
+      const [tablesRes, resvRes, orgRes, areasRes, usageRes] = await Promise.all([
         api.get(`/organizations/${rid}/tables`, {
           params: { forDate: d, layoutTime: viewTime.slice(0, 5) },
         }),
         api.get(`/organizations/${rid}/reservations?date=${d}&limit=500&sortBy=start_time&sortOrder=asc`),
         api.get(`/organizations/${rid}`),
-        api.get(`/organizations/${rid}/tables/areas`)
+        api.get(`/organizations/${rid}/tables/areas`),
+        api.get(`/organizations/${rid}/usage`).catch(() => null)
       ])
 
       setDbTables(tablesRes.data.data || [])
@@ -205,6 +207,9 @@ export default function StaffTableManagement() {
       setDbReservations(resvRes.data.data?.reservations || []) 
       setRestaurantName(orgRes.data.data?.name || 'Staff Dashboard')
       setOrgData(orgRes.data.data)
+      if (usageRes?.data?.data) {
+        setUsageData(usageRes.data.data)
+      }
       setLastRefreshed(new Date())
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error)
@@ -935,6 +940,44 @@ export default function StaffTableManagement() {
             </div>
           ))}
         </div>
+
+        {/* Plan Usage Indicator */}
+        {usageData && usageData.plan === 'starter' && (
+          <div style={{ backgroundColor: 'var(--bg-card)', padding: '20px 24px', borderRadius: '16px', border: '1px solid var(--border-primary)', marginBottom: '40px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)' }}>Monthly Reservations Limit</span>
+                <span style={{ backgroundColor: isDark ? 'rgba(201,156,99,0.15)' : '#FFF7ED', color: '#C99C63', padding: '2px 8px', borderRadius: '100px', fontSize: '0.75rem', fontWeight: 700 }}>STARTER PLAN</span>
+              </div>
+              <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{usageData.monthlyCount}</span> / {usageData.monthlyLimit} reservations
+              </div>
+            </div>
+            
+            {/* Progress Bar */}
+            <div style={{ width: '100%', height: '8px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '4px', overflow: 'hidden' }}>
+              <div style={{ 
+                height: '100%', 
+                width: `${usageData.percentUsed}%`, 
+                backgroundColor: usageData.percentUsed >= 100 ? '#ef4444' : usageData.percentUsed >= 80 ? '#f59e0b' : '#10b981',
+                transition: 'width 0.5s ease-out',
+                borderRadius: '4px'
+              }} />
+            </div>
+            
+            {/* Warning Text */}
+            {usageData.percentUsed >= 100 ? (
+              <div style={{ fontSize: '0.875rem', color: '#ef4444', fontWeight: 500, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>You have reached your monthly reservation limit. Additional reservations will be blocked.</span>
+                <button onClick={() => window.open('/admin', '_blank')} style={{ padding: '6px 12px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>Upgrade Now</button>
+              </div>
+            ) : usageData.percentUsed >= 80 ? (
+              <div style={{ fontSize: '0.875rem', color: '#f59e0b', fontWeight: 500 }}>
+                You are approaching your monthly reservation limit. Upgrade to Professional for unlimited bookings.
+              </div>
+            ) : null}
+          </div>
+        )}
 
         {/* View Controls & Date Navigation */}
         <div style={{ backgroundColor: 'var(--bg-card)', borderRadius: '24px', border: '1px solid var(--border-primary)', overflow: 'hidden', boxShadow: 'var(--shadow-md)', transition: 'background-color 0.3s, border-color 0.3s' }}>

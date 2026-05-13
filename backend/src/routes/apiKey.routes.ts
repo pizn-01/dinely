@@ -5,13 +5,15 @@ import { requireMinRole, requireRestaurantAccess } from '../middleware/rbac';
 import { validate } from '../middleware/validator';
 import { createApiKeySchema } from '../validators/apiKey.validator';
 import { UserRole } from '../types/enums';
+import { planGate } from '../middleware/planGate';
 
 const router = Router({ mergeParams: true });
 
-// All API key routes require authentication and manager+ role
+// All API key routes require authentication, manager+ role, and Professional plan
 router.use(authenticate);
 router.use(requireRestaurantAccess);
 router.use(requireMinRole(UserRole.MANAGER));
+router.use(planGate('eposIntegration'));
 
 // GET /organizations/:orgId/api-keys
 router.get('/',

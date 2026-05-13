@@ -21,9 +21,6 @@ export const staffLoginSchema = z.object({
   restaurantSlug: z.string().optional(),
 });
 
-export const staffIpLoginSchema = z.object({
-  restaurantSlug: z.string().min(1, 'restaurantSlug is required'),
-});
 
 export const forgotPasswordSchema = z.object({
   email: z.string().email('Invalid email address'),

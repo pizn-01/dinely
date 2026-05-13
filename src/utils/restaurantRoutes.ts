@@ -35,3 +35,7 @@ export function bookTablePath(slug?: string | null) {
 export function userReservePath(slug?: string | null) {
   return slug && slug !== 'default-restaurant' ? `/user-reserve/${encodeSlug(slug)}` : '/user-reserve'
 }
+
+export function adminBillingPath(slug?: string | null) {
+  return '/admin' // Billing is handled within the admin dashboard settings tab for now
+}

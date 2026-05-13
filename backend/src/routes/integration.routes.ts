@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { integrationController } from '../controllers/integration.controller';
 import { authenticateApiKey } from '../middleware/apiKeyAuth';
+import { planGate } from '../middleware/planGate';
 import { validate } from '../middleware/validator';
 import { rateLimit } from '../middleware/rateLimiter';
 import { 
@@ -41,6 +42,10 @@ const router = Router();
 
 // ─── Authentication ─────────────────────────────────────
 router.use(authenticateApiKey);
+
+// ─── Plan Gate: ePOS Integration requires Professional plan ──
+// Applies to every route in this router.
+router.use(planGate('eposIntegration'));
 
 // ─── Integration-specific rate limiter ──────────────────
 // 600 requests per 15 minutes, keyed by API key (restaurantId)

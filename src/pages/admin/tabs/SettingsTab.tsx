@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, Copy, Check, Upload, Image as ImageIcon, Save, Clock, Users, CreditCard, Merge, Footprints, FileText, DollarSign, CalendarDays, Settings2, RefreshCw } from 'lucide-react'
 import { api } from '../../../services/api'
 import { toast } from 'react-hot-toast'
+import { UpgradeBanner } from '../../../components/UpgradeBanner'
 
 interface SettingsTabProps {
   theme: 'dark' | 'light'
@@ -31,8 +32,6 @@ interface OrgSettings {
   email: string
   widgetHeading?: string
   widgetCtaText?: string
-  staffIpLoginEnabled?: boolean
-  staffTrustedIps?: string
   openingTime: string
   closingTime: string
   currency: string
@@ -69,8 +68,6 @@ const defaultSettings: OrgSettings = {
   email: '',
   widgetHeading: '',
   widgetCtaText: '',
-  staffIpLoginEnabled: false,
-  staffTrustedIps: '',
   openingTime: '12:00',
   closingTime: '22:00',
   currency: 'GBP',
@@ -109,6 +106,7 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
   const [hasChanges, setHasChanges] = useState(false)
 
   const [connectingStripe, setConnectingStripe] = useState(false)
+  const [subscriptionPlan, setSubscriptionPlan] = useState<string>('free')
 
   useEffect(() => {
     if (!orgId) return
@@ -119,6 +117,7 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
         if (org?.slug) setRestaurantSlug(org.slug)
         if (org?.logoUrl) setLogoUrl(org.logoUrl)
         if (org?.widgetBgUrl) setWidgetBgUrl(org.widgetBgUrl)
+        if (org?.subscriptionPlan) setSubscriptionPlan(org.subscriptionPlan)
 
         let isStripeComplete = org?.stripeOnboardingComplete ?? false
 
@@ -141,8 +140,6 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
           email: org?.email || '',
           widgetHeading: org?.widgetHeading || '',
           widgetCtaText: org?.widgetCtaText || '',
-          staffIpLoginEnabled: org?.staffIpLoginEnabled ?? false,
-          staffTrustedIps: org?.staffTrustedIps || '',
           openingTime: org?.openingTime || '12:00',
           closingTime: org?.closingTime || '22:00',
           currency: org?.currency || 'GBP',
@@ -254,8 +251,6 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
         email: settings.email?.trim() ? settings.email.trim() : undefined,
         widgetHeading: settings.widgetHeading,
         widgetCtaText: settings.widgetCtaText,
-        staffIpLoginEnabled: settings.staffIpLoginEnabled,
-        staffTrustedIps: settings.staffTrustedIps,
         openingTime: settings.openingTime,
         closingTime: settings.closingTime,
         currency: settings.currency,
@@ -655,29 +650,41 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
           {/* Public Widget & Landing Page Text */}
           <div style={cardStyle}>
             <h3 style={{ fontSize: '1rem', fontWeight: 500, marginBottom: '8px' }}>Landing Page & Widget Text</h3>
-            <p style={{ color: isDark ? '#8b949e' : '#6b7280', fontSize: '0.875rem', marginBottom: '20px' }}>
-              Customize the title and subtext shown on your public landing page and reservation widget.
-            </p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
-              <div>
-                <label style={labelStyle}>Heading (Title)</label>
-                <textarea
-                  value={settings.widgetHeading || ''}
-                  onChange={(e) => setSettings({ ...settings, widgetHeading: e.target.value })}
-                  placeholder="e.g. Exceptional culinary moments await."
-                  style={{ ...inputStyle, minHeight: '60px', resize: 'vertical' as const, fontFamily: 'inherit' }}
-                />
-              </div>
-              <div>
-                <label style={labelStyle}>Subtext & CTA Description</label>
-                <textarea
-                  value={settings.widgetCtaText || ''}
-                  onChange={(e) => setSettings({ ...settings, widgetCtaText: e.target.value })}
-                  placeholder="e.g. Reserve your table seamlessly. Discover exclusive menus..."
-                  style={{ ...inputStyle, minHeight: '80px', resize: 'vertical' as const, fontFamily: 'inherit' }}
-                />
-              </div>
-            </div>
+            
+            {subscriptionPlan === 'starter' ? (
+              <UpgradeBanner
+                title="Landing Page Customization is Locked"
+                description="Upgrade to the Professional plan to customize the heading and call-to-action text on your public reservation page."
+                restaurantSlug={restaurantSlug}
+                isDark={isDark}
+              />
+            ) : (
+              <>
+                <p style={{ color: isDark ? '#8b949e' : '#6b7280', fontSize: '0.875rem', marginBottom: '20px' }}>
+                  Customize the title and subtext shown on your public landing page and reservation widget.
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
+                  <div>
+                    <label style={labelStyle}>Heading (Title)</label>
+                    <textarea
+                      value={settings.widgetHeading || ''}
+                      onChange={(e) => setSettings({ ...settings, widgetHeading: e.target.value })}
+                      placeholder="e.g. Exceptional culinary moments await."
+                      style={{ ...inputStyle, minHeight: '60px', resize: 'vertical' as const, fontFamily: 'inherit' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Subtext & CTA Description</label>
+                    <textarea
+                      value={settings.widgetCtaText || ''}
+                      onChange={(e) => setSettings({ ...settings, widgetCtaText: e.target.value })}
+                      placeholder="e.g. Reserve your table seamlessly. Discover exclusive menus..."
+                      style={{ ...inputStyle, minHeight: '80px', resize: 'vertical' as const, fontFamily: 'inherit' }}
+                    />
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Email Branding Settings */}
@@ -805,7 +812,14 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
               <CreditCard size={18} style={{ color: '#C99C63' }} /> Stripe Integration
             </h3>
 
-            {settings.stripeOnboardingComplete ? (
+            {subscriptionPlan === 'starter' ? (
+              <UpgradeBanner
+                title="Stripe Payment Gateway is Locked"
+                description="Upgrade to the Professional plan to collect upfront payments, charge VIP membership fees, and reduce no-shows with integrated Stripe payments."
+                restaurantSlug={restaurantSlug}
+                isDark={isDark}
+              />
+            ) : settings.stripeOnboardingComplete ? (
               <>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '24px', backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
                   <div style={{ padding: '8px', backgroundColor: '#10b981', color: '#fff', borderRadius: '50%' }}>
@@ -961,69 +975,81 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
           {/* Widget Background Image */}
           <div style={cardStyle}>
             <h3 style={{ fontSize: '1rem', fontWeight: 500, marginBottom: '8px' }}>Widget Background Image</h3>
-            <p style={{ color: isDark ? '#8b949e' : '#6b7280', fontSize: '0.875rem', marginBottom: '24px' }}>
-              Upload a custom background image for your public reservation page.
-              This image appears behind the hero section when guests visit your booking link.
-              (Max size: 10MB. Formats: PNG, JPG, WebP).
-            </p>
+            
+            {subscriptionPlan === 'starter' ? (
+              <UpgradeBanner
+                title="Custom Background Image is Locked"
+                description="Upgrade to the Professional plan to upload a custom background image for your public reservation page."
+                restaurantSlug={restaurantSlug}
+                isDark={isDark}
+              />
+            ) : (
+              <>
+                <p style={{ color: isDark ? '#8b949e' : '#6b7280', fontSize: '0.875rem', marginBottom: '24px' }}>
+                  Upload a custom background image for your public reservation page.
+                  This image appears behind the hero section when guests visit your booking link.
+                  (Max size: 10MB. Formats: PNG, JPG, WebP).
+                </p>
 
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '32px' }}>
-              <div style={{
-                width: '200px',
-                height: '120px',
-                borderRadius: '12px',
-                border: `2px dashed ${isDark ? '#30363d' : '#d1d5db'}`,
-                backgroundColor: isDark ? '#161B22' : '#f9fafb',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                overflow: 'hidden'
-              }}>
-                {widgetBgUrl ? (
-                  <img src={widgetBgUrl} alt="Widget Background" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '10px' }} />
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', color: isDark ? '#8b949e' : '#9ca3af' }}>
-                    <ImageIcon size={32} style={{ marginBottom: '8px' }} />
-                    <span style={{ fontSize: '0.75rem' }}>No Background</span>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '32px' }}>
+                  <div style={{
+                    width: '200px',
+                    height: '120px',
+                    borderRadius: '12px',
+                    border: `2px dashed ${isDark ? '#30363d' : '#d1d5db'}`,
+                    backgroundColor: isDark ? '#161B22' : '#f9fafb',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    overflow: 'hidden'
+                  }}>
+                    {widgetBgUrl ? (
+                      <img src={widgetBgUrl} alt="Widget Background" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '10px' }} />
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', color: isDark ? '#8b949e' : '#9ca3af' }}>
+                        <ImageIcon size={32} style={{ marginBottom: '8px' }} />
+                        <span style={{ fontSize: '0.75rem' }}>No Background</span>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
 
-              <div style={{ flex: 1 }}>
-                <label style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '10px 20px',
-                  backgroundColor: isDark ? '#238636' : '#C99C63',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontWeight: 600,
-                  fontSize: '0.875rem',
-                  cursor: uploadingWidgetBg ? 'wait' : 'pointer',
-                  transition: 'opacity 0.2s',
-                  opacity: uploadingWidgetBg ? 0.7 : 1
-                }}>
-                  <Upload size={16} />
-                  {uploadingWidgetBg ? 'Uploading...' : 'Upload Background'}
-                  <input
-                    type="file"
-                    accept=".png,.jpg,.jpeg,.webp"
-                    onChange={handleWidgetBgUpload}
-                    disabled={uploadingWidgetBg}
-                    style={{ display: 'none' }}
-                  />
-                </label>
+                  <div style={{ flex: 1 }}>
+                    <label style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '10px 20px',
+                      backgroundColor: isDark ? '#238636' : '#C99C63',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontWeight: 600,
+                      fontSize: '0.875rem',
+                      cursor: uploadingWidgetBg ? 'wait' : 'pointer',
+                      transition: 'opacity 0.2s',
+                      opacity: uploadingWidgetBg ? 0.7 : 1
+                    }}>
+                      <Upload size={16} />
+                      {uploadingWidgetBg ? 'Uploading...' : 'Upload Background'}
+                      <input
+                        type="file"
+                        accept=".png,.jpg,.jpeg,.webp"
+                        onChange={handleWidgetBgUpload}
+                        disabled={uploadingWidgetBg}
+                        style={{ display: 'none' }}
+                      />
+                    </label>
 
-                {widgetBgUploadSuccess && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#10b981', fontSize: '0.875rem', marginTop: '12px', fontWeight: 500 }}>
-                    <Check size={16} />
-                    Background updated successfully
+                    {widgetBgUploadSuccess && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#10b981', fontSize: '0.875rem', marginTop: '12px', fontWeight: 500 }}>
+                        <Check size={16} />
+                        Background updated successfully
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            </div>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Staff Link */}
@@ -1073,154 +1099,144 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
           {/* POS Autologin Integration */}
           <div style={cardStyle}>
             <h3 style={{ fontSize: '1rem', fontWeight: 500, marginBottom: '8px' }}>POS Autologin Integration</h3>
-            <p style={{ color: isDark ? '#8b949e' : '#6b7280', fontSize: '0.875rem', marginBottom: '16px' }}>
-              Use these credentials to integrate your ePOS system. The ePOS should generate a signed link to bypass manual staff login.
-            </p>
             
-            <div style={{ marginBottom: '20px' }}>
-              <label style={labelStyle}>Integration Secret (for HMAC-SHA256 signing)</label>
-              <div style={{ display: 'flex', gap: '12px' }}>
-                <input
-                  type="text"
-                  readOnly
-                  value={settings.autologinSecret || 'Not Configured'}
-                  style={{
-                    flex: 1,
-                    padding: '10px 16px',
-                    backgroundColor: isDark ? '#161B22' : '#f3f4f6',
-                    border: `1px solid ${isDark ? '#30363d' : '#d1d5db'}`,
-                    borderRadius: '6px',
-                    color: isDark ? '#c9d1d9' : '#374151',
-                    fontSize: '0.875rem',
-                    fontFamily: 'monospace'
-                  }}
-                />
-                <button
-                  onClick={async () => {
-                    const newSecret = crypto.randomUUID()
-                    try {
-                      const { data } = await api.put(`/organizations/${orgId}`, {
-                        autologinSecret: newSecret
-                      })
-                      if (data.success) {
-                        setSettings(prev => ({ ...prev, autologinSecret: newSecret }))
-                        toast.success('Secret regenerated successfully')
-                      }
-                    } catch (err) {
-                      toast.error('Failed to regenerate secret')
-                    }
-                  }}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: '10px 16px',
-                    backgroundColor: isDark ? '#30363d' : '#e5e7eb',
-                    color: isDark ? '#ffffff' : '#374151',
-                    border: 'none',
-                    borderRadius: '6px',
-                    fontWeight: 500,
-                    fontSize: '0.875rem',
-                    cursor: 'pointer'
-                  }}
-                  title="Regenerate Secret"
-                >
-                  <RefreshCw size={16} />
-                </button>
-                <button
-                  onClick={() => {
-                    if (settings.autologinSecret) {
-                      navigator.clipboard.writeText(settings.autologinSecret)
-                      toast.success('Secret copied to clipboard')
-                    }
-                  }}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: '10px 16px',
-                    backgroundColor: isDark ? '#30363d' : '#e5e7eb',
-                    color: isDark ? '#ffffff' : '#374151',
-                    border: 'none',
-                    borderRadius: '6px',
-                    fontWeight: 500,
-                    fontSize: '0.875rem',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <Copy size={16} />
-                </button>
-              </div>
-            </div>
+            {subscriptionPlan === 'starter' ? (
+              <UpgradeBanner
+                title="ePOS Integration is Locked"
+                description="Upgrade to the Professional plan to unlock seamless ePOS integration and POS autologin capabilities for your staff."
+                restaurantSlug={restaurantSlug}
+                isDark={isDark}
+              />
+            ) : (
+              <>
+                <p style={{ color: isDark ? '#8b949e' : '#6b7280', fontSize: '0.875rem', marginBottom: '16px' }}>
+                  Use these credentials to integrate your ePOS system. The ePOS should generate a signed link to bypass manual staff login.
+                </p>
+                
+                <div style={{ marginBottom: '20px' }}>
+                  <label style={labelStyle}>Integration Secret (for HMAC-SHA256 signing)</label>
+                  <div style={{ display: 'flex', gap: '12px' }}>
+                    <input
+                      type="text"
+                      readOnly
+                      value={settings.autologinSecret || 'Not Configured'}
+                      style={{
+                        flex: 1,
+                        padding: '10px 16px',
+                        backgroundColor: isDark ? '#161B22' : '#f3f4f6',
+                        border: `1px solid ${isDark ? '#30363d' : '#d1d5db'}`,
+                        borderRadius: '6px',
+                        color: isDark ? '#c9d1d9' : '#374151',
+                        fontSize: '0.875rem',
+                        fontFamily: 'monospace'
+                      }}
+                    />
+                    <button
+                      onClick={async () => {
+                        const newSecret = crypto.randomUUID()
+                        try {
+                          const { data } = await api.put(`/organizations/${orgId}`, {
+                            autologinSecret: newSecret
+                          })
+                          if (data.success) {
+                            setSettings(prev => ({ ...prev, autologinSecret: newSecret }))
+                            toast.success('Secret regenerated successfully')
+                          }
+                        } catch (err) {
+                          toast.error('Failed to regenerate secret')
+                        }
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '10px 16px',
+                        backgroundColor: isDark ? '#30363d' : '#e5e7eb',
+                        color: isDark ? '#ffffff' : '#374151',
+                        border: 'none',
+                        borderRadius: '6px',
+                        fontWeight: 500,
+                        fontSize: '0.875rem',
+                        cursor: 'pointer'
+                      }}
+                      title="Regenerate Secret"
+                    >
+                      <RefreshCw size={16} />
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (settings.autologinSecret) {
+                          navigator.clipboard.writeText(settings.autologinSecret)
+                          toast.success('Secret copied to clipboard')
+                        }
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '10px 16px',
+                        backgroundColor: isDark ? '#30363d' : '#e5e7eb',
+                        color: isDark ? '#ffffff' : '#374151',
+                        border: 'none',
+                        borderRadius: '6px',
+                        fontWeight: 500,
+                        fontSize: '0.875rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <Copy size={16} />
+                    </button>
+                  </div>
+                </div>
 
-            <div>
-              <label style={labelStyle}>Autologin Base URL</label>
-              <div style={{ display: 'flex', gap: '12px' }}>
-                <input
-                  type="text"
-                  readOnly
-                  value={`${window.location.origin}/autologin`}
-                  style={{
-                    flex: 1,
-                    padding: '10px 16px',
-                    backgroundColor: isDark ? '#161B22' : '#f3f4f6',
-                    border: `1px solid ${isDark ? '#30363d' : '#d1d5db'}`,
-                    borderRadius: '6px',
-                    color: isDark ? '#c9d1d9' : '#374151',
-                    fontSize: '0.875rem',
-                    fontFamily: 'monospace'
-                  }}
-                />
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(`${window.location.origin}/autologin`)
-                    toast.success('Base URL copied')
-                  }}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: '10px 16px',
-                    backgroundColor: isDark ? '#30363d' : '#e5e7eb',
-                    color: isDark ? '#ffffff' : '#374151',
-                    border: 'none',
-                    borderRadius: '6px',
-                    fontWeight: 500,
-                    fontSize: '0.875rem',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <Copy size={16} />
-                </button>
-              </div>
-              <p style={{ color: '#8b949e', fontSize: '0.75rem', marginTop: '8px' }}>
-                Parameters required: <code>slug</code>, <code>email</code>, and <code>hash</code> (HMAC-SHA256).
-              </p>
-            </div>
+                <div>
+                  <label style={labelStyle}>Autologin Base URL</label>
+                  <div style={{ display: 'flex', gap: '12px' }}>
+                    <input
+                      type="text"
+                      readOnly
+                      value={`${window.location.origin}/autologin`}
+                      style={{
+                        flex: 1,
+                        padding: '10px 16px',
+                        backgroundColor: isDark ? '#161B22' : '#f3f4f6',
+                        border: `1px solid ${isDark ? '#30363d' : '#d1d5db'}`,
+                        borderRadius: '6px',
+                        color: isDark ? '#c9d1d9' : '#374151',
+                        fontSize: '0.875rem',
+                        fontFamily: 'monospace'
+                      }}
+                    />
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(`${window.location.origin}/autologin`)
+                        toast.success('Base URL copied')
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '10px 16px',
+                        backgroundColor: isDark ? '#30363d' : '#e5e7eb',
+                        color: isDark ? '#ffffff' : '#374151',
+                        border: 'none',
+                        borderRadius: '6px',
+                        fontWeight: 500,
+                        fontSize: '0.875rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <Copy size={16} />
+                    </button>
+                  </div>
+                  <p style={{ color: '#8b949e', fontSize: '0.75rem', marginTop: '8px' }}>
+                    Parameters required: <code>slug</code>, <code>email</code>, and <code>hash</code> (HMAC-SHA256).
+                  </p>
+                </div>
+              </>
+            )}
           </div>
-          {/* POS Trusted IP Auto-Login */}
-          <div style={cardStyle}>
-            <h3 style={{ fontSize: '1rem', fontWeight: 500, marginBottom: '8px' }}>POS Trusted IP Auto-Login</h3>
-            <p style={{ color: isDark ? '#8b949e' : '#6b7280', fontSize: '0.875rem', marginBottom: '16px' }}>
-              If enabled, staff login can be automatic for requests coming from trusted IPs (recommended only on locked-down POS networks).
-            </p>
-            <div style={{ borderTop: `1px solid ${isDark ? '#21262d' : '#f3f4f6'}` }}>
-              <ToggleSwitch
-                checked={!!settings.staffIpLoginEnabled}
-                onChange={(v) => setSettings({ ...settings, staffIpLoginEnabled: v })}
-                label="Enable trusted-IP staff auto-login"
-              />
-            </div>
-            <div style={{ marginTop: '12px' }}>
-              <label style={labelStyle}>Trusted IPs (one per line or comma-separated)</label>
-              <textarea
-                value={settings.staffTrustedIps || ''}
-                onChange={(e) => setSettings({ ...settings, staffTrustedIps: e.target.value })}
-                placeholder="e.g. 203.0.113.10&#10;203.0.113.11"
-                style={{ ...inputStyle, minHeight: '96px', resize: 'vertical' as const, fontFamily: 'inherit' }}
-              />
-            </div>
-          </div>
+
 
           {/* Public Widget */}
           <div style={cardStyle}>

@@ -21,35 +21,7 @@ export default function StaffLogin() {
   const [error, setError] = useState('')
   const [restaurantName, setRestaurantName] = useState('')
   const [logoUrl, setLogoUrl] = useState('')
-  const [autoLoginAttempted, setAutoLoginAttempted] = useState(false)
 
-  // Note: For security reasons we do NOT support embedding passwords in URLs.
-  // If a slug is present, the backend can optionally support trusted-IP auto-login
-  // (if enabled per restaurant) via a dedicated endpoint.
-  useEffect(() => {
-    if (!slug || autoLoginAttempted) return
-    setAutoLoginAttempted(true)
-    const tryIpAutoLogin = async () => {
-      setLoading(true)
-      setError('')
-      try {
-        const { data } = await api.post('/auth/staff-login-ip', { restaurantSlug: slug })
-        const { token, refreshToken: rToken, user, restaurant } = data.data
-        if (rToken) localStorage.setItem('refreshToken', rToken)
-        const rs = restaurant?.slug || slug
-        login(token, { ...user, restaurantId: restaurant?.id, restaurantSlug: rs })
-        if (rs) navigate(staffTablesPath(rs))
-        else navigate('/staff/tables')
-      } catch {
-        // Silent failure – user can still log in manually
-      } finally {
-        setLoading(false)
-      }
-    }
-    tryIpAutoLogin()
-  }, [slug, autoLoginAttempted, login, navigate])
-
-  // Fetch restaurant name from slug for display
   useEffect(() => {
     if (!slug) return
     const fetchRestaurant = async () => {

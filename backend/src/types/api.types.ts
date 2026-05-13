@@ -71,8 +71,6 @@ export interface UpdateOrganizationDto {
   cancellationPolicy?: string;
   widgetHeading?: string;
   widgetCtaText?: string;
-  staffIpLoginEnabled?: boolean;
-  staffTrustedIps?: string;
   setupCompleted?: boolean;
   logoUrl?: string;
   vipMembershipFee?: number;
@@ -229,6 +227,8 @@ export interface AuthResponse {
     stripeAccountId?: string;
     stripeOnboardingComplete?: boolean;
     vipMembershipFee?: number;
+    subscriptionPlan?: string;
+    subscriptionStatus?: string;
   };
 }
 

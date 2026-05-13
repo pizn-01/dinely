@@ -98,6 +98,16 @@ export class OrganizationController {
       next(error);
     }
   }
+
+  async getMonthlyUsage(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const orgId = param(req, 'orgId');
+      const result = await organizationService.getMonthlyUsage(orgId);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const organizationController = new OrganizationController();

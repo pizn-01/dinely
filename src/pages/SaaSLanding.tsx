@@ -277,9 +277,9 @@ export default function SaaSLanding() {
              <h3 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '16px' }}>Starter</h3>
              <div style={{ fontSize: '2.5rem', fontWeight: 800, marginBottom: '24px' }}>{currency.symbol}{currency.starterPrice} <span style={{ fontSize: '1rem', color: textMuted, fontWeight: 500 }}>/ month</span></div>
              <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 32px 0', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-               <li style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.95rem' }}><Check size={18} color={primaryNavy} /> Basic reservation system</li>
-               <li style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.95rem' }}><Check size={18} color={primaryNavy} /> Unlimited bookings</li>
-               <li style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.95rem' }}><Check size={18} color={primaryNavy} /> Guest + user booking</li>
+               <li style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.95rem' }}><Check size={18} color={primaryNavy} /> Up to 100 bookings / month</li>
+               <li style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.95rem' }}><Check size={18} color={primaryNavy} /> Staff & Guest booking</li>
+               <li style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.95rem' }}><Check size={18} color={primaryNavy} /> Standard landing page</li>
                <li style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.95rem' }}><Check size={18} color={primaryNavy} /> Email notifications</li>
              </ul>
              <Link to="/get-started?plan=starter" style={{ display: 'block', textAlign: 'center', backgroundColor: primaryNavy, color: '#ffffff', padding: '14px', borderRadius: '8px', textDecoration: 'none', fontWeight: 600 }}>Get Started</Link>
@@ -293,9 +293,9 @@ export default function SaaSLanding() {
              <div style={{ fontSize: '2.5rem', fontWeight: 800, marginBottom: '24px' }}>{currency.symbol}{currency.proPrice} <span style={{ fontSize: '1rem', color: 'rgba(255,255,255,0.8)', fontWeight: 500 }}>/ month</span></div>
              <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 32px 0', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                <li style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.95rem' }}><Check size={18} color={goldAccent} /> Unlimited bookings</li>
-               <li style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.95rem' }}><Check size={18} color={goldAccent} /> All reservation flows</li>
-               <li style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.95rem' }}><Check size={18} color={goldAccent} /> Staff booking system</li>
-               <li style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.95rem' }}><Check size={18} color={goldAccent} /> Basic analytics</li>
+               <li style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.95rem' }}><Check size={18} color={goldAccent} /> All reservation flows (incl. VIP)</li>
+               <li style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.95rem' }}><Check size={18} color={goldAccent} /> ePOS Integration API</li>
+               <li style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.95rem' }}><Check size={18} color={goldAccent} /> Customizable landing page</li>
                <li style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.95rem' }}><Check size={18} color={goldAccent} /> Priority support</li>
              </ul>
              <Link to="/get-started?plan=professional" style={{ display: 'block', textAlign: 'center', backgroundColor: '#ffffff', color: primaryNavy, padding: '14px', borderRadius: '8px', textDecoration: 'none', fontWeight: 700 }}>Get Started</Link>

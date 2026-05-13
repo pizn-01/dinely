@@ -3,6 +3,7 @@ import { stripeController } from '../controllers/stripe.controller';
 import { authenticate } from '../middleware/auth';
 import { requireRole } from '../middleware/rbac';
 import { UserRole } from '../types/enums';
+import { planGate } from '../middleware/planGate';
 import { AuthenticatedRequest } from '../types/api.types';
 
 const router = Router();
@@ -27,6 +28,12 @@ router.post(
   authenticate,
   requireRole(UserRole.RESTAURANT_ADMIN),
   requireOrgOwnership,
+  // planGate looks for req.restaurantId, so we set it from the param first
+  (req, res, next) => {
+    (req as any).restaurantId = req.params.id;
+    next();
+  },
+  planGate('paymentGateway'),
   stripeController.getConnectLink.bind(stripeController)
 );
 

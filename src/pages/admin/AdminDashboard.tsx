@@ -14,14 +14,16 @@ import FloorMapTab from './tabs/FloorMapTab'
 import PoweredByFooter from '../../components/PoweredByFooter'
 import SettingsTab from './tabs/SettingsTab'
 import SupportTab from './tabs/SupportTab'
+import IntegrationGuideTab from './tabs/IntegrationGuideTab'
 
-const tabs = [
+const ALL_TABS = [
   { id: 'reservation', label: 'Reservation' },
   { id: 'tables', label: 'Tables Management' },
   { id: 'staff', label: 'Staff Management' },
   { id: 'waitinglist', label: 'Waiting List' },
   { id: 'floormap', label: 'Floor Map' },
   { id: 'support', label: 'Support & Feedback' },
+  { id: 'integration', label: 'Integration Guide', reqPlan: 'professional' },
   { id: 'settings', label: 'Settings' },
 ]
 
@@ -156,7 +158,7 @@ export default function AdminDashboard() {
             borderBottom: `1px solid ${isDark ? '#30363d' : '#e5e7eb'}`,
             marginBottom: '24px' // Add space below tabs
           }}>
-            {tabs.map((tab) => (
+            {ALL_TABS.filter(t => !t.reqPlan || orgData?.subscriptionPlan !== 'starter').map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
@@ -197,6 +199,7 @@ export default function AdminDashboard() {
             {activeTab === 'waitinglist' && <WaitingListTab theme={isDark ? 'dark' : 'light'} orgId={orgId} serverToday={stats.serverToday} />}
             {activeTab === 'floormap' && <FloorMapTab theme={isDark ? 'dark' : 'light'} orgId={orgId} />}
             {activeTab === 'support' && <SupportTab theme={isDark ? 'dark' : 'light'} orgId={orgId} />}
+            {activeTab === 'integration' && orgData?.subscriptionPlan !== 'starter' && <IntegrationGuideTab theme={isDark ? 'dark' : 'light'} />}
             {activeTab === 'settings' && <SettingsTab theme={isDark ? 'dark' : 'light'} orgId={orgId} />}
           </div>
         </div>

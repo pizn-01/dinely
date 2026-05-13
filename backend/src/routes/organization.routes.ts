@@ -4,6 +4,7 @@ import { authenticate } from '../middleware/auth';
 import { requireMinRole, requireRestaurantAccess } from '../middleware/rbac';
 import { validate } from '../middleware/validator';
 import { updateOrganizationSchema, setupStepSchema } from '../validators/organization.validator';
+import { planGate } from '../middleware/planGate';
 import { UserRole } from '../types/enums';
 
 const router = Router();
@@ -41,6 +42,14 @@ router.get('/:orgId/stats',
   (req, res, next) => organizationController.getStats(req, res, next)
 );
 
+// GET /organizations/:orgId/usage — Monthly reservation count & plan limit
+router.get('/:orgId/usage',
+  requireRestaurantAccess,
+  requireMinRole(UserRole.VIEWER),
+  (req, res, next) => organizationController.getMonthlyUsage(req, res, next)
+);
+
+
 import multer from 'multer';
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
@@ -56,6 +65,7 @@ router.post('/:orgId/logo',
 router.post('/:orgId/widget-bg',
   requireRestaurantAccess,
   requireMinRole(UserRole.RESTAURANT_ADMIN),
+  planGate('customizableLandingPage'),
   upload.single('widgetBg'),
   (req, res, next) => organizationController.uploadWidgetBg(req, res, next)
 );
