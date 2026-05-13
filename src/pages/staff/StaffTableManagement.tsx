@@ -623,6 +623,12 @@ export default function StaffTableManagement() {
     )
   }
 
+  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const
+  const selectedDayOfWeek = dayNames[new Date(selectedDate + 'T00:00:00').getDay()]
+  const weeklyHours = orgData?.weeklyHours
+  const dayConfig = weeklyHours?.[selectedDayOfWeek]
+  const isDayClosed = dayConfig?.closed === true || dayConfig?.closed === 'true'
+
   return (
     <div style={{ minHeight: '100vh', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)', fontFamily: "'Inter', system-ui, sans-serif", transition: 'background-color 0.3s' }}>
       {/* Header Section */}
@@ -669,10 +675,17 @@ export default function StaffTableManagement() {
             Import Reservations
           </button>
           <button 
-            onClick={() => setShowCreateModal(true)}
+            onClick={() => {
+              if (isDayClosed) {
+                toast.error(`The restaurant is closed on ${selectedDayOfWeek.charAt(0).toUpperCase() + selectedDayOfWeek.slice(1)}s.`)
+                return
+              }
+              setShowCreateModal(true)
+            }}
+            disabled={isDayClosed}
             style={{ 
-              backgroundColor: isDark ? '#C99C63' : '#111827', 
-              color: isDark ? '#0B1517' : '#ffffff', 
+              backgroundColor: isDayClosed ? 'var(--bg-tertiary)' : (isDark ? '#C99C63' : '#111827'), 
+              color: isDayClosed ? 'var(--text-tertiary)' : (isDark ? '#0B1517' : '#ffffff'), 
               padding: '10px 24px', 
               borderRadius: '12px', 
               border: 'none', 
@@ -681,7 +694,8 @@ export default function StaffTableManagement() {
               display: 'flex', 
               alignItems: 'center', 
               gap: '8px',
-              cursor: 'pointer',
+              cursor: isDayClosed ? 'not-allowed' : 'pointer',
+              opacity: isDayClosed ? 0.6 : 1,
               transition: 'all 0.2s'
             }}>
             <Plus size={18} />
@@ -866,7 +880,18 @@ export default function StaffTableManagement() {
 
           {/* View Content */}
           <div style={{ minHeight: '500px' }}>
-            {activeTab === 'Table View' && (
+            {isDayClosed && (activeTab === 'Table View' || activeTab === 'Day View') && (
+              <div style={{ padding: '32px' }}>
+                <div style={{ border: `1px solid var(--border-secondary)`, borderRadius: '16px', backgroundColor: 'var(--bg-card)', boxShadow: 'var(--shadow-md)', padding: '64px 32px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '2rem', marginBottom: '16px' }}>🔒</div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 8px 0' }}>Restaurant Closed</h3>
+                  <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', margin: 0 }}>
+                    The restaurant is closed on {selectedDayOfWeek.charAt(0).toUpperCase() + selectedDayOfWeek.slice(1)}s. Select a different day to manage reservations.
+                  </p>
+                </div>
+              </div>
+            )}
+            {activeTab === 'Table View' && !isDayClosed && (
               <div style={{ backgroundColor: 'var(--bg-card)', paddingBottom: '60px', transition: 'background-color 0.3s', position: 'relative' }}>
                 {/* Table View Mode Toggle + Shift+Click hint */}
                 <div style={{ padding: '10px 60px', backgroundColor: isMergeMode ? (isDark ? 'rgba(201,156,99,0.1)' : 'rgba(201,156,99,0.06)') : 'transparent', borderBottom: isMergeMode ? `1px solid rgba(201,156,99,0.2)` : '1px solid transparent', display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'all 0.3s' }}>
@@ -1338,7 +1363,7 @@ export default function StaffTableManagement() {
               </div>
             )}
 
-            {activeTab === 'Day View' && (
+            {activeTab === 'Day View' && !isDayClosed && (
               <div style={{ padding: '40px', display: 'grid', gridTemplateColumns: 'repeat(1, 1fr)', gap: '12px' }}>
                 {dayViewReservations.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '80px', color: 'var(--text-secondary)' }}>
@@ -1557,8 +1582,7 @@ export default function StaffTableManagement() {
                                 const [h, m] = rStartTime.split(':').map(Number)
                                 const actualH = h < startHour ? h + 24 : h
                                 const totalMins = (actualH - startHour) * 60 + m
-                                let startPos = (totalMins / totalMinutesSpan) * 100
-                                startPos = Math.max(0, Math.min(100 - MIN_BAR_PCT, startPos))
+                                const startPos = Math.max(0, (totalMins / totalMinutesSpan) * 100)
                                 
                                 // Calculate width based on actual duration if endTime available
                                 let durationMins = 90 // default
@@ -1567,8 +1591,7 @@ export default function StaffTableManagement() {
                                   if (eh < actualH || (eh === actualH && em < m)) eh += 24
                                   durationMins = (eh * 60 + em) - (actualH * 60 + m)
                                 }
-                                const rawWidth = (durationMins / totalMinutesSpan) * 100
-                                const width = Math.max(MIN_BAR_PCT, Math.min(rawWidth, 100 - startPos))
+                                const width = (durationMins / totalMinutesSpan) * 100
                                 
                                 // Colors strictly from the UI design reference
                                 const isSeated = r.status === 'seated'
@@ -1644,8 +1667,7 @@ export default function StaffTableManagement() {
                              const [h, m] = rStartTime.split(':').map(Number)
                              const actualH = h < startHour ? h + 24 : h
                              const totalMins = (actualH - startHour) * 60 + m
-                             let startPos = (totalMins / totalMinutesSpan) * 100
-                             startPos = Math.max(0, Math.min(100 - MIN_BAR_PCT, startPos))
+                             const startPos = Math.max(0, (totalMins / totalMinutesSpan) * 100)
                              
                              let durationMins = 90
                              if (rEndTime) {
@@ -1653,8 +1675,7 @@ export default function StaffTableManagement() {
                                if (eh < actualH || (eh === actualH && em < m)) eh += 24
                                durationMins = (eh * 60 + em) - (actualH * 60 + m)
                              }
-                             const rawWidth = (durationMins / totalMinutesSpan) * 100
-                             const width = Math.max(MIN_BAR_PCT, Math.min(rawWidth, 100 - startPos))
+                             const width = (durationMins / totalMinutesSpan) * 100
                              
                              return (
                                 <div 
@@ -2335,6 +2356,7 @@ export default function StaffTableManagement() {
           preselectedTable={wizardPreset?.table}
           initialDate={selectedDate}
           initialTime={wizardPreset?.time}
+          weeklyHours={orgData?.weeklyHours}
           onClose={() => { setShowCreateModal(false); setWizardPreset(null) }}
           onSuccess={() => {
             setShowCreateModal(false)

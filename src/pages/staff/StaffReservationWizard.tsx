@@ -15,6 +15,7 @@ interface StaffReservationWizardProps {
   }
   initialDate?: string
   initialTime?: string
+  weeklyHours?: Record<string, any>
 }
 
 export interface ReservationData {
@@ -68,7 +69,7 @@ const initialData: ReservationData = {
   specialRequest: '',
 }
 
-export default function StaffReservationWizard({ restaurantId, onClose, onSuccess, preselectedTable, initialDate, initialTime }: StaffReservationWizardProps) {
+export default function StaffReservationWizard({ restaurantId, onClose, onSuccess, preselectedTable, initialDate, initialTime, weeklyHours }: StaffReservationWizardProps) {
   // If table is preselected, skip the "Select Table" step entirely (3 steps instead of 4)
   const hasPreselectedTable = !!preselectedTable?.id
   const TOTAL_STEPS = hasPreselectedTable ? 3 : 4
@@ -143,9 +144,18 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
     }
   }
 
+  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const
+  const selectedDayOfWeek = dayNames[new Date(data.date + 'T00:00:00').getDay()]
+  const dayConfig = weeklyHours?.[selectedDayOfWeek]
+  const isDayClosed = dayConfig?.closed === true || dayConfig?.closed === 'true'
+
   const handleNext = async () => {
     const content = getContentStep()
     if (content === 'datetime') {
+      if (isDayClosed) {
+        setError(`The restaurant is closed on ${selectedDayOfWeek.charAt(0).toUpperCase() + selectedDayOfWeek.slice(1)}s.`)
+        return
+      }
       if (!hasPreselectedTable) {
         await fetchAvailableTables()
       }
@@ -236,6 +246,11 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
           />
         </div>
       </div>
+      {isDayClosed && (
+        <div style={{ backgroundColor: 'rgba(224,93,93,0.1)', color: 'var(--accent-red)', padding: '12px 16px', borderRadius: '8px', fontSize: '0.875rem', fontWeight: 500, border: '1px solid rgba(224,93,93,0.2)' }}>
+          🔒 The restaurant is closed on {selectedDayOfWeek.charAt(0).toUpperCase() + selectedDayOfWeek.slice(1)}s. Please select an available business day.
+        </div>
+      )}
     </div>
   )
 
@@ -406,8 +421,8 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
           
           <button 
             onClick={handleNext}
-            disabled={loading || loadingTables}
-            style={{ padding: '10px 24px', backgroundColor: 'var(--accent-gold)', border: 'none', borderRadius: '10px', color: '#ffffff', fontSize: '0.875rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', cursor: (loading || loadingTables) ? 'not-allowed' : 'pointer', opacity: (loading || loadingTables) ? 0.7 : 1 }}
+            disabled={loading || loadingTables || (contentStep === 'datetime' && isDayClosed)}
+            style={{ padding: '10px 24px', backgroundColor: 'var(--accent-gold)', border: 'none', borderRadius: '10px', color: '#ffffff', fontSize: '0.875rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', cursor: (loading || loadingTables || (contentStep === 'datetime' && isDayClosed)) ? 'not-allowed' : 'pointer', opacity: (loading || loadingTables || (contentStep === 'datetime' && isDayClosed)) ? 0.7 : 1 }}
           >
             {loading ? 'Processing...' : currentStep === TOTAL_STEPS ? 'Confirm Booking' : 'Next Step'}
             {currentStep < TOTAL_STEPS && <ChevronRight size={16} />}
