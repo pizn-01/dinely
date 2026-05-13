@@ -45,6 +45,8 @@ export const updateOrganizationSchema = z.object({
     saturday: dayHoursSchema,
     sunday: dayHoursSchema,
   }).optional(),
+  brandingColor: z.string().max(50).optional(),
+  emailCustomNote: z.string().max(2000).optional(),
 });
 
 export const setupStepSchema = z.object({

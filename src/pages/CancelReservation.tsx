@@ -21,7 +21,7 @@ export default function CancelReservation() {
 
     const fetchReservation = async () => {
       try {
-        const { data } = await api.get(`/reservations/public/${reservationId}`)
+        const { data } = await api.get(`/public/reservations/${reservationId}`)
         if (data.data) {
           setReservation(data.data)
         } else {
@@ -48,7 +48,7 @@ export default function CancelReservation() {
 
     try {
       setCancelling(true)
-      await api.post(`/reservations/${reservationId}/cancel`, {
+      await api.post(`/public/reservations/${reservationId}/cancel`, {
         reason: reason.trim()
       })
       
