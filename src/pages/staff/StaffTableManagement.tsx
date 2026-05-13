@@ -1941,111 +1941,273 @@ export default function StaffTableManagement() {
               </div>
             )}
 
-            {selectedBooking && (!selectedTable || selectedTable.id !== (selectedBooking.table?.id || selectedBooking.tableId)) && ( // Single Booking Focus Modal
-              <div style={{ backgroundColor: 'var(--bg-tertiary)', borderRadius: '24px', padding: '24px', marginBottom: '32px', border: `1px solid var(--border-primary)`, boxSizing: 'border-box' as const, maxWidth: '100%' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', gap: '12px', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary)' }}>{guestDisplayName(selectedBooking)}</span>
-                  <span style={{ color: '#C99C63', fontWeight: 800 }}>{selectedBooking.startTime?.slice(0, 5)}</span>
-                </div>
-                <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-                  {selectedBooking.partySize} Guests • {selectedBooking.table?.name || selectedBooking.table?.tableNumber ? `Table ${selectedBooking.table.name || selectedBooking.table.tableNumber}` : 'Unassigned'}
-                </p>
-                
-                {/* Table Re-assignment — hide for finished / cancelled bookings */}
-                {!['completed', 'cancelled', 'no_show'].includes(selectedBooking.status) && (
-                <div style={{ marginTop: '16px', padding: '16px', backgroundColor: 'var(--bg-secondary)', borderRadius: '12px', border: '1px solid var(--border-secondary)', maxWidth: '100%', boxSizing: 'border-box' as const }}>
-                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>
-                    Assign to Table
-                  </label>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%', minWidth: 0 }}>
-                    <select
-                      id="reassign-table-select"
-                      defaultValue={selectedBooking.table?.id || selectedBooking.tableId || ""}
-                      style={{
-                        width: '100%',
-                        minWidth: 0,
-                        padding: '10px 14px',
-                        borderRadius: '8px',
-                        backgroundColor: 'var(--bg-tertiary)',
-                        border: '1px solid var(--border-primary)',
-                        color: 'var(--text-primary)',
-                        fontSize: '0.875rem',
-                        fontFamily: 'inherit',
-                        boxSizing: 'border-box' as const,
-                      }}
-                    >
-                      <option value="" disabled>Select a table...</option>
-                      {dbTables
-                        .filter((t: any) => t.capacity >= (selectedBooking.partySize || 1))
-                        .map((t: any) => (
-                          <option key={t.id} value={t.id}>
-                            {t.name || `Table #${t.tableNumber}`} (capacity: {t.capacity})
-                          </option>
-                        ))
-                      }
-                    </select>
+            {selectedBooking && (!selectedTable || selectedTable.id !== (selectedBooking.table?.id || selectedBooking.tableId)) && (
+              editingBooking && editFields ? (
+                /* ── Edit Mode ─────────────────────────────────────────────── */
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px', maxHeight: '55vh', overflowY: 'auto', paddingRight: '4px' }}>
+                    {/* Guest info row */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>First Name</label>
+                        <input
+                          value={editFields.guestFirstName}
+                          onChange={e => setEditFields({ ...editFields, guestFirstName: e.target.value })}
+                          placeholder="Guest"
+                          style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border-primary)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.875rem', fontFamily: 'inherit', boxSizing: 'border-box' as const, outline: 'none' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Last Name</label>
+                        <input
+                          value={editFields.guestLastName}
+                          onChange={e => setEditFields({ ...editFields, guestLastName: e.target.value })}
+                          placeholder=""
+                          style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border-primary)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.875rem', fontFamily: 'inherit', boxSizing: 'border-box' as const, outline: 'none' }}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Phone</label>
+                      <input
+                        type="tel"
+                        value={editFields.guestPhone}
+                        onChange={e => setEditFields({ ...editFields, guestPhone: e.target.value })}
+                        placeholder="+44..."
+                        style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border-primary)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.875rem', fontFamily: 'inherit', boxSizing: 'border-box' as const, outline: 'none' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Email</label>
+                      <input
+                        type="email"
+                        value={editFields.guestEmail}
+                        onChange={e => setEditFields({ ...editFields, guestEmail: e.target.value })}
+                        placeholder="guest@example.com"
+                        style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border-primary)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.875rem', fontFamily: 'inherit', boxSizing: 'border-box' as const, outline: 'none' }}
+                      />
+                    </div>
+
+                    {/* Date / Time / Party size */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Date</label>
+                        <input
+                          type="date"
+                          value={editFields.reservationDate}
+                          onChange={e => setEditFields({ ...editFields, reservationDate: e.target.value })}
+                          style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border-primary)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.875rem', fontFamily: 'inherit', boxSizing: 'border-box' as const, outline: 'none' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Time</label>
+                        <input
+                          type="time"
+                          value={editFields.startTime}
+                          onChange={e => setEditFields({ ...editFields, startTime: e.target.value })}
+                          style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border-primary)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.875rem', fontFamily: 'inherit', boxSizing: 'border-box' as const, outline: 'none' }}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Party Size</label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={50}
+                        value={editFields.partySize}
+                        onChange={e => setEditFields({ ...editFields, partySize: parseInt(e.target.value) || 1 })}
+                        style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border-primary)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.875rem', fontFamily: 'inherit', boxSizing: 'border-box' as const, outline: 'none' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Special Requests</label>
+                      <textarea
+                        value={editFields.specialRequests}
+                        onChange={e => setEditFields({ ...editFields, specialRequests: e.target.value })}
+                        rows={2}
+                        placeholder="Allergies, seating preferences..."
+                        style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border-primary)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.875rem', fontFamily: 'inherit', boxSizing: 'border-box' as const, outline: 'none', resize: 'vertical' as const }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Internal Notes (staff only)</label>
+                      <textarea
+                        value={editFields.internalNotes}
+                        onChange={e => setEditFields({ ...editFields, internalNotes: e.target.value })}
+                        rows={2}
+                        placeholder="Notes not visible to the guest..."
+                        style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border-primary)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.875rem', fontFamily: 'inherit', boxSizing: 'border-box' as const, outline: 'none', resize: 'vertical' as const }}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '10px' }}>
                     <button
-                      onClick={async () => {
-                        const selectEl = document.getElementById('reassign-table-select') as HTMLSelectElement
-                        const tableId = selectEl?.value
-                        if (!tableId || !restaurantId) return
-                        try {
-                          await api.put(`/organizations/${restaurantId}/reservations/${selectedBooking.id}`, { tableId })
-                          toast.success('Reservation assigned to table')
-                          fetchData(selectedDate, restaurantId)
-                          setSelectedBooking(null)
-                        } catch (err: any) {
-                          toast.error(err?.response?.data?.message || 'Failed to assign table')
-                        }
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '10px 20px',
-                        borderRadius: '8px',
-                        backgroundColor: '#C99C63',
-                        color: '#ffffff',
-                        border: 'none',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        fontSize: '0.875rem',
-                        boxSizing: 'border-box' as const,
-                      }}
+                      onClick={() => { setEditingBooking(false); setEditFields(null) }}
+                      disabled={savingEdit}
+                      style={{ flex: 1, padding: '13px', borderRadius: '14px', backgroundColor: 'transparent', border: '1px solid var(--border-primary)', color: 'var(--text-secondary)', fontWeight: 600, cursor: 'pointer', fontSize: '0.875rem' }}
                     >
-                      Assign
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleSaveEdit}
+                      disabled={savingEdit}
+                      style={{ flex: 2, padding: '13px', borderRadius: '14px', backgroundColor: '#C99C63', color: '#ffffff', border: 'none', fontWeight: 700, cursor: savingEdit ? 'wait' : 'pointer', fontSize: '0.875rem', opacity: savingEdit ? 0.7 : 1 }}
+                    >
+                      {savingEdit ? 'Saving...' : 'Save Changes'}
                     </button>
                   </div>
                 </div>
-                )}
+              ) : (
+                /* ── Read Mode ─────────────────────────────────────────────── */
+                <div style={{ backgroundColor: 'var(--bg-tertiary)', borderRadius: '24px', padding: '24px', marginBottom: '32px', border: `1px solid var(--border-primary)`, boxSizing: 'border-box' as const, maxWidth: '100%' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px', gap: '12px' }}>
+                    <div>
+                      <span style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary)' }}>{guestDisplayName(selectedBooking)}</span>
+                      <p style={{ margin: '4px 0 0 0', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+                        {selectedBooking.partySize} Guests • {selectedBooking.table?.name || selectedBooking.table?.tableNumber ? `Table ${selectedBooking.table.name || selectedBooking.table.tableNumber}` : 'Unassigned'}
+                      </p>
+                      {selectedBooking.guestPhone && (
+                        <p style={{ margin: '2px 0 0 0', color: 'var(--text-secondary)', fontSize: '0.8125rem' }}>{selectedBooking.guestPhone}</p>
+                      )}
+                      {selectedBooking.guestEmail && (
+                        <p style={{ margin: '2px 0 0 0', color: 'var(--text-secondary)', fontSize: '0.8125rem' }}>{selectedBooking.guestEmail}</p>
+                      )}
+                      {selectedBooking.specialRequests && (
+                        <p style={{ margin: '6px 0 0 0', color: 'var(--text-tertiary)', fontSize: '0.8rem', fontStyle: 'italic' }}>"{selectedBooking.specialRequests}"</p>
+                      )}
+                      {selectedBooking.internalNotes && (
+                        <p style={{ margin: '4px 0 0 0', color: '#C99C63', fontSize: '0.8rem' }}>Note: {selectedBooking.internalNotes}</p>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px', flexShrink: 0 }}>
+                      <span style={{ color: '#C99C63', fontWeight: 800 }}>{selectedBooking.startTime?.slice(0, 5)}</span>
+                      {!['completed', 'cancelled', 'no_show'].includes(selectedBooking.status) && (
+                        <button
+                          onClick={() => {
+                            setEditingBooking(true)
+                            setEditFields({
+                              guestFirstName: selectedBooking.guestFirstName || '',
+                              guestLastName: selectedBooking.guestLastName || '',
+                              guestEmail: selectedBooking.guestEmail || '',
+                              guestPhone: selectedBooking.guestPhone || '',
+                              reservationDate: selectedBooking.reservationDate || selectedBooking.date || selectedDate,
+                              startTime: selectedBooking.startTime?.slice(0, 5) || '',
+                              partySize: selectedBooking.partySize || 2,
+                              specialRequests: selectedBooking.specialRequests || '',
+                              internalNotes: selectedBooking.internalNotes || '',
+                            })
+                          }}
+                          style={{ padding: '6px 14px', borderRadius: '8px', backgroundColor: 'transparent', border: '1px solid var(--border-primary)', color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
+                        >
+                          Edit
+                        </button>
+                      )}
+                    </div>
+                  </div>
 
-                <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                   {['pending', 'confirmed'].includes(selectedBooking.status) && (
-                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                       <button onClick={() => handleStatusUpdate(selectedBooking.id, 'arriving')} style={{ flex: 1, minWidth: '120px', padding: '12px', borderRadius: '12px', backgroundColor: isDark ? '#5EEA7A' : '#111827', color: isDark ? '#0B1517' : '#fff', border: 'none', fontWeight: 600, cursor: 'pointer' }}>Mark Arriving</button>
-                       <button onClick={() => handleStatusUpdate(selectedBooking.id, 'no_show')} style={{ flex: 1, minWidth: '120px', padding: '12px', borderRadius: '12px', backgroundColor: 'transparent', color: '#E05D5D', border: '1px solid #E05D5D', fontWeight: 600, cursor: 'pointer' }}>No-Show</button>
-                     </div>
-                   )}
-                   {selectedBooking.status === 'arriving' && (
-                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {/* Table Re-assignment — hide for finished / cancelled bookings */}
+                  {!['completed', 'cancelled', 'no_show'].includes(selectedBooking.status) && (
+                  <div style={{ marginTop: '16px', padding: '16px', backgroundColor: 'var(--bg-secondary)', borderRadius: '12px', border: '1px solid var(--border-secondary)', maxWidth: '100%', boxSizing: 'border-box' as const }}>
+                    <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>
+                      Assign to Table
+                    </label>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%', minWidth: 0 }}>
+                      <select
+                        id="reassign-table-select"
+                        defaultValue={selectedBooking.table?.id || selectedBooking.tableId || ""}
+                        style={{
+                          width: '100%',
+                          minWidth: 0,
+                          padding: '10px 14px',
+                          borderRadius: '8px',
+                          backgroundColor: 'var(--bg-tertiary)',
+                          border: '1px solid var(--border-primary)',
+                          color: 'var(--text-primary)',
+                          fontSize: '0.875rem',
+                          fontFamily: 'inherit',
+                          boxSizing: 'border-box' as const,
+                        }}
+                      >
+                        <option value="" disabled>Select a table...</option>
+                        {dbTables
+                          .filter((t: any) => t.capacity >= (selectedBooking.partySize || 1))
+                          .map((t: any) => (
+                            <option key={t.id} value={t.id}>
+                              {t.name || `Table #${t.tableNumber}`} (capacity: {t.capacity})
+                            </option>
+                          ))
+                        }
+                      </select>
+                      <button
+                        onClick={async () => {
+                          const selectEl = document.getElementById('reassign-table-select') as HTMLSelectElement
+                          const tableId = selectEl?.value
+                          if (!tableId || !restaurantId) return
+                          try {
+                            await api.put(`/organizations/${restaurantId}/reservations/${selectedBooking.id}`, { tableId })
+                            toast.success('Reservation assigned to table')
+                            fetchData(selectedDate, restaurantId)
+                            setSelectedBooking(null)
+                          } catch (err: any) {
+                            toast.error(err?.response?.data?.message || 'Failed to assign table')
+                          }
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '10px 20px',
+                          borderRadius: '8px',
+                          backgroundColor: '#C99C63',
+                          color: '#ffffff',
+                          border: 'none',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          fontSize: '0.875rem',
+                          boxSizing: 'border-box' as const,
+                        }}
+                      >
+                        Assign
+                      </button>
+                    </div>
+                  </div>
+                  )}
+
+                  <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                     {['pending', 'confirmed'].includes(selectedBooking.status) && (
                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                         <button onClick={() => handleStatusUpdate(selectedBooking.id, 'seated')} style={{ flex: 1, minWidth: '120px', padding: '12px', borderRadius: '12px', backgroundColor: '#6B9E78', color: '#fff', border: 'none', fontWeight: 600, cursor: 'pointer' }}>Seat Guests</button>
+                         <button onClick={() => handleStatusUpdate(selectedBooking.id, 'arriving')} style={{ flex: 1, minWidth: '120px', padding: '12px', borderRadius: '12px', backgroundColor: isDark ? '#5EEA7A' : '#111827', color: isDark ? '#0B1517' : '#fff', border: 'none', fontWeight: 600, cursor: 'pointer' }}>Mark Arriving</button>
                          <button onClick={() => handleStatusUpdate(selectedBooking.id, 'no_show')} style={{ flex: 1, minWidth: '120px', padding: '12px', borderRadius: '12px', backgroundColor: 'transparent', color: '#E05D5D', border: '1px solid #E05D5D', fontWeight: 600, cursor: 'pointer' }}>No-Show</button>
                        </div>
-                       <button
-                         type="button"
-                         onClick={() => handleClearSeatKeepBooking(selectedBooking.id)}
-                         style={{ width: '100%', padding: '12px', borderRadius: '12px', backgroundColor: 'transparent', color: '#C99C63', border: '1px solid rgba(201,156,99,0.45)', fontWeight: 600, cursor: 'pointer' }}
-                       >
-                         Clear seat — free table (keep booking as confirmed)
+                     )}
+                     {selectedBooking.status === 'arriving' && (
+                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                           <button onClick={() => handleStatusUpdate(selectedBooking.id, 'seated')} style={{ flex: 1, minWidth: '120px', padding: '12px', borderRadius: '12px', backgroundColor: '#6B9E78', color: '#fff', border: 'none', fontWeight: 600, cursor: 'pointer' }}>Seat Guests</button>
+                           <button onClick={() => handleStatusUpdate(selectedBooking.id, 'no_show')} style={{ flex: 1, minWidth: '120px', padding: '12px', borderRadius: '12px', backgroundColor: 'transparent', color: '#E05D5D', border: '1px solid #E05D5D', fontWeight: 600, cursor: 'pointer' }}>No-Show</button>
+                         </div>
+                         <button
+                           type="button"
+                           onClick={() => handleClearSeatKeepBooking(selectedBooking.id)}
+                           style={{ width: '100%', padding: '12px', borderRadius: '12px', backgroundColor: 'transparent', color: '#C99C63', border: '1px solid rgba(201,156,99,0.45)', fontWeight: 600, cursor: 'pointer' }}
+                         >
+                           Clear seat — free table (keep booking as confirmed)
+                         </button>
+                       </div>
+                     )}
+                     {selectedBooking.status === 'seated' && (
+                       <button onClick={() => handleStatusUpdate(selectedBooking.id, 'completed')} style={{ width: '100%', padding: '12px', borderRadius: '12px', backgroundColor: isDark ? '#5EEA7A' : '#111827', color: isDark ? '#0B1517' : '#fff', border: 'none', fontWeight: 700, cursor: 'pointer' }}>
+                         Clear Table — Mark Complete
                        </button>
-                     </div>
-                   )}
-                   {selectedBooking.status === 'seated' && (
-                     <button onClick={() => handleStatusUpdate(selectedBooking.id, 'completed')} style={{ width: '100%', padding: '12px', borderRadius: '12px', backgroundColor: isDark ? '#5EEA7A' : '#111827', color: isDark ? '#0B1517' : '#fff', border: 'none', fontWeight: 700, cursor: 'pointer' }}>
-                       Clear Table — Mark Complete
-                     </button>
-                   )}
+                     )}
+                  </div>
                 </div>
-              </div>
+              )
             )}
 
             {selectedTable && selectedTable.isMerged && (
