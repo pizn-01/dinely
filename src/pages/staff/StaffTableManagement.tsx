@@ -109,6 +109,7 @@ export default function StaffTableManagement() {
     guestPhone: string
     reservationDate: string
     startTime: string
+    endTime: string
     partySize: number
     specialRequests: string
     internalNotes: string
@@ -415,6 +416,7 @@ export default function StaffTableManagement() {
         guestPhone: editFields.guestPhone || undefined,
         reservationDate: editFields.reservationDate,
         startTime: editFields.startTime,
+        endTime: editFields.endTime || undefined,
         partySize: editFields.partySize,
         specialRequests: editFields.specialRequests || undefined,
         internalNotes: editFields.internalNotes || undefined,
@@ -578,6 +580,18 @@ export default function StaffTableManagement() {
     } catch (err: any) {
       toast.error(err?.response?.data?.error || 'Failed to unmerge tables')
     }
+  }
+
+  const formatDuration = (startTime: string, endTime: string): string | null => {
+    const [sh, sm] = startTime.split(':').map(Number)
+    const [eh, em] = endTime.split(':').map(Number)
+    const totalMins = (eh * 60 + em) - (sh * 60 + sm)
+    if (totalMins <= 0) return null
+    const h = Math.floor(totalMins / 60)
+    const m = totalMins % 60
+    if (h === 0) return `${m}m`
+    if (m === 0) return `${h}h`
+    return `${h}h ${m}m`
   }
 
   const getStatusStyle = (status: string) => {
@@ -978,33 +992,16 @@ export default function StaffTableManagement() {
                                 <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>{(areaTables as any[]).length} Tables</p>
                               </div>
                             )}
-                            <div 
+                            <div
   id={`table-container-${areaShortName}`}
-  style={{ 
-  padding: '0 60px', 
-  position: 'relative', 
-  minHeight: `${Math.max(600, Math.ceil((areaTables as any[]).length / 4) * 150 + 100)}px`,
-  height: `${Math.max(600, Math.ceil((areaTables as any[]).length / 4) * 150 + 100)}px`
+  style={{
+  padding: '40px 60px',
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: '40px',
+  alignItems: 'flex-start',
 }}>
                       {(areaTables as any[]).map(table => {
-                        // Calculate area-based position adjustments
-                        let adjustedPositionX = table.positionX || 0
-                        let adjustedPositionY = table.positionY || 0
-                        
-                        // Use dragged position if available, otherwise use database position or default grid
-                        if (tablePositions[table.id]) {
-                          adjustedPositionX = tablePositions[table.id].x
-                          adjustedPositionY = tablePositions[table.id].y
-                        } else if (!table.positionX && !table.positionY) {
-                          // If table has no position, use a default grid layout within this area
-                          const tableIndex = (areaTables as any[]).findIndex(t => t.id === table.id)
-                          adjustedPositionX = (tableIndex % 4) * 150
-                          adjustedPositionY = Math.floor(tableIndex / 4) * 150
-                        } else {
-                          // If table has position, use database position
-                          adjustedPositionX = table.positionX
-                          adjustedPositionY = table.positionY
-                        }
                         // Get all valid reservations for this table today
                         const tableReservations = dbReservations.filter(r => r.table?.id === table.id && !['cancelled', 'no_show', 'completed'].includes(r.status))
                         
@@ -1056,18 +1053,15 @@ export default function StaffTableManagement() {
                         const capacity = table.capacity || 4
                         
                         return (
-                          <div 
+                          <div
                             key={table.id}
                             onClick={(e) => handleTableClick(table, e)}
-                            onMouseDown={(e) => handleMouseDown(e, table)}
-                            style={{ 
-                              position: 'absolute',
-                              left: `${adjustedPositionX}px`,
-                              top: `${adjustedPositionY}px`,
-                              width: '120px', 
-                              height: '120px', 
-                              cursor: draggedTable?.id === table.id ? 'grabbing' : 'pointer', 
-                              opacity: isMergeMode && table.isMerged ? 0.45 : 1, 
+                            style={{
+                              position: 'relative',
+                              width: '120px',
+                              height: '120px',
+                              cursor: 'pointer',
+                              opacity: isMergeMode && table.isMerged ? 0.45 : 1,
                               transition: 'opacity 0.2s'
                             }}>
                             {/* Selected checkmark badge */}
@@ -1882,7 +1876,16 @@ export default function StaffTableManagement() {
                     <div key={res.id} style={{ backgroundColor: 'var(--bg-tertiary)', borderRadius: '16px', padding: '20px', border: `1px solid var(--border-primary)` }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                         <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>{guestDisplayName(res)}</span>
-                        <span style={{ color: '#C99C63', fontWeight: 800 }}>{res.startTime?.slice(0, 5)}</span>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ color: '#C99C63', fontWeight: 800 }}>
+                            {res.startTime?.slice(0, 5)}{res.endTime && ` – ${res.endTime.slice(0, 5)}`}
+                          </div>
+                          {res.startTime && res.endTime && formatDuration(res.startTime, res.endTime) && (
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', fontWeight: 600 }}>
+                              {formatDuration(res.startTime, res.endTime)}
+                            </div>
+                          )}
+                        </div>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.8125rem' }}>{res.partySize} Guests</p>
@@ -1990,23 +1993,34 @@ export default function StaffTableManagement() {
                       />
                     </div>
 
-                    {/* Date / Time / Party size */}
+                    {/* Date */}
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Date</label>
+                      <input
+                        type="date"
+                        value={editFields.reservationDate}
+                        onChange={e => setEditFields({ ...editFields, reservationDate: e.target.value })}
+                        style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border-primary)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.875rem', fontFamily: 'inherit', boxSizing: 'border-box' as const, outline: 'none' }}
+                      />
+                    </div>
+
+                    {/* Start Time / End Time */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                       <div>
-                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Date</label>
-                        <input
-                          type="date"
-                          value={editFields.reservationDate}
-                          onChange={e => setEditFields({ ...editFields, reservationDate: e.target.value })}
-                          style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border-primary)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.875rem', fontFamily: 'inherit', boxSizing: 'border-box' as const, outline: 'none' }}
-                        />
-                      </div>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Time</label>
+                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Start Time</label>
                         <input
                           type="time"
                           value={editFields.startTime}
                           onChange={e => setEditFields({ ...editFields, startTime: e.target.value })}
+                          style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border-primary)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.875rem', fontFamily: 'inherit', boxSizing: 'border-box' as const, outline: 'none' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>End Time</label>
+                        <input
+                          type="time"
+                          value={editFields.endTime}
+                          onChange={e => setEditFields({ ...editFields, endTime: e.target.value })}
                           style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border-primary)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.875rem', fontFamily: 'inherit', boxSizing: 'border-box' as const, outline: 'none' }}
                         />
                       </div>
@@ -2086,8 +2100,16 @@ export default function StaffTableManagement() {
                         <p style={{ margin: '4px 0 0 0', color: '#C99C63', fontSize: '0.8rem' }}>Note: {selectedBooking.internalNotes}</p>
                       )}
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px', flexShrink: 0 }}>
-                      <span style={{ color: '#C99C63', fontWeight: 800 }}>{selectedBooking.startTime?.slice(0, 5)}</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
+                      <span style={{ color: '#C99C63', fontWeight: 800 }}>
+                        {selectedBooking.startTime?.slice(0, 5)}
+                        {selectedBooking.endTime && ` – ${selectedBooking.endTime.slice(0, 5)}`}
+                      </span>
+                      {selectedBooking.startTime && selectedBooking.endTime && formatDuration(selectedBooking.startTime, selectedBooking.endTime) && (
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', fontWeight: 600 }}>
+                          {formatDuration(selectedBooking.startTime, selectedBooking.endTime)}
+                        </span>
+                      )}
                       {!['completed', 'cancelled', 'no_show'].includes(selectedBooking.status) && (
                         <button
                           onClick={() => {
@@ -2099,6 +2121,7 @@ export default function StaffTableManagement() {
                               guestPhone: selectedBooking.guestPhone || '',
                               reservationDate: selectedBooking.reservationDate || selectedBooking.date || selectedDate,
                               startTime: selectedBooking.startTime?.slice(0, 5) || '',
+                              endTime: selectedBooking.endTime?.slice(0, 5) || '',
                               partySize: selectedBooking.partySize || 2,
                               specialRequests: selectedBooking.specialRequests || '',
                               internalNotes: selectedBooking.internalNotes || '',
