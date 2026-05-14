@@ -49,7 +49,10 @@ export class TableController {
 
   async listTables(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const result = await tableService.listTables(param(req, 'orgId'));
+      const forDate = typeof req.query.forDate === 'string' ? req.query.forDate : undefined;
+      const layoutTime = typeof req.query.layoutTime === 'string' ? req.query.layoutTime : undefined;
+      const inventory = req.query.inventory === 'true';
+      const result = await tableService.listTables(param(req, 'orgId'), { forDate, layoutTime, inventory });
       res.json({ success: true, data: result });
     } catch (error) {
       next(error);
@@ -161,8 +164,8 @@ export class TableController {
 
   async mergeTables(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const { sourceTableIds, mergedTable } = req.body;
-      const result = await tableService.mergeTables(param(req, 'orgId'), sourceTableIds, mergedTable);
+      const { sourceTableIds, mergedTable, mergeEffectiveFrom } = req.body;
+      const result = await tableService.mergeTables(param(req, 'orgId'), sourceTableIds, mergedTable, mergeEffectiveFrom);
       res.status(201).json({ success: true, data: result });
     } catch (error) {
       next(error);

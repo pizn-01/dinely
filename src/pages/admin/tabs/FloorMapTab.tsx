@@ -84,7 +84,7 @@ export default function FloorMapTab({ theme, orgId }: FloorMapTabProps) {
     const fetchTables = async () => {
       try {
         setLoading(true)
-        const { data } = await api.get(`/organizations/${orgId}/tables`)
+        const { data } = await api.get(`/organizations/${orgId}/tables`, { params: { inventory: 'true' } })
         if (data.data) {
           const mapped = data.data.map((t: any) => ({
             id: t.id,

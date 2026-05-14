@@ -22,7 +22,7 @@ export default function GetStarted() {
     phone: '',
     password: '',
     country: 'United Kingdom',
-    timezone: 'GMT+0 London',
+    timezone: 'Europe/London',
   })
   const [showRestaurantPassword, setShowRestaurantPassword] = useState(false)
   const [restaurantError, setRestaurantError] = useState('')
@@ -321,13 +321,13 @@ export default function GetStarted() {
                       onChange={(e) => setRestaurantForm({ ...restaurantForm, timezone: e.target.value })}
                       style={{ ...inputStyle, backgroundColor: '#101A1C', cursor: 'pointer' }}
                     >
-                      <option>GMT+0 London</option>
-                      <option>GMT-5 New York</option>
-                      <option>GMT-8 Los Angeles</option>
-                      <option>GMT+4 Dubai</option>
-                      <option>GMT+5 Karachi</option>
-                      <option>GMT+5:30 Mumbai</option>
-                      <option>GMT+10 Sydney</option>
+                      <option value="Europe/London">GMT+0 London</option>
+                      <option value="America/New_York">GMT-5 New York</option>
+                      <option value="America/Los_Angeles">GMT-8 Los Angeles</option>
+                      <option value="Asia/Dubai">GMT+4 Dubai</option>
+                      <option value="Asia/Karachi">GMT+5 Karachi</option>
+                      <option value="Asia/Kolkata">GMT+5:30 Mumbai</option>
+                      <option value="Australia/Sydney">GMT+10 Sydney</option>
                     </select>
                   </div>
                 </div>

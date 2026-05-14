@@ -1,6 +1,8 @@
 import { supabaseAdmin } from '../config/database';
 import { AppError, NotFoundError } from '../middleware/errorHandler';
 import { CreateTableDto, UpdateTableDto, CreateAreaDto, UpdateAreaDto } from '../types/api.types';
+import { buildLayoutTableRows } from '../utils/tableMergeLayout';
+import { resolveIanaTimezone } from '../utils/time';
 
 export class TableService {
   // ─── Floor Areas ──────────────────────────────────────
@@ -63,7 +65,68 @@ export class TableService {
 
   // ─── Tables ───────────────────────────────────────────
 
-  async listTables(restaurantId: string) {
+  /**
+   * @param options.forDate — Staff/calendar layout for that calendar day (date-aware merges).
+   * @param options.inventory — Admin: all physical rows (including inactive / merged shells).
+   * Default: active tables only (legacy).
+   */
+  async listTables(restaurantId: string, options?: { forDate?: string; layoutTime?: string; inventory?: boolean }) {
+    if (options?.inventory) {
+      const { data, error } = await supabaseAdmin
+        .from('tables')
+        .select('*, floor_areas(id, name)')
+        .eq('restaurant_id', restaurantId)
+        .order('table_number', { ascending: true });
+
+      if (error) throw new AppError('Failed to fetch tables', 500);
+      return (data || []).map(this.formatTable);
+    }
+
+    if (options?.forDate) {
+      await this.dematerializeScheduledMerges(restaurantId);
+
+      const { data, error } = await supabaseAdmin
+        .from('tables')
+        .select('*, floor_areas(id, name)')
+        .eq('restaurant_id', restaurantId)
+        .or('is_active.eq.true,is_merged.eq.true');
+
+      if (error) throw new AppError('Failed to fetch tables', 500);
+
+      const { data: orgRow } = await supabaseAdmin
+        .from('organizations')
+        .select('default_reservation_duration_min')
+        .eq('id', restaurantId)
+        .single();
+      const defaultDur = orgRow?.default_reservation_duration_min || 90;
+
+      let reservations: Array<{
+        table_id: string | null;
+        start_time: string | null;
+        end_time: string | null;
+        status: string | null;
+      }> = [];
+
+      if (options.layoutTime?.trim()) {
+        const { data: resv, error: resErr } = await supabaseAdmin
+          .from('reservations')
+          .select('table_id, start_time, end_time, status')
+          .eq('restaurant_id', restaurantId)
+          .eq('reservation_date', options.forDate)
+          .not('status', 'in', '(cancelled,no_show,completed)');
+
+        if (resErr) throw new AppError('Failed to fetch reservations for table layout', 500);
+        reservations = (resv || []) as typeof reservations;
+      }
+
+      const layoutRows = buildLayoutTableRows(data || [], options.forDate, {
+        layoutTime: options.layoutTime?.trim() || undefined,
+        reservations: reservations.length ? reservations : undefined,
+        defaultDurationMins: defaultDur,
+      });
+      return layoutRows.map(this.formatTable);
+    }
+
     const { data, error } = await supabaseAdmin
       .from('tables')
       .select('*, floor_areas(id, name)')
@@ -73,6 +136,68 @@ export class TableService {
 
     if (error) throw new AppError('Failed to fetch tables', 500);
     return (data || []).map(this.formatTable);
+  }
+
+  /**
+   * Scheduled merges stay "logical" in the DB: children remain active so staff/public availability
+   * can show split tables outside the booked window. Only immediate merges materialize children off.
+   */
+  async dematerializeScheduledMerges(restaurantId: string) {
+    const { data: mergedParents, error } = await supabaseAdmin
+      .from('tables')
+      .select('id, merged_table_ids')
+      .eq('restaurant_id', restaurantId)
+      .eq('is_merged', true)
+      .not('merge_effective_from', 'is', null);
+
+    if (error || !mergedParents?.length) return;
+
+    for (const m of mergedParents as Array<{ id: string; merged_table_ids: string[] | null }>) {
+      if (!m.merged_table_ids?.length) continue;
+      await this.unapplyScheduledMergeMaterialization(restaurantId, m.id, m.merged_table_ids);
+    }
+  }
+
+  private async applyMergeMaterialization(restaurantId: string, parentId: string, childIds: string[]) {
+    await supabaseAdmin
+      .from('tables')
+      .update({ is_active: false, parent_table_id: parentId, updated_at: new Date().toISOString() })
+      .in('id', childIds)
+      .eq('restaurant_id', restaurantId);
+    await supabaseAdmin
+      .from('tables')
+      .update({ is_active: true, updated_at: new Date().toISOString() })
+      .eq('id', parentId)
+      .eq('restaurant_id', restaurantId);
+  }
+
+  private async unapplyScheduledMergeMaterialization(restaurantId: string, parentId: string, childIds: string[]) {
+    await supabaseAdmin
+      .from('tables')
+      .update({ is_active: true, parent_table_id: null, updated_at: new Date().toISOString() })
+      .in('id', childIds)
+      .eq('restaurant_id', restaurantId);
+    await supabaseAdmin
+      .from('tables')
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq('id', parentId)
+      .eq('restaurant_id', restaurantId)
+      .eq('is_merged', true);
+  }
+
+  private async orgLocalTodayIso(restaurantId: string): Promise<string> {
+    const { data } = await supabaseAdmin.from('organizations').select('timezone').eq('id', restaurantId).single();
+    const tz = resolveIanaTimezone(data?.timezone);
+    try {
+      const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' });
+      const parts = fmt.formatToParts(new Date());
+      const y = parts.find((p) => p.type === 'year')?.value;
+      const m = parts.find((p) => p.type === 'month')?.value;
+      const d = parts.find((p) => p.type === 'day')?.value;
+      return `${y}-${m}-${d}`;
+    } catch {
+      return new Date().toISOString().split('T')[0];
+    }
   }
 
   /**
@@ -142,6 +267,7 @@ export class TableService {
           is_merged: false,
           parent_table_id: null,
           merged_table_ids: null,
+          merge_effective_from: null,
           updated_at: new Date().toISOString(),
         })
         .eq('id', deletedByNumber.id)
@@ -347,8 +473,17 @@ export class TableService {
 
   // ─── Table Merging ────────────────────────────────────
 
-  async mergeTables(restaurantId: string, sourceTableIds: string[], mergedTableDef: { name: string, capacity: number }) {
+  async mergeTables(
+    restaurantId: string,
+    sourceTableIds: string[],
+    mergedTableDef: { name: string; capacity: number },
+    mergeEffectiveFrom?: string | null
+  ) {
     if (sourceTableIds.length < 2) throw new AppError('Need at least 2 tables to merge', 400);
+
+    const todayIso = await this.orgLocalTodayIso(restaurantId);
+    const effectiveFrom = mergeEffectiveFrom?.trim() || null;
+    const schedulePending = Boolean(effectiveFrom && effectiveFrom > todayIso);
 
     // 1. Fetch source tables
     const { data: sourceTables, error: fetchErr } = await supabaseAdmin
@@ -380,19 +515,23 @@ export class TableService {
         position_y: avgY,
         shape: 'rectangle',
         is_merged: true,
-        merged_table_ids: sourceTableIds
+        merged_table_ids: sourceTableIds,
+        merge_effective_from: schedulePending ? effectiveFrom : null,
+        is_active: !schedulePending,
       })
       .select('*, floor_areas(id, name)')
       .single();
 
     if (createErr || !mergedTable) throw new AppError(`Failed to create merged table: ${createErr?.message}`, 500);
 
-    // 4. Update source tables to be parented and inactive
-    await supabaseAdmin
-      .from('tables')
-      .update({ is_active: false, parent_table_id: mergedTable.id })
-      .in('id', sourceTableIds)
-      .eq('restaurant_id', restaurantId);
+    // 4. Immediate merge: hide child tables. Scheduled merge: children stay active until merge_effective_from.
+    if (!schedulePending) {
+      await supabaseAdmin
+        .from('tables')
+        .update({ is_active: false, parent_table_id: mergedTable.id })
+        .in('id', sourceTableIds)
+        .eq('restaurant_id', restaurantId);
+    }
 
     return this.formatTable(mergedTable);
   }
@@ -445,6 +584,7 @@ export class TableService {
       positionY: row.position_y,
       isActive: row.is_active,
       isMerged: row.is_merged,
+      mergeEffectiveFrom: row.merge_effective_from ?? null,
       parentTableId: row.parent_table_id,
       mergedTableIds: row.merged_table_ids,
       createdAt: row.created_at,

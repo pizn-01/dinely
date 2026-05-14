@@ -17,7 +17,7 @@ export default function SignUp() {
     phone: '',
     password: '',
     country: 'United Kingdom',
-    timezone: 'GMT+0 London',
+    timezone: 'Europe/London',
   })
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
@@ -326,9 +326,9 @@ export default function SignUp() {
                 }}
               >
                 <option value="" disabled hidden>Select</option>
-                <option value="GMT+0 London">GMT+0 London</option>
-                <option value="GMT-5 New York">GMT-5 New York</option>
-                <option value="GMT-8 Los Angeles">GMT-8 Los Angeles</option>
+                <option value="Europe/London">London (GMT/BST)</option>
+                <option value="America/New_York">New York (Eastern)</option>
+                <option value="America/Los_Angeles">Los Angeles (Pacific)</option>
               </select>
             </div>
           </div>

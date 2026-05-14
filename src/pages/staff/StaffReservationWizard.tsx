@@ -217,7 +217,8 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
           mergedTable: {
             name: data.tableName || 'Merged Table',
             capacity: data.tableCapacity
-          }
+          },
+          mergeEffectiveFrom: data.date
         })
         if (mergeRes.data?.data?.id) {
           finalTableId = mergeRes.data.data.id

@@ -22,7 +22,9 @@ export default function ReservationTab({ theme, orgId, serverToday }: Reservatio
     try {
       const dateTarget = serverToday || new Date().toISOString().split('T')[0]
       // Fetch Tables
-      const tablesRes = await api.get(`/organizations/${orgId}/tables`)
+      const tablesRes = await api.get(`/organizations/${orgId}/tables`, {
+        params: { forDate: dateTarget }
+      })
       setTablesList(tablesRes.data.data || [])
 
       // Fetch Today's Reservations — API returns { success, reservations, meta }

@@ -174,4 +174,15 @@ When the customer finishes booking, they are automatically sent back to your pag
 
 ---
 
+## Extended client handover (technical accuracy)
+
+For diagrams that match the shipped product, database behaviour, and API flows, see:
+
+- [**CLIENT_HANDOVER_PHASES**](CLIENT_HANDOVER_PHASES.md) — how documentation was produced in phases.
+- [**CLIENT_HANDOVER_CUSTOMER_AND_GUEST**](CLIENT_HANDOVER_CUSTOMER_AND_GUEST.md) — guest and member booking.
+- [**CLIENT_HANDOVER_ADMIN_AND_OWNER**](CLIENT_HANDOVER_ADMIN_AND_OWNER.md) — admin dashboard and settings.
+- [**CLIENT_HANDOVER_STAFF_OPERATIONS**](CLIENT_HANDOVER_STAFF_OPERATIONS.md) — staff floor map and shift workflows.
+
+---
+
 *For setup instructions, see the **Admin Guide**. For daily operations, see the **Staff Guide**.*

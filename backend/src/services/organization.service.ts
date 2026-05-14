@@ -2,7 +2,7 @@ import { supabaseAdmin } from '../config/database';
 import { CreateOrganizationDto, UpdateOrganizationDto } from '../types/api.types';
 import { AppError, NotFoundError } from '../middleware/errorHandler';
 import { generateUniqueSlug } from '../utils/slug';
-import { getTodayDate } from '../utils/time';
+import { getTodayDate, resolveIanaTimezone } from '../utils/time';
 
 export class OrganizationService {
   /**
@@ -309,7 +309,7 @@ export class OrganizationService {
       ownerId: row.owner_id,
       logoUrl: row.logo_url,
       country: row.country,
-      timezone: row.timezone,
+      timezone: resolveIanaTimezone(row.timezone),
       address: row.address,
       phone: row.phone,
       email: row.email,

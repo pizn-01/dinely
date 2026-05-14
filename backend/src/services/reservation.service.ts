@@ -5,7 +5,9 @@ import { ReservationStatus } from '../types/enums';
 import { addMinutesToTime, timeRangesOverlap, getTodayDate } from '../utils/time';
 import { parsePagination, buildPaginationMeta } from '../utils/pagination';
 import { sanitizeSearch } from '../utils/sanitize';
+import { bookableTableRowsForDate, buildLayoutTableRows } from '../utils/tableMergeLayout';
 import { emailService } from './email.service';
+import { tableService } from './table.service';
 
 // Valid status transitions
 const VALID_TRANSITIONS: Record<string, string[]> = {
@@ -525,15 +527,10 @@ export class ReservationService {
 
     if (error) throw new AppError('Failed to fetch calendar data', 500);
 
-    const { data: tables } = await supabaseAdmin
-      .from('tables')
-      .select('*, floor_areas(id, name)')
-      .eq('restaurant_id', restaurantId)
-      .eq('is_active', true)
-      .order('table_number', { ascending: true });
+    const tables = await tableService.listTables(restaurantId, { forDate: date });
 
     const tableMap: Record<string, any[]> = {};
-    for (const table of (tables || [])) {
+    for (const table of tables) {
       tableMap[table.id] = [];
     }
 
@@ -544,12 +541,12 @@ export class ReservationService {
     }
 
     const areaMap: Record<string, any[]> = {};
-    for (const table of (tables || [])) {
-      const areaName = table.floor_areas?.name || 'Unassigned';
+    for (const table of tables) {
+      const areaName = table.area?.name || 'Unassigned';
       if (!areaMap[areaName]) areaMap[areaName] = [];
       areaMap[areaName].push({
         id: table.id,
-        tableNumber: table.table_number,
+        tableNumber: table.tableNumber,
         name: table.name,
         capacity: table.capacity,
         reservations: tableMap[table.id] || [],
@@ -588,6 +585,8 @@ export class ReservationService {
    * Get available tables.
    */
   async getAvailableTables(restaurantId: string, date: string, startTime: string, partySize: number) {
+    await tableService.dematerializeScheduledMerges(restaurantId);
+
     const { data: org } = await supabaseAdmin
       .from('organizations')
       .select('default_reservation_duration_min')
@@ -597,18 +596,16 @@ export class ReservationService {
     const duration = org?.default_reservation_duration_min || 90;
     const endTime = addMinutesToTime(startTime, duration);
 
-    const { data: tables } = await supabaseAdmin
+    const { data: tableRows } = await supabaseAdmin
       .from('tables')
       .select('*, floor_areas(id, name)')
       .eq('restaurant_id', restaurantId)
-      .eq('is_active', true)
-      .or(`capacity.gte.${partySize},is_mergeable.eq.true`)
-      .order('capacity', { ascending: true });
+      .or('is_active.eq.true,is_merged.eq.true');
 
-    if (!tables || tables.length === 0) return [];
+    const candidates = bookableTableRowsForDate(tableRows || [], date, partySize);
 
     const available = [];
-    for (const table of tables) {
+    for (const table of candidates) {
       if (await this.checkTableAvailability(table.id, date, startTime, endTime)) {
         available.push({
           id: table.id,
@@ -703,16 +700,19 @@ export class ReservationService {
       current.setUTCMinutes(current.getUTCMinutes() + 30);
     }
 
-    // Batch optimization: fetch ALL active reservations for this date in one query
-    // instead of N+1 individual queries per time slot
-    const { data: allTables } = await supabaseAdmin
-      .from('tables')
-      .select('id, capacity')
-      .eq('restaurant_id', restaurantId)
-      .eq('is_active', true)
-      .gte('capacity', partySize);
+    // Batch optimization: date-aware merge + reservation overlap in-memory per slot
+    await tableService.dematerializeScheduledMerges(restaurantId);
 
-    if (!allTables || allTables.length === 0) {
+    const { data: wideRows } = await supabaseAdmin
+      .from('tables')
+      .select('id, capacity, is_mergeable, is_merged, merged_table_ids, merge_effective_from, is_active')
+      .eq('restaurant_id', restaurantId)
+      .or('is_active.eq.true,is_merged.eq.true');
+
+    const laidOut = buildLayoutTableRows(wideRows || [], date);
+    const candidates = laidOut.filter((t: { capacity?: number }) => (Number(t.capacity) || 0) >= partySize);
+
+    if (!candidates || candidates.length === 0) {
       return { allSlots, availableSlots, isClosed: false };
     }
 
@@ -738,9 +738,9 @@ export class ReservationService {
     for (const slot of allSlots) {
       const slotEnd = addMinutesToTime(slot, duration);
       // Check if at least one table has no conflicting reservation
-      const hasAvailable = allTables.some(table => {
+      const hasAvailable = candidates.some((table) => {
         return !reservations.some(
-          r => r.table_id === table.id && timeRangesOverlap(slot, slotEnd, r.start_time, r.end_time)
+          (r) => r.table_id === table.id && timeRangesOverlap(slot, slotEnd, r.start_time, r.end_time)
         );
       });
       if (hasAvailable) availableSlots.push(slot);

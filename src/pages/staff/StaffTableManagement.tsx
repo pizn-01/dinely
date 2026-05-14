@@ -41,6 +41,50 @@ const getLocalISODate = (date: Date = new Date()) => {
   return `${y}-${m}-${d}`
 }
 
+function timeStrToMinutes(t: string | undefined | null): number {
+  if (!t) return 0
+  const parts = String(t).slice(0, 5).split(':').map(Number)
+  return (parts[0] || 0) * 60 + (parts[1] || 0)
+}
+
+function bookingEndMinutes(res: any, defaultDurMin: number): number {
+  if (res.endTime) return timeStrToMinutes(res.endTime)
+  return timeStrToMinutes(res.startTime) + (Number(res.duration) || defaultDurMin)
+}
+
+/** Whether probe clock time falls inside an active reservation window [start, end). */
+function reservationCoversProbe(res: any, probeMins: number, defaultDurMin: number): boolean {
+  if (['cancelled', 'no_show', 'completed'].includes(String(res.status))) return false
+  const startM = timeStrToMinutes(res.startTime)
+  const endM = bookingEndMinutes(res, defaultDurMin)
+  if (endM > startM) return probeMins >= startM && probeMins < endM
+  return probeMins >= startM || probeMins < endM
+}
+
+function computeTableViewStatus(
+  tableReservations: any[],
+  viewTime: string,
+  defaultDurMin: number
+): { status: string; nextReservationTime: string | null } {
+  const probeMins = timeStrToMinutes(viewTime.slice(0, 5))
+  const active = tableReservations.filter((r) => !['cancelled', 'no_show', 'completed'].includes(String(r.status)))
+
+  const overlapping = active.filter((r) => reservationCoversProbe(r, probeMins, defaultDurMin))
+  if (overlapping.length) {
+    if (overlapping.some((r) => r.status === 'seated')) return { status: 'seated', nextReservationTime: null }
+    if (overlapping.some((r) => r.status === 'arriving')) return { status: 'arriving', nextReservationTime: null }
+    return { status: 'confirmed', nextReservationTime: null }
+  }
+
+  const afterProbe = active
+    .map((r) => ({ r, sm: timeStrToMinutes(r.startTime) }))
+    .filter((x) => x.sm > probeMins)
+    .sort((a, b) => a.sm - b.sm)
+
+  const nextT = afterProbe.length ? (afterProbe[0].r.startTime || '').slice(0, 5) : null
+  return { status: 'available', nextReservationTime: nextT }
+}
+
 export default function StaffTableManagement() {
   const { slug: urlSlug } = useParams<{ slug: string }>()
   const { user, logout, isLoading: authLoading } = useAuth()
@@ -52,6 +96,8 @@ export default function StaffTableManagement() {
   
   // Dynamic State
   const [selectedDate, setSelectedDate] = useState(getLocalISODate())
+  /** Floor/grid snapshot time — which reservations overlap this moment on the selected day. */
+  const [viewTime, setViewTime] = useState('12:00')
   const [dbTables, setDbTables] = useState<any[]>([])
   const [dbAreas, setDbAreas] = useState<any[]>([])
   const [dbReservations, setDbReservations] = useState<any[]>([])
@@ -146,7 +192,9 @@ export default function StaffTableManagement() {
     try {
       setLoading(true)
       const [tablesRes, resvRes, orgRes, areasRes] = await Promise.all([
-        api.get(`/organizations/${rid}/tables`),
+        api.get(`/organizations/${rid}/tables`, {
+          params: { forDate: d, layoutTime: viewTime.slice(0, 5) },
+        }),
         api.get(`/organizations/${rid}/reservations?date=${d}&limit=500&sortBy=start_time&sortOrder=asc`),
         api.get(`/organizations/${rid}`),
         api.get(`/organizations/${rid}/tables/areas`)
@@ -163,7 +211,7 @@ export default function StaffTableManagement() {
     } finally {
       setLoading(false)
     }
-  }, [restaurantId, selectedDate])
+  }, [restaurantId, selectedDate, viewTime])
 
   // Drag and drop handlers
   const handleMouseDown = (e: React.MouseEvent, table: any) => {
@@ -314,6 +362,70 @@ export default function StaffTableManagement() {
     }
     return tabs
   }, [])
+
+  const viewTimeOptions = useMemo(() => {
+    const slots: string[] = []
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const
+    const parts = selectedDate.split('-').map((x) => parseInt(x, 10))
+    const cal =
+      parts.length === 3 && parts.every((n) => !Number.isNaN(n))
+        ? new Date(parts[0], parts[1] - 1, parts[2])
+        : new Date()
+    const dow = dayNames[cal.getDay()]
+    let open = orgData?.openingTime || '09:00'
+    let close = orgData?.closingTime || '23:00'
+    let wh: any = orgData?.weeklyHours
+    if (typeof wh === 'string') {
+      try {
+        wh = JSON.parse(wh)
+      } catch {
+        wh = null
+      }
+    }
+    if (wh && typeof wh === 'object' && wh[dow]) {
+      if (wh[dow].closed === true || wh[dow].closed === 'true') {
+        return []
+      }
+      if (wh[dow].open != null && String(wh[dow].open).trim() !== '') {
+        open = String(wh[dow].open).slice(0, 5)
+      }
+      if (wh[dow].close != null && String(wh[dow].close).trim() !== '') {
+        close = String(wh[dow].close).slice(0, 5)
+      }
+    }
+    let cur = timeStrToMinutes(String(open).slice(0, 5))
+    const endM = timeStrToMinutes(String(close).slice(0, 5))
+    let guard = 0
+    while (cur <= endM && guard++ < 96) {
+      const h = Math.floor(cur / 60)
+      const m = cur % 60
+      slots.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`)
+      cur += 30
+    }
+    return slots.length
+      ? slots
+      : ['10:00', '10:30', '11:00', '12:00', '13:00', '14:00', '15:00', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30', '21:00']
+  }, [orgData, selectedDate])
+
+  useEffect(() => {
+    const now = new Date()
+    if (selectedDate === getLocalISODate(now)) {
+      const mi = now.getMinutes()
+      const rounded = mi < 15 ? 0 : mi < 45 ? 30 : 0
+      let h = now.getHours()
+      if (mi >= 45) h = (h + 1) % 24
+      setViewTime(`${String(h).padStart(2, '0')}:${String(rounded).padStart(2, '0')}`)
+    } else {
+      setViewTime('12:00')
+    }
+  }, [selectedDate])
+
+  useEffect(() => {
+    if (!viewTimeOptions.length) return
+    if (!viewTimeOptions.includes(viewTime)) {
+      setViewTime(viewTimeOptions[0])
+    }
+  }, [viewTimeOptions, viewTime])
 
   const stats = useMemo(() => {
     const arriving = dbReservations.filter(r => r.status === 'confirmed' || r.status === 'arriving').length
@@ -555,9 +667,14 @@ export default function StaffTableManagement() {
         .reduce((sum, t) => sum + (t.capacity || 0), 0)
       await api.post(`/organizations/${restaurantId}/tables/merge`, {
         sourceTableIds: ids,
-        mergedTable: { name: mergedTableName.trim() || 'Merged Table', capacity: totalCapacity }
+        mergedTable: { name: mergedTableName.trim() || 'Merged Table', capacity: totalCapacity },
+        mergeEffectiveFrom: selectedDate
       })
-      toast.success('Tables merged! Booking can now be assigned to the merged table.')
+      toast.success(
+        selectedDate > getLocalISODate()
+          ? 'Merge scheduled: separate tables stay available until that day.'
+          : 'Tables merged! Booking can now be assigned to the merged table.'
+      )
       setSelectedTableIds(new Set())
       setIsMergeMode(false)
       setShowMergeModal(false)
@@ -894,12 +1011,37 @@ export default function StaffTableManagement() {
             {activeTab === 'Table View' && !isDayClosed && (
               <div style={{ backgroundColor: 'var(--bg-card)', paddingBottom: '60px', transition: 'background-color 0.3s', position: 'relative' }}>
                 {/* Table View Mode Toggle + Shift+Click hint */}
-                <div style={{ padding: '10px 60px', backgroundColor: isMergeMode ? (isDark ? 'rgba(201,156,99,0.1)' : 'rgba(201,156,99,0.06)') : 'transparent', borderBottom: isMergeMode ? `1px solid rgba(201,156,99,0.2)` : '1px solid transparent', display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'all 0.3s' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ padding: '10px 60px', backgroundColor: isMergeMode ? (isDark ? 'rgba(201,156,99,0.1)' : 'rgba(201,156,99,0.06)') : 'transparent', borderBottom: isMergeMode ? `1px solid rgba(201,156,99,0.2)` : '1px solid transparent', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', transition: 'all 0.3s' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: '1 1 200px' }}>
                     <Link2 size={13} color={isMergeMode ? '#C99C63' : 'var(--text-tertiary)'} />
                     <span style={{ fontSize: '0.75rem', color: isMergeMode ? '#C99C63' : 'var(--text-tertiary)', fontWeight: 500 }}>
                       {isMergeMode ? `${selectedTableIds.size} table${selectedTableIds.size !== 1 ? 's' : ''} selected — Shift+Click to add more, or use the bar below` : 'Hold Shift + Click tables to select multiple for a large-party merge'}
                     </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: '0 1 auto' }}>
+                    <Clock size={14} color="var(--text-tertiary)" />
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600, whiteSpace: 'nowrap' }}>Status at</span>
+                    <select
+                      value={viewTime}
+                      onChange={(e) => setViewTime(e.target.value)}
+                      aria-label="Time snapshot for table occupancy"
+                      style={{
+                        padding: '6px 10px',
+                        borderRadius: '8px',
+                        border: `1px solid ${isDark ? '#30363d' : '#d1d5db'}`,
+                        backgroundColor: isDark ? '#161B22' : '#ffffff',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        minWidth: '88px',
+                      }}
+                    >
+                      {viewTimeOptions.map((t) => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </select>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', maxWidth: '140px', lineHeight: 1.3 }}>Shows which tables are in use at this time on {selectedDate}</span>
                   </div>
                   {/* Grid / Floor Map toggle */}
                   <div style={{ display: 'flex', gap: '4px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '8px', padding: '3px' }}>
@@ -1029,49 +1171,8 @@ export default function StaffTableManagement() {
                       {(areaTables as any[]).map(table => {
                         // Get all valid reservations for this table today
                         const tableReservations = dbReservations.filter(r => r.table?.id === table.id && !['cancelled', 'no_show', 'completed'].includes(r.status))
-                        
-                        let status = 'available'
-                        let nextReservationTime: string | null = null
-                        
-                        const now = new Date()
-                        const currentTotalMins = now.getHours() * 60 + now.getMinutes()
-                        const isToday = selectedDate === getLocalISODate(now)
-                        
-                        if (isToday) {
-                          // 1. Is someone seated?
-                          const seatedRes = tableReservations.find(r => r.status === 'seated')
-                          if (seatedRes) {
-                            status = 'seated'
-                          } else {
-                            // 2. Is someone arriving within next 45 mins or up to 30 mins late?
-                            const arrivingSoon = tableReservations.filter(r => {
-                              if (r.status === 'completed') return false
-                              const [h, m] = (r.startTime || '00:00').split(':').map(Number)
-                              const diff = (h * 60 + m) - currentTotalMins
-                              return diff <= 45 && diff >= -30
-                            }).sort((a,b) => (a.startTime || '00:00').localeCompare(b.startTime || '00:00'))
-                            
-                            if (arrivingSoon.length > 0) {
-                              status = arrivingSoon[0].status === 'arriving' ? 'arriving' : 'pending_arrival'
-                            } else {
-                              // 3. Find next future reservation today
-                              const futureRes = tableReservations.filter(r => {
-                                if (r.status === 'completed') return false
-                                const [h, m] = (r.startTime || '00:00').split(':').map(Number)
-                                return (h * 60 + m) > currentTotalMins + 45
-                              }).sort((a,b) => (a.startTime || '00:00').localeCompare(b.startTime || '00:00'))
-                              if (futureRes.length > 0) {
-                                nextReservationTime = futureRes[0].startTime?.slice(0, 5)
-                              }
-                            }
-                          }
-                        } else {
-                           // If viewing future date, just show first active reservation status
-                           const activeRes = tableReservations.find(r => !['completed'].includes(r.status))
-                           if (activeRes) {
-                             status = activeRes.status
-                           }
-                        }
+                        const defaultDur = orgData?.defaultReservationDurationMin ?? 90
+                        const { status, nextReservationTime } = computeTableViewStatus(tableReservations, viewTime, defaultDur)
                         
                         const visualStatus = status === 'pending_arrival' ? 'arriving' : status
                         const style = getStatusStyle(visualStatus)
@@ -1257,29 +1358,8 @@ export default function StaffTableManagement() {
                           const posY = table.positionY || Math.floor(tableIndex / 8) * 160 + 40
 
                           const tableReservations = dbReservations.filter(r => r.table?.id === table.id && !['cancelled', 'no_show', 'completed'].includes(r.status))
-                          let status = 'available'
-                          const now = new Date()
-                          const currentTotalMins = now.getHours() * 60 + now.getMinutes()
-                          const isToday = selectedDate === getLocalISODate(now)
-
-                          if (isToday) {
-                            const seatedRes = tableReservations.find(r => r.status === 'seated')
-                            if (seatedRes) {
-                              status = 'seated'
-                            } else {
-                              const arrivingSoon = tableReservations.filter(r => {
-                                const [h, m] = (r.startTime || '00:00').split(':').map(Number)
-                                const diff = (h * 60 + m) - currentTotalMins
-                                return diff <= 45 && diff >= -30
-                              })
-                              if (arrivingSoon.length > 0) {
-                                status = arrivingSoon[0].status === 'arriving' ? 'arriving' : 'pending_arrival'
-                              }
-                            }
-                          } else {
-                            const activeRes = tableReservations.find(r => !['completed'].includes(r.status))
-                            if (activeRes) status = activeRes.status
-                          }
+                          const defaultDur = orgData?.defaultReservationDurationMin ?? 90
+                          const { status, nextReservationTime } = computeTableViewStatus(tableReservations, viewTime, defaultDur)
 
                           const visualStatus = status === 'pending_arrival' ? 'arriving' : status
                           const style = getStatusStyle(visualStatus)
@@ -2336,7 +2416,13 @@ export default function StaffTableManagement() {
             {/* Warning */}
             <div style={{ padding: '12px 14px', backgroundColor: isDark ? 'rgba(251,191,36,0.07)' : 'rgba(251,191,36,0.06)', borderRadius: '10px', border: '1px solid rgba(251,191,36,0.2)', marginBottom: '24px', display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
               <span style={{ fontSize: '1rem', flexShrink: 0 }}>⚠</span>
-              <p style={{ margin: 0, fontSize: '0.8rem', color: isDark ? 'rgba(251,191,36,0.85)' : '#92400e', lineHeight: 1.5 }}>Individual tables will be hidden until this merge is removed via Unmerge.</p>
+              <p style={{ margin: 0, fontSize: '0.8rem', color: isDark ? 'rgba(251,191,36,0.85)' : '#92400e', lineHeight: 1.5 }}>
+                {selectedDate > getLocalISODate() ? (
+                  <>This merge takes effect on <strong>{selectedDate}</strong>. Until then, each table stays available on its own. On that date the floor shows one combined table until you Unmerge.</>
+                ) : (
+                  <>The separate tables are combined for <strong>today</strong>. Use Unmerge when the party is finished to restore them for normal service.</>
+                )}
+              </p>
             </div>
             {/* Actions */}
             <div style={{ display: 'flex', gap: '12px' }}>

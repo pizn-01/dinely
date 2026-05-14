@@ -58,7 +58,7 @@ export default function TablesManagementTab({ theme, orgId }: TablesManagementTa
   const fetchTables = async () => {
     try {
       setLoading(true)
-      const { data } = await api.get(`/organizations/${orgId}/tables`)
+      const { data } = await api.get(`/organizations/${orgId}/tables`, { params: { inventory: 'true' } })
       if (data.data) {
         setTablesList(data.data)
       }
