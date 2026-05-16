@@ -69,11 +69,17 @@ export const rateLimit = (options: RateLimitOptions) => {
 
 // ─── Prebuilt rate limiters ────────────────────────────
 
-/** General API rate limit: 500 requests per 15 minutes per IP+path */
+/**
+ * General API rate limit: 1000 requests per 15 min, keyed per IP + HTTP method + route path.
+ * Uses req.path (path below the /api/v1 mount point) so each endpoint has its own independent
+ * counter. Previously used req.baseUrl which resolved to '/api/v1' for every route, causing all
+ * authenticated dashboard calls to share one 500-request bucket — exhausted within minutes by
+ * polling (15-second intervals × multiple concurrent endpoints × multiple open tabs).
+ */
 export const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  maxRequests: 500,
-  keyGenerator: (req) => `${req.ip || 'unknown'}:${req.method}:${req.baseUrl || req.path}`,
+  maxRequests: 1000,
+  keyGenerator: (req) => `${req.ip || 'unknown'}:${req.method}:${req.path}`,
 });
 
 /**

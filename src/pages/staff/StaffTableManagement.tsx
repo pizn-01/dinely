@@ -506,7 +506,16 @@ export default function StaffTableManagement() {
       if (restaurantId) fetchData(selectedDate, restaurantId)
     } catch (error: any) {
       console.error('Failed to update status:', error)
-      toast.error(error.response?.data?.error || 'Failed to update reservation status.')
+      const msg = error.response?.data?.error || ''
+      // If the transition was rejected, the UI is showing stale data — refresh so the
+      // correct current status is loaded and the user can take the right action.
+      if (error.response?.status === 400 && msg.toLowerCase().includes('transition')) {
+        setSelectedBooking(null); setSelectedTable(null)
+        if (restaurantId) fetchData(selectedDate, restaurantId)
+        toast.error('Status was already changed. The page has been refreshed.')
+      } else {
+        toast.error(msg || 'Failed to update reservation status.')
+      }
     }
   }
 
