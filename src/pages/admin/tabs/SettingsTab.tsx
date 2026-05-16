@@ -817,14 +817,7 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
               <CreditCard size={18} style={{ color: '#C99C63' }} /> Stripe Integration
             </h3>
 
-            {subscriptionPlan === 'free' ? (
-              <UpgradeBanner
-                title="Stripe Payment Gateway is Locked"
-                description="Upgrade to the Starter or Professional plan to connect your Stripe account and collect upfront payments for premium tables."
-                restaurantSlug={restaurantSlug}
-                isDark={isDark}
-              />
-            ) : settings.stripeOnboardingComplete ? (
+            {settings.stripeOnboardingComplete ? (
               <>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '24px', backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
                   <div style={{ padding: '8px', backgroundColor: '#10b981', color: '#fff', borderRadius: '50%' }}>
