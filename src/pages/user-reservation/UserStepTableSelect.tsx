@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Users, MapPin, Loader2 } from 'lucide-react'
+import { Users, Loader2, Crown, Star } from 'lucide-react'
 import { api } from '../../services/api'
 import type { ReservationData } from './UserReservationWizard'
 
@@ -9,6 +9,8 @@ interface Table {
   capacity: number
   area: { id: string; name: string } | null
   reservationFee?: number
+  isPremium: boolean
+  premiumPrice: number
 }
 
 interface UserStepTableSelectProps {
@@ -19,20 +21,18 @@ interface UserStepTableSelectProps {
 
 export default function UserStepTableSelect({ data, updateData, restaurantSlug }: UserStepTableSelectProps) {
   const [loading, setLoading] = useState(true)
-  const [groupedTables, setGroupedTables] = useState<Record<string, Table[]>>({})
+  const [allTables, setAllTables] = useState<Table[]>([])
 
   useEffect(() => {
     const fetchTables = async () => {
-      // Need date + time to check availability
       if (!data.date || !data.time) return
-      
+
       try {
         setLoading(true)
-        // Format date to YYYY-MM-DD if needed
         const formattedDate = data.date.includes('/')
           ? data.date.split('/').reverse().join('-')
           : data.date
-        
+
         const res = await api.get(`/public/${restaurantSlug}/availability`, {
           params: {
             date: formattedDate,
@@ -41,16 +41,7 @@ export default function UserStepTableSelect({ data, updateData, restaurantSlug }
           }
         })
         if (res.data?.success) {
-          const rawTables: Table[] = res.data.data
-          const groups: Record<string, Table[]> = {}
-          
-          rawTables.forEach(table => {
-            const areaName = table.area?.name || 'Common Area'
-            if (!groups[areaName]) groups[areaName] = []
-            groups[areaName].push(table)
-          })
-          
-          setGroupedTables(groups)
+          setAllTables(res.data.data || [])
         }
       } catch (error) {
         console.error('Failed to fetch available tables:', error)
@@ -61,115 +52,254 @@ export default function UserStepTableSelect({ data, updateData, restaurantSlug }
     fetchTables()
   }, [restaurantSlug, data.date, data.time, data.guests])
 
-  const handleSelect = (table: Table) => {
+  const standardTables = allTables.filter(t => !t.isPremium)
+  const premiumTables = allTables.filter(t => t.isPremium)
+
+  const selectedType = data.tableId
+    ? allTables.find(t => t.id === data.tableId)?.isPremium ? 'premium' : 'standard'
+    : null
+
+  const handleSelectStandard = () => {
+    if (standardTables.length === 0) return
+    const t = standardTables[0]
     updateData({
-      tableId: table.id,
-      tableName: table.name,
-      tableCapacity: table.capacity,
-      tableLocation: table.area?.name || 'General',
-      tableFee: table.reservationFee || 0,
+      tableId: t.id,
+      tableName: t.name,
+      tableCapacity: t.capacity,
+      tableLocation: t.area?.name || 'General',
+      tableFee: 0,
     })
+  }
+
+  const handleSelectPremium = () => {
+    if (premiumTables.length === 0) return
+    const t = premiumTables[0]
+    updateData({
+      tableId: t.id,
+      tableName: t.name,
+      tableCapacity: t.capacity,
+      tableLocation: t.area?.name || 'General',
+      tableFee: t.premiumPrice || t.reservationFee || 0,
+    })
+  }
+
+  const getCapacityRange = (tables: Table[]) => {
+    if (tables.length === 0) return ''
+    const caps = tables.map(t => t.capacity)
+    const min = Math.min(...caps)
+    const max = Math.max(...caps)
+    return min === max ? `${min} seats` : `${min}–${max} seats`
+  }
+
+  const getMinPremiumPrice = () => {
+    if (premiumTables.length === 0) return 0
+    return Math.min(...premiumTables.map(t => t.premiumPrice || t.reservationFee || 0))
   }
 
   if (loading) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '300px', gap: '16px' }}>
         <Loader2 className="animate-spin" size={32} style={{ color: '#C99C63' }} />
-        <p style={{ color: '#8b949e' }}>Loading available tables...</p>
+        <p style={{ color: '#8b949e' }}>Checking availability...</p>
       </div>
     )
   }
 
-  const hasTables = Object.keys(groupedTables).length > 0
-
-  if (!hasTables) {
+  if (allTables.length === 0) {
     return (
       <div style={{ textAlign: 'center', padding: '40px' }}>
-        <p style={{ color: '#8b949e' }}>No tables currently available for selection.</p>
+        <p style={{ color: '#8b949e' }}>No tables available for this time slot. Please try a different time.</p>
       </div>
     )
+  }
+
+  const cardBase: React.CSSProperties = {
+    width: '100%',
+    textAlign: 'left',
+    padding: '28px 24px',
+    borderRadius: '16px',
+    border: '1px solid #30363d',
+    backgroundColor: 'transparent',
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+    display: 'block',
+    position: 'relative',
+    overflow: 'hidden',
+  }
+
+  const cardSelected: React.CSSProperties = {
+    border: '1.5px solid #C99C63',
+    backgroundColor: 'rgba(201,156,99,0.08)',
+    boxShadow: '0 0 0 3px rgba(201,156,99,0.12)',
+  }
+
+  const cardDisabled: React.CSSProperties = {
+    opacity: 0.45,
+    cursor: 'not-allowed',
+    border: '1px solid #21262d',
   }
 
   return (
     <div>
       <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#ffffff', marginBottom: '4px', marginTop: 0 }}>
-        Choose Your Table
+        Choose Table Type
       </h2>
       <p style={{ fontSize: '0.875rem', color: '#8b949e', marginBottom: '32px', marginTop: 0 }}>
-        Select from our available tables
+        Select the seating experience you prefer
       </p>
 
-      {Object.entries(groupedTables).map(([area, areaTables]) => (
-        <div key={area} style={{ marginBottom: '24px' }}>
-          {/* Area Divider */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
-            <div style={{ flex: 1, height: '1px', backgroundColor: '#30363d' }} />
-            <span style={{ fontSize: '0.875rem', fontWeight: 500, color: '#C99C63' }}>{area}</span>
-            <div style={{ flex: 1, height: '1px', backgroundColor: '#30363d' }} />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '20px' }} className="res-table-type-grid">
+
+        {/* Standard Table Card */}
+        <button
+          onClick={handleSelectStandard}
+          disabled={standardTables.length === 0}
+          style={{
+            ...cardBase,
+            ...(selectedType === 'standard' ? cardSelected : {}),
+            ...(standardTables.length === 0 ? cardDisabled : {}),
+          }}
+        >
+          {selectedType === 'standard' && (
+            <div style={{
+              position: 'absolute', top: '12px', right: '12px',
+              width: '20px', height: '20px', borderRadius: '50%',
+              backgroundColor: '#C99C63', display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+              <svg width="11" height="9" viewBox="0 0 11 9" fill="none">
+                <path d="M1 4L4 7L10 1" stroke="#0B1517" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+          )}
+
+          <div style={{
+            width: '48px', height: '48px', borderRadius: '12px',
+            backgroundColor: 'rgba(255,255,255,0.06)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            marginBottom: '16px'
+          }}>
+            <img src="/Group 1597888803.svg" alt="Table" width={24} height={16} />
           </div>
 
-          {/* Table Grid */}
-          <div className="res-table-grid" style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-            gap: '16px'
+          <h3 style={{ fontWeight: 700, color: '#ffffff', fontSize: '1rem', margin: '0 0 8px' }}>
+            Standard Table
+          </h3>
+
+          <p style={{ fontSize: '0.8rem', color: '#8b949e', margin: '0 0 12px', lineHeight: 1.5 }}>
+            Comfortable seating in our main dining area
+          </p>
+
+          {standardTables.length > 0 ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <span style={{
+                fontSize: '0.75rem', fontWeight: 500,
+                backgroundColor: 'rgba(107,158,120,0.15)', color: '#6B9E78',
+                padding: '3px 10px', borderRadius: '999px'
+              }}>
+                {standardTables.length} available
+              </span>
+              <span style={{ fontSize: '0.75rem', color: '#8b949e', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Users size={12} />
+                {getCapacityRange(standardTables)}
+              </span>
+            </div>
+          ) : (
+            <span style={{
+              fontSize: '0.75rem', fontWeight: 500,
+              backgroundColor: 'rgba(139,148,158,0.1)', color: '#8b949e',
+              padding: '3px 10px', borderRadius: '999px'
+            }}>
+              Not available for this time slot
+            </span>
+          )}
+        </button>
+
+        {/* Premium Table Card */}
+        <button
+          onClick={handleSelectPremium}
+          disabled={premiumTables.length === 0}
+          style={{
+            ...cardBase,
+            ...(selectedType === 'premium' ? cardSelected : {}),
+            ...(premiumTables.length === 0 ? cardDisabled : {}),
+          }}
+        >
+          {selectedType === 'premium' && (
+            <div style={{
+              position: 'absolute', top: '12px', right: '12px',
+              width: '20px', height: '20px', borderRadius: '50%',
+              backgroundColor: '#C99C63', display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+              <svg width="11" height="9" viewBox="0 0 11 9" fill="none">
+                <path d="M1 4L4 7L10 1" stroke="#0B1517" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+          )}
+
+          {/* Subtle premium shimmer accent */}
+          {premiumTables.length > 0 && (
+            <div style={{
+              position: 'absolute', top: 0, right: 0,
+              width: '80px', height: '80px',
+              background: 'radial-gradient(circle at top right, rgba(201,156,99,0.12) 0%, transparent 70%)',
+              borderRadius: '0 16px 0 0',
+              pointerEvents: 'none',
+            }} />
+          )}
+
+          <div style={{
+            width: '48px', height: '48px', borderRadius: '12px',
+            backgroundColor: premiumTables.length > 0 ? 'rgba(201,156,99,0.12)' : 'rgba(255,255,255,0.04)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            marginBottom: '16px'
           }}>
-            {areaTables.map((table) => {
-              const isSelected = data.tableId === table.id
-              return (
-                <button
-                  key={table.id}
-                  onClick={() => handleSelect(table)}
-                  style={{
-                    width: '100%',
-                    textAlign: 'left',
-                    padding: '20px',
-                    borderRadius: '12px',
-                    border: isSelected ? '1px solid #5E8B6A' : '1px solid #30363d',
-                    backgroundColor: isSelected ? 'rgba(94, 139, 106, 0.15)' : 'transparent',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                    display: 'block',
-                    boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.2)'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
-                    <div style={{
-                      width: '40px',
-                      height: '40px',
-                      borderRadius: '9999px',
-                      backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0
-                    }}>
-                      <img src="/Group 1597888803.svg" alt="Table" width={20} height={13} />
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <h3 style={{ fontWeight: 600, color: '#ffffff', fontSize: '0.875rem', margin: 0 }}>
-                        {table.name}
-                      </h3>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginTop: '8px', fontSize: '0.75rem', color: '#8b949e' }}>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <Users size={13} />
-                          Capacity: {table.capacity} seats
-                        </span>
-                        {table.area && (
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <MapPin size={13} />
-                            {table.area.name}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </button>
-              )
-            })}
+            {premiumTables.length > 0
+              ? <Crown size={22} style={{ color: '#C99C63' }} />
+              : <Star size={22} style={{ color: '#555' }} />
+            }
           </div>
-        </div>
-      ))}
+
+          <h3 style={{ fontWeight: 700, color: '#ffffff', fontSize: '1rem', margin: '0 0 8px' }}>
+            Premium Table
+          </h3>
+
+          <p style={{ fontSize: '0.8rem', color: '#8b949e', margin: '0 0 12px', lineHeight: 1.5 }}>
+            Enhanced seating with exclusive positioning &amp; service
+          </p>
+
+          {premiumTables.length > 0 ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <span style={{
+                fontSize: '0.75rem', fontWeight: 500,
+                backgroundColor: 'rgba(201,156,99,0.15)', color: '#C99C63',
+                padding: '3px 10px', borderRadius: '999px'
+              }}>
+                From £{getMinPremiumPrice()}
+              </span>
+              <span style={{ fontSize: '0.75rem', color: '#8b949e', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Users size={12} />
+                {getCapacityRange(premiumTables)}
+              </span>
+            </div>
+          ) : (
+            <span style={{
+              fontSize: '0.75rem', fontWeight: 500,
+              backgroundColor: 'rgba(201,156,99,0.08)', color: '#9e7a44',
+              padding: '3px 10px', borderRadius: '999px'
+            }}>
+              Not available for this time slot
+            </span>
+          )}
+        </button>
+
+      </div>
+
+      {/* Mobile responsive override */}
+      <style>{`
+        @media (max-width: 540px) {
+          .res-table-type-grid { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
     </div>
   )
 }

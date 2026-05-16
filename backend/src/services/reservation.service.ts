@@ -109,7 +109,7 @@ export class ReservationService {
     const maxParty = org?.max_party_size || 20;
 
     // Staff-created bookings (POS / walk-in / phone) bypass max party size and advance windows
-    const isStaffCreated = !!createdBy || dto.source === 'pos';
+    const isStaffCreated = !!createdBy || dto.source === 'pos' || dto.source === 'walk_in';
 
     if (!isStaffCreated && dto.partySize > maxParty) {
       throw new AppError(`Party size cannot exceed ${maxParty}`, 400);
@@ -1051,6 +1051,152 @@ export class ReservationService {
         totalRevenue: Math.round(grandTotalRevenue * 100) / 100,
         totalCovers: grandTotalCovers,
       },
+    };
+  }
+
+  // ─── Analytics Report ────────────────────────────────────────────────────
+
+  /**
+   * Generate a period-based analytics report (daily / weekly / bi-weekly / monthly).
+   * Covers all reservation sources and statuses for complete management insight.
+   */
+  async getAnalyticsReport(
+    restaurantId: string,
+    period: string = 'weekly',
+    referenceDate?: string
+  ) {
+    const today = referenceDate || new Date().toISOString().split('T')[0];
+    const ref = new Date(today + 'T00:00:00Z');
+
+    let dateFrom: string;
+    let dateTo: string = today;
+
+    if (period === 'daily') {
+      dateFrom = today;
+    } else if (period === 'weekly') {
+      const from = new Date(ref);
+      from.setUTCDate(from.getUTCDate() - 6);
+      dateFrom = from.toISOString().split('T')[0];
+    } else if (period === 'bi-weekly') {
+      const from = new Date(ref);
+      from.setUTCDate(from.getUTCDate() - 13);
+      dateFrom = from.toISOString().split('T')[0];
+    } else {
+      // monthly — calendar month
+      dateFrom = `${today.substring(0, 7)}-01`;
+      const lastDay = new Date(ref.getUTCFullYear(), ref.getUTCMonth() + 1, 0).getUTCDate();
+      dateTo = `${today.substring(0, 7)}-${String(lastDay).padStart(2, '0')}`;
+    }
+
+    // Fetch org name
+    const { data: org } = await supabaseAdmin
+      .from('organizations')
+      .select('name')
+      .eq('id', restaurantId)
+      .single();
+
+    // Fetch all reservations in range (all statuses)
+    const { data: rows, error } = await supabaseAdmin
+      .from('reservations')
+      .select(`
+        id, reservation_date, start_time, end_time, party_size,
+        guest_first_name, guest_last_name, guest_email, guest_phone,
+        status, source, special_requests, created_at,
+        tables ( name, table_number )
+      `)
+      .eq('restaurant_id', restaurantId)
+      .gte('reservation_date', dateFrom)
+      .lte('reservation_date', dateTo)
+      .order('reservation_date', { ascending: true })
+      .order('start_time', { ascending: true });
+
+    if (error) throw new AppError('Failed to fetch analytics data', 500);
+
+    const reservations = rows || [];
+
+    // ── Aggregation ──────────────────────────────────────────────────────────
+    const bySource = { walkIn: 0, online: 0, staff: 0, phone: 0 };
+    const byStatus: Record<string, number> = {
+      completed: 0, seated: 0, confirmed: 0, pending: 0, cancelled: 0, noShow: 0, arriving: 0,
+    };
+    const dailyMap: Map<string, { total: number; covers: number; walkIn: number; online: number; staff: number; phone: number }> = new Map();
+
+    let totalCovers = 0;
+
+    for (const r of reservations) {
+      const src = (r.source || 'app').toLowerCase();
+      if (src === 'walk_in') bySource.walkIn++;
+      else if (src === 'pos') bySource.staff++;
+      else if (src === 'phone') bySource.phone++;
+      else bySource.online++;
+
+      const st = (r.status || 'pending').toLowerCase();
+      if (st === 'no_show') byStatus.noShow = (byStatus.noShow || 0) + 1;
+      else if (byStatus[st] !== undefined) byStatus[st]++;
+
+      totalCovers += r.party_size || 0;
+
+      const d: string = typeof r.reservation_date === 'string'
+        ? r.reservation_date.split('T')[0]
+        : r.reservation_date;
+
+      if (!dailyMap.has(d)) dailyMap.set(d, { total: 0, covers: 0, walkIn: 0, online: 0, staff: 0, phone: 0 });
+      const day = dailyMap.get(d)!;
+      day.total++;
+      day.covers += r.party_size || 0;
+      if (src === 'walk_in') day.walkIn++;
+      else if (src === 'pos') day.staff++;
+      else if (src === 'phone') day.phone++;
+      else day.online++;
+    }
+
+    const total = reservations.length;
+    const avgPartySize = total > 0 ? Math.round((totalCovers / total) * 10) / 10 : 0;
+
+    // Peak day
+    let peakDay: { date: string; count: number } | null = null;
+    for (const [date, day] of dailyMap.entries()) {
+      if (!peakDay || day.total > peakDay.count) peakDay = { date, count: day.total };
+    }
+
+    const dailyBreakdown = Array.from(dailyMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, v]) => ({ date, ...v }));
+
+    const reservationList = reservations.map(r => ({
+      date: typeof r.reservation_date === 'string' ? r.reservation_date.split('T')[0] : r.reservation_date,
+      startTime: r.start_time,
+      endTime: r.end_time,
+      guestFirstName: r.guest_first_name || '',
+      guestLastName: r.guest_last_name || '',
+      phone: r.guest_phone || '',
+      email: r.guest_email || '',
+      partySize: r.party_size,
+      table: (r.tables as any)?.name || (r.tables as any)?.table_number || '—',
+      status: r.status,
+      source: r.source || 'app',
+      specialRequests: r.special_requests || '',
+      createdAt: r.created_at,
+    }));
+
+    return {
+      meta: {
+        period,
+        dateFrom,
+        dateTo,
+        generatedAt: new Date().toISOString(),
+        restaurantName: org?.name || 'Restaurant',
+      },
+      summary: {
+        totalReservations: total,
+        totalCovers,
+        bySource,
+        byStatus,
+        avgPartySize,
+        peakDay,
+      },
+      dailyBreakdown,
+      reservations: reservationList,
     };
   }
 

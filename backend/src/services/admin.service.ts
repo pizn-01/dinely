@@ -1,8 +1,10 @@
 import { supabaseAdmin } from '../config/database';
-import { AppError, NotFoundError } from '../middleware/errorHandler';
+import { AppError, NotFoundError, ConflictError } from '../middleware/errorHandler';
 import { parsePagination, buildPaginationMeta } from '../utils/pagination';
 import { sanitizeSearch } from '../utils/sanitize';
 import { auditService } from './audit.service';
+import { generateUniqueSlug } from '../utils/slug';
+import { UserRole } from '../types/enums';
 
 export class AdminService {
   /**
@@ -112,6 +114,88 @@ export class AdminService {
     });
 
     return this.formatOrganization(data);
+  }
+
+  /**
+   * Manually create an organization + admin user with a preset plan, bypassing payment gateway.
+   */
+  async createOrganizationManually(dto: { email: string; password: string; ownerName: string; businessName: string; plan: string }, userId?: string) {
+    const { data: existingUser } = await supabaseAdmin
+      .from('staff_members')
+      .select('id')
+      .eq('email', dto.email)
+      .single();
+
+    if (existingUser) {
+      throw new ConflictError('An account with this email already exists');
+    }
+
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email: dto.email,
+      password: dto.password,
+      email_confirm: true,
+      user_metadata: {
+        name: dto.ownerName,
+        role: UserRole.RESTAURANT_ADMIN,
+      },
+    });
+
+    if (authError || !authData.user) {
+      throw new AppError(authError?.message || 'Failed to create user', 500);
+    }
+
+    const newUserId = authData.user.id;
+    const slug = await generateUniqueSlug(dto.businessName);
+
+    const { data: org, error: orgError } = await supabaseAdmin
+      .from('organizations')
+      .insert({
+        name: dto.businessName,
+        slug,
+        owner_id: newUserId,
+        subscription_plan: dto.plan,
+        subscription_status: 'active',
+        setup_completed: true,
+      })
+      .select()
+      .single();
+
+    if (orgError || !org) {
+      await supabaseAdmin.auth.admin.deleteUser(newUserId);
+      throw new AppError(orgError?.message || 'Failed to create organization', 500);
+    }
+
+    // Insert staff member
+    await supabaseAdmin.from('staff_members').insert({
+      user_id: newUserId,
+      restaurant_id: org.id,
+      role: 'admin',
+      name: dto.ownerName,
+      email: dto.email,
+      accepted_at: new Date().toISOString(),
+    });
+
+    // Create a dummy subscription record to make it show up in subscriptions properly
+    await supabaseAdmin.from('subscriptions').insert({
+      organization_id: org.id,
+      stripe_subscription_id: `manual_${Date.now()}`,
+      stripe_customer_id: `manual_cus_${Date.now()}`,
+      status: 'active',
+      plan: dto.plan,
+      current_period_start: new Date().toISOString(),
+      current_period_end: new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000).toISOString(), // 10 years
+      cancel_at_period_end: false,
+    });
+
+    await auditService.log({
+      userId,
+      action: 'organization.manual_created_bypass',
+      entityType: 'organization',
+      entityId: org.id,
+      changes: { dto },
+    });
+
+    return this.formatOrganization(org);
   }
 
   /**

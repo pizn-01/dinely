@@ -3,7 +3,7 @@ import { adminController } from '../controllers/admin.controller';
 import { authenticate } from '../middleware/auth';
 import { requireMinRole } from '../middleware/rbac';
 import { validate } from '../middleware/validator';
-import { adminUpdateOrgSchema, adminToggleOrgStatusSchema } from '../validators/admin.validator';
+import { adminUpdateOrgSchema, adminToggleOrgStatusSchema, adminCreateManualOrgSchema } from '../validators/admin.validator';
 import { UserRole } from '../types/enums';
 
 const router = Router();
@@ -32,6 +32,12 @@ router.put('/organizations/:id',
 router.patch('/organizations/:id/status',
   validate(adminToggleOrgStatusSchema),
   (req, res, next) => adminController.toggleOrgStatus(req, res, next)
+);
+
+// POST /admin/organizations/manual
+router.post('/organizations/manual',
+  validate(adminCreateManualOrgSchema),
+  (req, res, next) => adminController.createOrganizationManually(req, res, next)
 );
 
 // GET /admin/stats

@@ -28,3 +28,14 @@ export const adminUpdateOrgSchema = z.object({
 export const adminToggleOrgStatusSchema = z.object({
   isActive: z.boolean(),
 });
+
+/**
+ * Schema for manually creating an organization + user + bypass payment
+ */
+export const adminCreateManualOrgSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6),
+  ownerName: z.string().min(1).max(255),
+  businessName: z.string().min(1).max(255),
+  plan: z.enum(['starter', 'professional']),
+});

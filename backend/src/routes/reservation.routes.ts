@@ -3,7 +3,7 @@ import { reservationController } from '../controllers/reservation.controller';
 import { authenticate } from '../middleware/auth';
 import { requireMinRole, requireRestaurantAccess } from '../middleware/rbac';
 import { validate } from '../middleware/validator';
-import { createReservationSchema, updateReservationSchema, updateReservationStatusSchema, reservationFilterSchema, updateTotalAmountSchema, tableReportFilterSchema } from '../validators/reservation.validator';
+import { createReservationSchema, updateReservationSchema, updateReservationStatusSchema, reservationFilterSchema, updateTotalAmountSchema, tableReportFilterSchema, analyticsReportFilterSchema } from '../validators/reservation.validator';
 import { UserRole } from '../types/enums';
 import multer from 'multer';
 
@@ -84,6 +84,13 @@ router.get('/reports/table-revenue',
   requireMinRole(UserRole.VIEWER),
   validate(tableReportFilterSchema, 'query'),
   (req, res, next) => reservationController.getTableRevenueReport(req, res, next)
+);
+
+// GET /organizations/:orgId/reservations/reports/analytics — Period analytics report
+router.get('/reports/analytics',
+  requireMinRole(UserRole.VIEWER),
+  validate(analyticsReportFilterSchema, 'query'),
+  (req, res, next) => reservationController.getAnalyticsReport(req, res, next)
 );
 
 // POST /organizations/:orgId/reservations/import — Bulk CSV import

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Users, MapPin, Coffee, ChevronLeft, ChevronRight, Upload, Plus, Calendar, Clock, Layout, Moon, Sun, CircleUser, LogOut, KeyRound, Link2, Unlink, X } from 'lucide-react'
+import { Users, MapPin, Coffee, ChevronLeft, ChevronRight, Upload, Plus, Calendar, Clock, Layout, Moon, Sun, CircleUser, LogOut, KeyRound, Link2, Unlink, X, UserCheck, BarChart2 } from 'lucide-react'
 import { api } from '../../services/api'
 import { toast } from 'react-hot-toast'
 import { useAuth } from '../../context/AuthContext'
@@ -8,6 +8,8 @@ import { useTheme } from '../../context/ThemeContext'
 import { useRealtimeReservations } from '../../hooks/useRealtimeReservations'
 import PoweredByFooter from '../../components/PoweredByFooter'
 import StaffReservationWizard from './StaffReservationWizard'
+import WalkInModal from './WalkInModal'
+import AnalyticsReportModal from '../../components/AnalyticsReportModal'
 import { staffForgotPasswordPath, staffLoginPath, staffTablesPath } from '../../utils/restaurantRoutes'
 
 interface TableData {
@@ -109,6 +111,8 @@ export default function StaffTableManagement() {
   const [selectedBooking, setSelectedBooking] = useState<any>(null)
   const [selectedTable, setSelectedTable] = useState<any>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [showWalkInModal, setShowWalkInModal] = useState(false)
+  const [showAnalyticsModal, setShowAnalyticsModal] = useState(false)
   const [wizardPreset, setWizardPreset] = useState<null | {
     table?: { id: string; name?: string | null; tableNumber?: string | null; capacity?: number | null; areaName?: string | null }
     date?: string
@@ -796,7 +800,51 @@ export default function StaffTableManagement() {
             <Calendar size={18} />
             Import Reservations
           </button>
-          <button 
+          {/* Analytics Report button — manager/admin only */}
+          {(user?.role === 'manager' || user?.role === 'admin' || user?.role === 'restaurant_admin') && (
+            <button
+              onClick={() => setShowAnalyticsModal(true)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '8px',
+                padding: '10px 16px',
+                border: `1px solid var(--border-primary)`,
+                borderRadius: '12px', cursor: 'pointer',
+                fontSize: '0.875rem', fontWeight: 600,
+                color: 'var(--text-secondary)',
+                backgroundColor: 'var(--bg-card)',
+                transition: 'all 0.2s'
+              }}
+            >
+              <BarChart2 size={17} />
+              Analytics
+            </button>
+          )}
+          {/* Walk-in button */}
+          <button
+            onClick={() => {
+              if (isDayClosed) {
+                toast.error(`The restaurant is closed on ${selectedDayOfWeek.charAt(0).toUpperCase() + selectedDayOfWeek.slice(1)}s.`)
+                return
+              }
+              setShowWalkInModal(true)
+            }}
+            disabled={isDayClosed}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '8px',
+              padding: '10px 18px',
+              border: `1.5px solid ${isDayClosed ? 'var(--border-primary)' : '#C99C63'}`,
+              borderRadius: '12px', cursor: isDayClosed ? 'not-allowed' : 'pointer',
+              fontSize: '0.875rem', fontWeight: 600,
+              color: isDayClosed ? 'var(--text-tertiary)' : '#C99C63',
+              backgroundColor: 'transparent',
+              opacity: isDayClosed ? 0.5 : 1,
+              transition: 'all 0.2s'
+            }}
+          >
+            <UserCheck size={17} />
+            Walk In
+          </button>
+          <button
             onClick={() => {
               if (isDayClosed) {
                 toast.error(`The restaurant is closed on ${selectedDayOfWeek.charAt(0).toUpperCase() + selectedDayOfWeek.slice(1)}s.`)
@@ -805,16 +853,16 @@ export default function StaffTableManagement() {
               setShowCreateModal(true)
             }}
             disabled={isDayClosed}
-            style={{ 
-              backgroundColor: isDayClosed ? 'var(--bg-tertiary)' : (isDark ? '#C99C63' : '#111827'), 
-              color: isDayClosed ? 'var(--text-tertiary)' : (isDark ? '#0B1517' : '#ffffff'), 
-              padding: '10px 24px', 
-              borderRadius: '12px', 
-              border: 'none', 
-              fontSize: '0.875rem', 
-              fontWeight: 600, 
-              display: 'flex', 
-              alignItems: 'center', 
+            style={{
+              backgroundColor: isDayClosed ? 'var(--bg-tertiary)' : (isDark ? '#C99C63' : '#111827'),
+              color: isDayClosed ? 'var(--text-tertiary)' : (isDark ? '#0B1517' : '#ffffff'),
+              padding: '10px 24px',
+              borderRadius: '12px',
+              border: 'none',
+              fontSize: '0.875rem',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
               gap: '8px',
               cursor: isDayClosed ? 'not-allowed' : 'pointer',
               opacity: isDayClosed ? 0.6 : 1,
@@ -2476,6 +2524,26 @@ export default function StaffTableManagement() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Walk-in Modal */}
+      {showWalkInModal && restaurantId && (
+        <WalkInModal
+          restaurantId={restaurantId}
+          isDark={isDark}
+          onClose={() => setShowWalkInModal(false)}
+          onSuccess={() => fetchData(selectedDate, restaurantId)}
+        />
+      )}
+
+      {/* Analytics Report Modal */}
+      {showAnalyticsModal && restaurantId && (
+        <AnalyticsReportModal
+          restaurantId={restaurantId}
+          restaurantName={orgData?.name || 'Restaurant'}
+          onClose={() => setShowAnalyticsModal(false)}
+          isDark={isDark}
+        />
       )}
 
       {/* POS Create Modal */}

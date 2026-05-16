@@ -65,3 +65,8 @@ export const tableReportFilterSchema = z.object({
   tableId: z.string().uuid().optional(),
 });
 
+export const analyticsReportFilterSchema = z.object({
+  period: z.enum(['daily', 'weekly', 'bi-weekly', 'monthly']).default('weekly'),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD').optional(),
+});
+

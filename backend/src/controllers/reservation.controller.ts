@@ -172,6 +172,20 @@ export class ReservationController {
     }
   }
 
+  async getAnalyticsReport(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const { period, date } = req.query;
+      const result = await reservationService.getAnalyticsReport(
+        param(req, 'orgId'),
+        period as string | undefined,
+        date as string | undefined
+      );
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async getMonthlyReservationCounts(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const year = parseInt(req.query.year as string, 10);

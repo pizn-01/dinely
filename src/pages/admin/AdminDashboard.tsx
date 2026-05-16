@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Calendar, Users as UsersIcon, LayoutGrid, UserCheck } from 'lucide-react'
+import { Calendar, Users as UsersIcon, LayoutGrid, UserCheck, BarChart2 } from 'lucide-react'
 import { api } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
@@ -15,6 +15,7 @@ import PoweredByFooter from '../../components/PoweredByFooter'
 import SettingsTab from './tabs/SettingsTab'
 import SupportTab from './tabs/SupportTab'
 import IntegrationGuideTab from './tabs/IntegrationGuideTab'
+import AnalyticsReportModal from '../../components/AnalyticsReportModal'
 
 const ALL_TABS = [
   { id: 'reservation', label: 'Reservation' },
@@ -31,6 +32,7 @@ export default function AdminDashboard() {
   const { user } = useAuth()
   const orgId = user?.restaurantId || ''
   const [activeTab, setActiveTab] = useState('reservation')
+  const [showAnalyticsModal, setShowAnalyticsModal] = useState(false)
   const { isDark } = useTheme()
   const [orgData, setOrgData] = useState<any>(null)
   const [stats, setStats] = useState({
@@ -148,6 +150,26 @@ export default function AdminDashboard() {
           />
         </div>
 
+        {/* Analytics Report Button */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
+          <button
+            onClick={() => setShowAnalyticsModal(true)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '8px',
+              padding: '8px 18px',
+              borderRadius: '10px',
+              border: `1px solid ${isDark ? '#30363d' : '#d1d5db'}`,
+              backgroundColor: 'transparent',
+              color: isDark ? '#8b949e' : '#6b7280',
+              fontSize: '0.85rem', fontWeight: 600,
+              cursor: 'pointer', transition: 'all 0.2s',
+            }}
+          >
+            <BarChart2 size={16} />
+            Analytics Report
+          </button>
+        </div>
+
         {/* Tab Navigation */}
         <div style={{
           width: '100%',
@@ -205,6 +227,16 @@ export default function AdminDashboard() {
         </div>
       </div>
       <PoweredByFooter theme={isDark ? 'dark' : 'light'} />
+
+      {/* Analytics Report Modal */}
+      {showAnalyticsModal && (
+        <AnalyticsReportModal
+          restaurantId={orgId}
+          restaurantName={orgData?.name || 'Restaurant'}
+          isDark={isDark}
+          onClose={() => setShowAnalyticsModal(false)}
+        />
+      )}
     </div>
   )
 }

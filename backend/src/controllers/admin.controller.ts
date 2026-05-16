@@ -47,6 +47,15 @@ export class AdminController {
     }
   }
 
+  async createOrganizationManually(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const result = await adminService.createOrganizationManually(req.body, req.user?.sub);
+      res.status(201).json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async getPlatformStats(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const result = await adminService.getPlatformStats();
