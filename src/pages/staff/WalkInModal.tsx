@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { X, UserCheck, Users, Minus, Plus, AlertCircle, Loader2 } from 'lucide-react'
+import { X, UserCheck, Users, Minus, Plus, AlertCircle, Loader2, Clock, Calendar, ChevronRight } from 'lucide-react'
 import { api } from '../../services/api'
 import { toast } from 'react-hot-toast'
 
@@ -20,16 +20,12 @@ interface WalkInModalProps {
 
 const getLocalISODate = () => {
   const d = new Date()
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 const getCurrentTimeRounded = () => {
   const now = new Date()
-  const mins = now.getMinutes()
-  const rounded = Math.floor(mins / 15) * 15
+  const rounded = Math.floor(now.getMinutes() / 15) * 15
   return `${String(now.getHours()).padStart(2, '0')}:${String(rounded).padStart(2, '0')}`
 }
 
@@ -67,9 +63,7 @@ export default function WalkInModal({ restaurantId, onClose, onSuccess, isDark =
     }
   }, [restaurantId, date, time, partySize])
 
-  useEffect(() => {
-    fetchTables()
-  }, [fetchTables])
+  useEffect(() => { fetchTables() }, [fetchTables])
 
   const selectedTable = tables.find(t => t.id === tableId)
 
@@ -80,7 +74,6 @@ export default function WalkInModal({ restaurantId, onClose, onSuccess, isDark =
 
     setError(null)
     setSubmitting(true)
-
     try {
       const payload = {
         reservationDate: date,
@@ -94,16 +87,12 @@ export default function WalkInModal({ restaurantId, onClose, onSuccess, isDark =
         specialRequests: specialRequest.trim() || undefined,
         source: 'walk_in',
       }
-
       const { data: createRes } = await api.post(`/organizations/${restaurantId}/reservations`, payload)
       const newId = createRes?.data?.id || createRes?.id
-
       if (newId) {
         await api.patch(`/organizations/${restaurantId}/reservations/${newId}/status`, { status: 'seated' })
       }
-
-      const tableName = selectedTable?.name || selectedTable?.tableNumber || 'table'
-      toast.success(`Walk-in seated at ${tableName}`)
+      toast.success(`Walk-in seated at ${selectedTable?.name || selectedTable?.tableNumber || 'table'}`)
       onSuccess()
       onClose()
     } catch (err: any) {
@@ -113,17 +102,17 @@ export default function WalkInModal({ restaurantId, onClose, onSuccess, isDark =
     }
   }
 
-  // ── styling tokens ──────────────────────────────────────────────────────────
+  const gold = '#C99C63'
   const bg = 'var(--bg-secondary, #161b22)'
   const bgInput = 'var(--bg-primary, #0d1117)'
+  const bgCard = 'var(--bg-card, #1c2128)'
   const border = 'var(--border-color, #30363d)'
   const textPrimary = 'var(--text-primary, #e6edf3)'
   const textSecondary = 'var(--text-secondary, #8b949e)'
-  const gold = '#C99C63'
 
   const inputStyle: React.CSSProperties = {
     width: '100%',
-    padding: '9px 12px',
+    padding: '10px 12px',
     borderRadius: '8px',
     border: `1px solid ${border}`,
     backgroundColor: bgInput,
@@ -131,28 +120,46 @@ export default function WalkInModal({ restaurantId, onClose, onSuccess, isDark =
     fontSize: '0.875rem',
     outline: 'none',
     boxSizing: 'border-box',
+    transition: 'border-color 0.15s',
   }
 
   const labelStyle: React.CSSProperties = {
-    fontSize: '0.78rem',
-    fontWeight: 500,
+    fontSize: '0.75rem',
+    fontWeight: 600,
     color: textSecondary,
-    marginBottom: '5px',
+    marginBottom: '6px',
     display: 'block',
+    textTransform: 'uppercase',
+    letterSpacing: '0.04em',
+  }
+
+  const sectionStyle: React.CSSProperties = {
+    padding: '16px 24px',
+    borderBottom: `1px solid ${border}`,
   }
 
   return (
     <>
+      <style>{`
+        .walkin-field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .walkin-datetime-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .walkin-table-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+        .walkin-party-step:hover { border-color: ${gold} !important; }
+        .walkin-input:focus { border-color: ${gold} !important; }
+        @media (max-width: 500px) {
+          .walkin-field-grid { grid-template-columns: 1fr !important; }
+          .walkin-datetime-grid { grid-template-columns: 1fr !important; }
+          .walkin-table-grid { grid-template-columns: repeat(2, 1fr) !important; }
+        }
+      `}</style>
+
       {/* Backdrop */}
-      <div
-        onClick={onClose}
-        style={{
-          position: 'fixed', inset: 0,
-          backgroundColor: 'rgba(0,0,0,0.6)',
-          backdropFilter: 'blur(4px)',
-          zIndex: 1000,
-        }}
-      />
+      <div onClick={onClose} style={{
+        position: 'fixed', inset: 0,
+        backgroundColor: 'rgba(0,0,0,0.65)',
+        backdropFilter: 'blur(4px)',
+        zIndex: 1000,
+      }} />
 
       {/* Modal */}
       <div style={{
@@ -160,265 +167,356 @@ export default function WalkInModal({ restaurantId, onClose, onSuccess, isDark =
         top: '50%', left: '50%',
         transform: 'translate(-50%, -50%)',
         zIndex: 1001,
-        width: '100%',
-        maxWidth: '560px',
-        maxHeight: '90vh',
-        overflowY: 'auto',
+        width: 'min(560px, calc(100vw - 24px))',
+        maxHeight: 'min(90vh, 800px)',
+        display: 'flex',
+        flexDirection: 'column',
         backgroundColor: bg,
         borderRadius: '16px',
         border: `1px solid ${border}`,
-        boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
+        boxShadow: '0 32px 80px rgba(0,0,0,0.6)',
         fontFamily: 'Inter, system-ui, sans-serif',
+        overflow: 'hidden',
       }}>
 
-        {/* Header */}
+        {/* ── Header ── */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '20px 24px 16px',
+          padding: '18px 24px',
           borderBottom: `1px solid ${border}`,
+          flexShrink: 0,
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{
-              width: '34px', height: '34px', borderRadius: '8px',
-              backgroundColor: 'rgba(201,156,99,0.12)',
+              width: '38px', height: '38px', borderRadius: '10px',
+              background: 'rgba(201,156,99,0.15)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
-              <UserCheck size={18} style={{ color: gold }} />
+              <UserCheck size={19} style={{ color: gold }} />
             </div>
             <div>
-              <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: textPrimary }}>Walk-in</h2>
-              <p style={{ margin: 0, fontSize: '0.75rem', color: textSecondary }}>Seat a guest immediately</p>
+              <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: textPrimary }}>Walk-in Seating</h2>
+              <p style={{ margin: 0, fontSize: '0.72rem', color: textSecondary }}>Seat a guest immediately</p>
             </div>
           </div>
           <button onClick={onClose} style={{
             background: 'none', border: 'none', cursor: 'pointer',
-            color: textSecondary, padding: '4px', borderRadius: '6px',
+            color: textSecondary, padding: '6px', borderRadius: '6px',
             display: 'flex', alignItems: 'center',
+            transition: 'color 0.15s',
           }}>
             <X size={18} />
           </button>
         </div>
 
-        {/* Body */}
-        <div style={{ padding: '20px 24px' }}>
+        {/* ── Scrollable body ── */}
+        <div style={{ overflowY: 'auto', flex: 1 }}>
 
-          {/* Row 1: Party Size + Date */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
-            {/* Party Size */}
-            <div>
+          {/* ── Section 1: Party + Date + Time ── */}
+          <div style={sectionStyle}>
+            <p style={{ ...labelStyle, marginBottom: '12px' }}>Booking Details</p>
+
+            {/* Party Size — full-width stepper */}
+            <div style={{ marginBottom: '12px' }}>
               <label style={labelStyle}>Party Size</label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '10px 14px',
+                borderRadius: '10px',
+                border: `1px solid ${border}`,
+                backgroundColor: bgInput,
+              }}>
                 <button
+                  className="walkin-party-step"
                   onClick={() => setPartySize(p => Math.max(1, p - 1))}
                   style={{
-                    width: '34px', height: '36px', borderRadius: '8px',
-                    border: `1px solid ${border}`, background: bgInput,
-                    color: textPrimary, cursor: 'pointer', flexShrink: 0,
+                    width: '32px', height: '32px', borderRadius: '8px',
+                    border: `1px solid ${border}`, background: bgCard,
+                    color: textPrimary, cursor: 'pointer',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    transition: 'border-color 0.15s',
+                    flexShrink: 0,
                   }}
                 ><Minus size={14} /></button>
-                <div style={{
-                  flex: 1, textAlign: 'center', padding: '8px',
-                  borderRadius: '8px', border: `1px solid ${border}`,
-                  background: bgInput, color: textPrimary,
-                  fontSize: '0.875rem', fontWeight: 600,
-                }}>
-                  <Users size={13} style={{ verticalAlign: 'middle', marginRight: '4px', color: textSecondary }} />
-                  {partySize}
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Users size={16} style={{ color: gold }} />
+                  <span style={{ fontSize: '1.15rem', fontWeight: 700, color: textPrimary, minWidth: '24px', textAlign: 'center' }}>
+                    {partySize}
+                  </span>
+                  <span style={{ fontSize: '0.78rem', color: textSecondary }}>
+                    {partySize === 1 ? 'guest' : 'guests'}
+                  </span>
                 </div>
+
                 <button
+                  className="walkin-party-step"
                   onClick={() => setPartySize(p => Math.min(20, p + 1))}
                   style={{
-                    width: '34px', height: '36px', borderRadius: '8px',
-                    border: `1px solid ${border}`, background: bgInput,
-                    color: textPrimary, cursor: 'pointer', flexShrink: 0,
+                    width: '32px', height: '32px', borderRadius: '8px',
+                    border: `1px solid ${border}`, background: bgCard,
+                    color: textPrimary, cursor: 'pointer',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    transition: 'border-color 0.15s',
+                    flexShrink: 0,
                   }}
                 ><Plus size={14} /></button>
               </div>
             </div>
-            {/* Date */}
-            <div>
-              <label style={labelStyle}>Date</label>
-              <input
-                type="date"
-                value={date}
-                onChange={e => setDate(e.target.value)}
-                style={inputStyle}
-              />
+
+            {/* Date + Time row */}
+            <div className="walkin-datetime-grid">
+              <div>
+                <label style={labelStyle}>
+                  <Calendar size={11} style={{ verticalAlign: 'middle', marginRight: '4px' }} />
+                  Date
+                </label>
+                <input
+                  className="walkin-input"
+                  type="date"
+                  value={date}
+                  onChange={e => setDate(e.target.value)}
+                  style={inputStyle}
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>
+                  <Clock size={11} style={{ verticalAlign: 'middle', marginRight: '4px' }} />
+                  Time
+                </label>
+                <input
+                  className="walkin-input"
+                  type="time"
+                  value={time}
+                  step="900"
+                  onChange={e => setTime(e.target.value)}
+                  style={inputStyle}
+                />
+              </div>
             </div>
           </div>
 
-          {/* Row 2: Time */}
-          <div style={{ marginBottom: '16px' }}>
-            <label style={labelStyle}>Time</label>
-            <input
-              type="time"
-              value={time}
-              step="900"
-              onChange={e => setTime(e.target.value)}
-              style={{ ...inputStyle, maxWidth: '160px' }}
-            />
-          </div>
+          {/* ── Section 2: Table Selection ── */}
+          <div style={sectionStyle}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+              <p style={{ ...labelStyle, margin: 0 }}>Select Table</p>
+              {tablesLoading && (
+                <span style={{ fontSize: '0.72rem', color: textSecondary, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Loader2 size={11} className="animate-spin" style={{ color: gold }} />
+                  Checking…
+                </span>
+              )}
+              {!tablesLoading && tables.length > 0 && (
+                <span style={{ fontSize: '0.72rem', color: textSecondary }}>
+                  {tables.length} available
+                </span>
+              )}
+            </div>
 
-          {/* Available Tables */}
-          <div style={{ marginBottom: '16px' }}>
-            <label style={labelStyle}>
-              Table
-              {tablesLoading && <Loader2 size={12} className="animate-spin" style={{ marginLeft: '6px', verticalAlign: 'middle', color: gold }} />}
-            </label>
             {tablesLoading ? (
-              <div style={{ padding: '12px', textAlign: 'center', color: textSecondary, fontSize: '0.8rem' }}>
-                Checking availability...
+              <div style={{
+                display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px',
+              }}>
+                {[1, 2, 3, 4, 5, 6].map(i => (
+                  <div key={i} style={{
+                    height: '56px', borderRadius: '10px',
+                    backgroundColor: bgCard, border: `1px solid ${border}`,
+                    animation: 'pulse 1.5s ease-in-out infinite',
+                    opacity: 0.5,
+                  }} />
+                ))}
               </div>
             ) : tables.length === 0 ? (
               <div style={{
-                padding: '10px 12px', borderRadius: '8px',
-                border: `1px solid rgba(201,156,99,0.3)`,
-                backgroundColor: 'rgba(201,156,99,0.06)',
-                color: '#C99C63', fontSize: '0.8rem',
-                display: 'flex', alignItems: 'center', gap: '8px',
+                padding: '14px 16px', borderRadius: '10px',
+                border: `1px solid rgba(201,156,99,0.25)`,
+                backgroundColor: 'rgba(201,156,99,0.05)',
+                color: '#C99C63', fontSize: '0.82rem',
+                display: 'flex', alignItems: 'center', gap: '10px',
               }}>
-                <AlertCircle size={14} />
+                <AlertCircle size={15} style={{ flexShrink: 0 }} />
                 No tables available for {partySize} guest{partySize !== 1 ? 's' : ''} at this time
               </div>
             ) : (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                {tables.map(t => (
-                  <button
-                    key={t.id}
-                    onClick={() => setTableId(t.id)}
-                    style={{
-                      padding: '6px 14px',
-                      borderRadius: '8px',
-                      border: tableId === t.id ? `1.5px solid ${gold}` : `1px solid ${border}`,
-                      backgroundColor: tableId === t.id ? 'rgba(201,156,99,0.12)' : bgInput,
-                      color: tableId === t.id ? gold : textPrimary,
-                      fontSize: '0.8rem', fontWeight: tableId === t.id ? 600 : 400,
-                      cursor: 'pointer',
-                      transition: 'all 0.15s',
-                      display: 'flex', alignItems: 'center', gap: '6px',
-                    }}
-                  >
-                    {t.name || t.tableNumber}
-                    <span style={{ color: textSecondary, fontSize: '0.72rem' }}>· {t.capacity} seats</span>
-                  </button>
-                ))}
+              <div className="walkin-table-grid">
+                {tables.map(t => {
+                  const isSelected = tableId === t.id
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() => setTableId(t.id)}
+                      style={{
+                        padding: '10px 12px',
+                        borderRadius: '10px',
+                        border: isSelected ? `1.5px solid ${gold}` : `1px solid ${border}`,
+                        backgroundColor: isSelected ? 'rgba(201,156,99,0.1)' : bgCard,
+                        color: textPrimary,
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        transition: 'all 0.15s',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '3px',
+                      }}
+                    >
+                      <span style={{
+                        fontSize: '0.82rem', fontWeight: 600,
+                        color: isSelected ? gold : textPrimary,
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }}>
+                        {t.name || t.tableNumber}
+                      </span>
+                      <span style={{ fontSize: '0.7rem', color: textSecondary }}>
+                        {t.capacity} seats
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Selected table summary */}
+            {selectedTable && (
+              <div style={{
+                marginTop: '10px', padding: '8px 12px', borderRadius: '8px',
+                backgroundColor: 'rgba(201,156,99,0.08)',
+                border: `1px solid rgba(201,156,99,0.2)`,
+                display: 'flex', alignItems: 'center', gap: '6px',
+                fontSize: '0.78rem', color: gold, fontWeight: 600,
+              }}>
+                <ChevronRight size={13} />
+                {selectedTable.name || selectedTable.tableNumber} · {selectedTable.capacity} seats selected
               </div>
             )}
           </div>
 
-          {/* Divider */}
-          <div style={{ height: '1px', backgroundColor: border, margin: '4px 0 16px' }} />
+          {/* ── Section 3: Guest Details ── */}
+          <div style={{ ...sectionStyle, borderBottom: 'none' }}>
+            <p style={{ ...labelStyle, marginBottom: '12px' }}>Guest Details</p>
 
-          {/* Guest Details */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
-            <div>
-              <label style={labelStyle}>First Name <span style={{ color: textSecondary, fontWeight: 400 }}>(optional)</span></label>
-              <input
-                type="text"
-                placeholder="Jane"
-                value={firstName}
-                onChange={e => setFirstName(e.target.value)}
-                style={inputStyle}
-              />
+            <div className="walkin-field-grid" style={{ marginBottom: '12px' }}>
+              <div>
+                <label style={labelStyle}>
+                  First Name <span style={{ color: textSecondary, textTransform: 'none', fontWeight: 400 }}>(optional)</span>
+                </label>
+                <input
+                  className="walkin-input"
+                  type="text"
+                  placeholder="Jane"
+                  value={firstName}
+                  onChange={e => setFirstName(e.target.value)}
+                  style={inputStyle}
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>
+                  Last Name <span style={{ color: textSecondary, textTransform: 'none', fontWeight: 400 }}>(optional)</span>
+                </label>
+                <input
+                  className="walkin-input"
+                  type="text"
+                  placeholder="Smith"
+                  value={lastName}
+                  onChange={e => setLastName(e.target.value)}
+                  style={inputStyle}
+                />
+              </div>
             </div>
-            <div>
-              <label style={labelStyle}>Last Name <span style={{ color: textSecondary, fontWeight: 400 }}>(optional)</span></label>
-              <input
-                type="text"
-                placeholder="Smith"
-                value={lastName}
-                onChange={e => setLastName(e.target.value)}
-                style={inputStyle}
-              />
-            </div>
-          </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+            <div className="walkin-field-grid" style={{ marginBottom: '12px' }}>
+              <div>
+                <label style={labelStyle}>
+                  Phone <span style={{ color: '#e05252', textTransform: 'none' }}>*</span>
+                </label>
+                <input
+                  className="walkin-input"
+                  type="tel"
+                  placeholder="+44 7700 000000"
+                  value={phone}
+                  onChange={e => setPhone(e.target.value)}
+                  style={inputStyle}
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>
+                  Email <span style={{ color: textSecondary, textTransform: 'none', fontWeight: 400 }}>(optional)</span>
+                </label>
+                <input
+                  className="walkin-input"
+                  type="email"
+                  placeholder="jane@example.com"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  style={inputStyle}
+                />
+              </div>
+            </div>
+
             <div>
               <label style={labelStyle}>
-                Phone <span style={{ color: '#e05252', fontSize: '0.7rem' }}>*</span>
+                Special Requests <span style={{ color: textSecondary, textTransform: 'none', fontWeight: 400 }}>(optional)</span>
               </label>
-              <input
-                type="tel"
-                placeholder="+44 7700 000000"
-                value={phone}
-                onChange={e => setPhone(e.target.value)}
-                style={inputStyle}
+              <textarea
+                className="walkin-input"
+                placeholder="Allergies, high chair, accessibility needs…"
+                value={specialRequest}
+                onChange={e => setSpecialRequest(e.target.value)}
+                rows={2}
+                style={{ ...inputStyle, resize: 'none', lineHeight: 1.6 }}
               />
             </div>
-            <div>
-              <label style={labelStyle}>Email <span style={{ color: textSecondary, fontWeight: 400 }}>(optional)</span></label>
-              <input
-                type="email"
-                placeholder="jane@example.com"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                style={inputStyle}
-              />
-            </div>
-          </div>
 
-          <div style={{ marginBottom: '4px' }}>
-            <label style={labelStyle}>Special Requests <span style={{ color: textSecondary, fontWeight: 400 }}>(optional)</span></label>
-            <textarea
-              placeholder="Allergies, accessibility needs, etc."
-              value={specialRequest}
-              onChange={e => setSpecialRequest(e.target.value)}
-              rows={2}
-              style={{ ...inputStyle, resize: 'none', lineHeight: 1.5 }}
-            />
+            {error && (
+              <div style={{
+                marginTop: '12px', padding: '10px 14px', borderRadius: '8px',
+                backgroundColor: 'rgba(224,82,82,0.08)',
+                border: '1px solid rgba(224,82,82,0.25)',
+                color: '#e05252', fontSize: '0.82rem',
+                display: 'flex', alignItems: 'center', gap: '8px',
+              }}>
+                <AlertCircle size={14} style={{ flexShrink: 0 }} />
+                {error}
+              </div>
+            )}
           </div>
-
-          {/* Error */}
-          {error && (
-            <div style={{
-              marginTop: '12px', padding: '10px 12px', borderRadius: '8px',
-              backgroundColor: 'rgba(224,82,82,0.08)',
-              border: '1px solid rgba(224,82,82,0.3)',
-              color: '#e05252', fontSize: '0.8rem',
-              display: 'flex', alignItems: 'center', gap: '8px',
-            }}>
-              <AlertCircle size={14} />
-              {error}
-            </div>
-          )}
         </div>
 
-        {/* Footer */}
+        {/* ── Footer ── */}
         <div style={{
-          padding: '16px 24px',
+          padding: '14px 24px',
           borderTop: `1px solid ${border}`,
-          display: 'flex', gap: '12px', justifyContent: 'flex-end',
+          display: 'flex', gap: '10px',
+          flexShrink: 0,
+          backgroundColor: bg,
         }}>
           <button
             onClick={onClose}
             disabled={submitting}
             style={{
-              padding: '9px 20px', borderRadius: '8px',
+              flex: 1, padding: '10px', borderRadius: '8px',
               border: `1px solid ${border}`, background: 'transparent',
-              color: textSecondary, fontSize: '0.875rem', cursor: 'pointer',
-              fontWeight: 500,
+              color: textSecondary, fontSize: '0.875rem',
+              cursor: 'pointer', fontWeight: 500,
             }}
           >
             Cancel
           </button>
           <button
             onClick={handleSubmit}
-            disabled={submitting || tablesLoading}
+            disabled={submitting || tablesLoading || !tableId}
             style={{
-              padding: '9px 24px', borderRadius: '8px',
-              border: 'none', background: gold,
+              flex: 2, padding: '10px 20px', borderRadius: '8px',
+              border: 'none',
+              background: submitting || !tableId ? 'rgba(201,156,99,0.4)' : gold,
               color: '#0B1517', fontSize: '0.875rem',
-              fontWeight: 700, cursor: submitting ? 'not-allowed' : 'pointer',
-              opacity: submitting ? 0.7 : 1,
-              display: 'flex', alignItems: 'center', gap: '8px',
-              transition: 'opacity 0.15s',
+              fontWeight: 700,
+              cursor: submitting || !tableId ? 'not-allowed' : 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+              transition: 'background 0.15s',
             }}
           >
             {submitting ? (
-              <><Loader2 size={15} className="animate-spin" /> Seating...</>
+              <><Loader2 size={15} className="animate-spin" /> Seating…</>
             ) : (
               <><UserCheck size={15} /> Seat Walk-in</>
             )}
