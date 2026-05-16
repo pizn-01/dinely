@@ -817,10 +817,10 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
               <CreditCard size={18} style={{ color: '#C99C63' }} /> Stripe Integration
             </h3>
 
-            {(subscriptionPlan === 'starter' || subscriptionPlan === 'free') ? (
+            {subscriptionPlan === 'free' ? (
               <UpgradeBanner
                 title="Stripe Payment Gateway is Locked"
-                description="Upgrade to the Professional plan to collect upfront payments, charge VIP membership fees, and reduce no-shows with integrated Stripe payments."
+                description="Upgrade to the Starter or Professional plan to connect your Stripe account and collect upfront payments for premium tables."
                 restaurantSlug={restaurantSlug}
                 isDark={isDark}
               />

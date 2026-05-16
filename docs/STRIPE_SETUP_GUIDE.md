@@ -6,40 +6,32 @@ _For restaurant admins and the Dinely superadmin._
 
 ## What you need to do
 
-There are two separate Stripe setups in Dinely. Do both.
+There are two separate Stripe setups in Dinely.
+
+- **Section 1 (Dinely platform)** — already done. The secret keys are in the backend environment.
+- **Section 2 (per restaurant)** — action required. Each restaurant admin must connect their own Stripe account before they can charge guests.
 
 ---
 
-## 1 — Dinely Platform (Superadmin)
+## 1 — Dinely Platform (Superadmin) ✅ Already configured
 
 This is the Stripe account that receives SaaS subscription payments when restaurants purchase a Dinely plan.
 
-**Steps (one-time, already done if subscriptions are working):**
+**Status: The secret key and price IDs are already in the backend environment — no action needed here.**
 
-1. Log in to [dashboard.stripe.com](https://dashboard.stripe.com) with the Dinely platform account.
-2. Copy the **Secret Key** (`sk_live_…`) and add it to the backend environment:
-   ```
-   STRIPE_SECRET_KEY=sk_live_...
-   ```
-3. Create two recurring price IDs for the subscription plans and add them to the environment:
-   ```
-   STRIPE_PRICE_STARTER_GBP=price_...
-   STRIPE_PRICE_PROFESSIONAL_GBP=price_...
-   ```
-4. In Stripe → Developers → Webhooks, add a webhook endpoint pointing to:
-   ```
-   https://your-backend-domain/api/v1/stripe/webhook
-   ```
-   Enable these events:
-   - `checkout.session.completed`
-   - `customer.subscription.updated`
-   - `customer.subscription.deleted`
-   - `invoice.payment_failed`
+For reference, the environment variables that must be present are:
+```
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_PRICE_STARTER_GBP=price_...
+STRIPE_PRICE_PROFESSIONAL_GBP=price_...
+```
 
-5. Copy the webhook signing secret and add it:
-   ```
-   STRIPE_WEBHOOK_SECRET=whsec_...
-   ```
+The webhook endpoint that must be registered in Stripe Dashboard (Developers → Webhooks):
+```
+https://your-backend-domain/api/v1/stripe/webhook
+```
+Events to enable: `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_failed`
 
 **What this covers:**
 - Restaurant owners purchasing Starter (£49/mo) or Professional (£79/mo) plans → payment goes to Dinely's Stripe account.
@@ -54,7 +46,7 @@ Each restaurant must connect their own Stripe account to receive payments for:
 - VIP membership fees from customers
 
 **Requirements:**
-- The restaurant must be on the **Professional plan**. Stripe Connect is not available on Starter or Free.
+- The restaurant must be on any active paid plan (Starter or Professional).
 - The restaurant must complete Stripe's identity verification (takes 5–10 minutes).
 
 **Steps:**

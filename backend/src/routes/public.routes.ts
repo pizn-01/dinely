@@ -175,7 +175,7 @@ router.post('/:slug/reservations/checkout', async (req: Request, res: Response, 
       return;
     }
 
-    // Create reservation in pending state first
+    // Create reservation first (standard create, no payment fields in DTO)
     const reservation = await reservationService.create(org.id, {
       reservationDate,
       startTime,
@@ -187,7 +187,6 @@ router.post('/:slug/reservations/checkout', async (req: Request, res: Response, 
       guestPhone: guestPhone || '',
       specialRequests: specialRequests || '',
       source: 'website',
-      paymentStatus: 'pending',
     });
 
     // Fetch org Stripe Connect details
@@ -209,10 +208,10 @@ router.post('/:slug/reservations/checkout', async (req: Request, res: Response, 
       cancelUrl,
     });
 
-    // Persist session ID and table_fee on the reservation
+    // Mark reservation as awaiting payment and store the Stripe session ID
     await supabaseAdmin
       .from('reservations')
-      .update({ stripe_session_id: sessionId, table_fee: tableFee })
+      .update({ payment_status: 'pending', stripe_session_id: sessionId, table_fee: tableFee })
       .eq('id', reservation.id);
 
     res.status(201).json({ success: true, data: { reservationId: reservation.id, url } });
