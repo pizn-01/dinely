@@ -801,7 +801,7 @@ export default function StaffTableManagement() {
             Import Reservations
           </button>
           {/* Analytics Report button — manager/admin only */}
-          {(user?.role === 'manager' || user?.role === 'admin' || user?.role === 'restaurant_admin') && (
+          {(user?.role === 'manager' || user?.role === 'admin' || user?.role === 'super_admin') && (
             <button
               onClick={() => setShowAnalyticsModal(true)}
               style={{
