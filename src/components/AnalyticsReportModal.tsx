@@ -1,5 +1,5 @@
-import React, { useState, useCallback, useRef } from 'react'
-import { X, BarChart2, Download, Printer, RefreshCw, Loader2, TrendingUp, Users, ArrowRight } from 'lucide-react'
+import React, { useState, useCallback } from 'react'
+import { X, BarChart2, Download, RefreshCw, Loader2, TrendingUp, Users, ArrowRight } from 'lucide-react'
 import { api } from '../services/api'
 
 interface AnalyticsReportModalProps {
@@ -102,7 +102,6 @@ export default function AnalyticsReportModal({ restaurantId, restaurantName, onC
   const [report, setReport] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const printRef = useRef<HTMLDivElement>(null)
 
   const fetchReport = useCallback(async (p: Period = period, d: string = date) => {
     setLoading(true)
@@ -162,8 +161,6 @@ export default function AnalyticsReportModal({ restaurantId, restaurantName, onC
     }
   }
 
-  const handlePrint = () => window.print()
-
   const bg = 'var(--bg-secondary, #161b22)'
   const border = 'var(--border-color, #30363d)'
   const textPrimary = 'var(--text-primary, #e6edf3)'
@@ -184,31 +181,6 @@ export default function AnalyticsReportModal({ restaurantId, restaurantName, onC
 
   return (
     <>
-      {/* Print styles */}
-      <style>{`
-        @media print {
-          body > *:not(.analytics-print-root) { display: none !important; }
-          .analytics-print-root {
-            position: static !important;
-            max-height: none !important;
-            overflow: visible !important;
-            box-shadow: none !important;
-            border: none !important;
-            background: #fff !important;
-            color: #111 !important;
-          }
-          .analytics-no-print { display: none !important; }
-          .analytics-print-header { display: block !important; }
-          table { border-collapse: collapse; width: 100%; font-size: 11px; }
-          th, td { border: 1px solid #ccc; padding: 5px 8px; }
-          th { background: #f3f3f3; font-weight: 600; }
-          .analytics-page-break { page-break-after: always; }
-        }
-        @media screen {
-          .analytics-print-header { display: none; }
-        }
-      `}</style>
-
       {/* Backdrop */}
       <div onClick={onClose} className="analytics-no-print" style={{
         position: 'fixed', inset: 0,
@@ -216,7 +188,7 @@ export default function AnalyticsReportModal({ restaurantId, restaurantName, onC
       }} />
 
       {/* Modal */}
-      <div className="analytics-print-root" style={{
+      <div style={{
         position: 'fixed', top: '50%', left: '50%',
         transform: 'translate(-50%, -50%)',
         zIndex: 1001, width: '95vw', maxWidth: '1100px',
@@ -225,17 +197,7 @@ export default function AnalyticsReportModal({ restaurantId, restaurantName, onC
         border: `1px solid ${border}`,
         boxShadow: '0 24px 80px rgba(0,0,0,0.55)',
         fontFamily: 'Inter, system-ui, sans-serif',
-      }} ref={printRef}>
-
-        {/* Print-only header */}
-        <div className="analytics-print-header" style={{ padding: '24px 32px 0', borderBottom: '2px solid #111', marginBottom: '16px' }}>
-          <h1 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700 }}>{restaurantName} — Analytics Report</h1>
-          {report && (
-            <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: '#555' }}>
-              Period: {period.charAt(0).toUpperCase() + period.slice(1)} · {formatDate(report.meta.dateFrom)} to {formatDate(report.meta.dateTo)} · Generated {new Date(report.meta.generatedAt).toLocaleString('en-GB')}
-            </p>
-          )}
-        </div>
+      }}>
 
         {/* ── Header ── */}
         <div className="analytics-no-print" style={{
@@ -290,13 +252,6 @@ export default function AnalyticsReportModal({ restaurantId, restaurantName, onC
                   backgroundColor: 'transparent', color: textSecondary, cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600,
                 }}>
                   <Download size={14} /> Export CSV
-                </button>
-                <button onClick={handlePrint} style={{
-                  display: 'flex', alignItems: 'center', gap: '6px',
-                  padding: '6px 14px', borderRadius: '8px', border: `1px solid ${border}`,
-                  backgroundColor: 'transparent', color: textSecondary, cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600,
-                }}>
-                  <Printer size={14} /> Print PDF
                 </button>
               </>
             )}

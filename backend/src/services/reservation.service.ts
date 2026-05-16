@@ -704,6 +704,8 @@ export class ReservationService {
         });
       }
     }
+    // Best-fit: smallest table that can accommodate the party is assigned first
+    available.sort((a, b) => a.capacity - b.capacity);
     return available;
   }
 
