@@ -149,11 +149,11 @@ export default function UserReservationWizard() {
           startTime: data.time || '17:30',
           partySize: data.guests,
           tableId: data.tableId || null,
-          guestFirstName: data.firstName || 'Member',
-          guestLastName: data.lastName || '',
-          guestEmail: data.email || '',
-          guestPhone: data.phone || '',
-          specialRequests: data.specialRequest || '',
+          guestFirstName: data.firstName || 'Guest',
+          guestLastName: data.lastName || undefined,
+          guestEmail: data.email || undefined,
+          guestPhone: data.phone || undefined,
+          specialRequests: data.specialRequest || undefined,
         }
 
         if (data.tableFee && data.tableFee > 0) {
