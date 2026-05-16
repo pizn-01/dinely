@@ -141,26 +141,38 @@ export default function UserReservationWizard() {
 
         // Ensure date is in YYYY-MM-DD format
         const formattedDate = data.date.includes('/')
-          ? data.date.split('/').reverse().join('-') // Handle DD/MM/YYYY if it exists
-          : data.date; // already YYYY-MM-DD
+          ? data.date.split('/').reverse().join('-')
+          : data.date
 
-        const payload = {
+        const basePayload = {
           reservationDate: formattedDate,
           startTime: data.time || '17:30',
           partySize: data.guests,
           tableId: data.tableId || null,
           guestFirstName: data.firstName || 'Member',
           guestLastName: data.lastName || '',
-          guestEmail: data.email || 'member@example.com',
+          guestEmail: data.email || '',
           guestPhone: data.phone || '',
           specialRequests: data.specialRequest || '',
-          source: 'website'
         }
 
-        // Public reservation endpoint
-        await api.post(`/public/${restaurantSlug}/reserve`, payload)
-
-        navigate('/user-booking-confirmed', { state: { ...data, restaurantSlug } })
+        if (data.tableFee && data.tableFee > 0) {
+          // Premium table — create Stripe checkout session then redirect
+          const origin = window.location.origin
+          const { data: checkoutRes } = await api.post(`/public/${restaurantSlug}/reservations/checkout`, {
+            ...basePayload,
+            tableFee: data.tableFee,
+            successUrl: `${origin}/user-booking-confirmed?from_payment=true&restaurant=${restaurantSlug}&session_id={CHECKOUT_SESSION_ID}`,
+            cancelUrl: `${origin}/welcome?restaurant=${restaurantSlug}&payment_cancelled=true`,
+          })
+          if (checkoutRes.data?.url) {
+            window.location.href = checkoutRes.data.url
+          }
+        } else {
+          // Standard table — direct reservation
+          await api.post(`/public/${restaurantSlug}/reserve`, { ...basePayload, source: 'website' })
+          navigate('/user-booking-confirmed', { state: { ...data, restaurantSlug } })
+        }
       } catch (err: any) {
         setError(err.response?.data?.error || 'Failed to confirm reservation. Please try again.')
       } finally {

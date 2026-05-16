@@ -1,7 +1,19 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx --no-install tsc --noEmit)"
+      "Bash(npx --no-install tsc --noEmit)",
+      "PowerShell(Get-ChildItem -Path \"d:\\\\WORKK\\\\dinely\\\\src\\\\pages\" | ForEach-Object { Write-Host $_.FullName })",
+      "Bash(xargs grep -l \"download\\\\|export.*CSV\\\\|xlsx\")",
+      "Bash(xargs grep -l \"download\\\\|export.*CSV\\\\|xlsx\\\\|template\")",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(fly orgs *)",
+      "Bash(npm run *)",
+      "Bash(dir /s \"D:\\\\WORKK\\\\dinely\\\\src\" -filter \"*.tsx\" -filter \"*.ts\")",
+      "Bash(grep -E \"\\\\.\\(tsx|ts\\)$\")",
+      "Bash(cd /d \"d:\\\\WORKK\\\\dinely\")",
+      "Bash(dir docs *)"
     ]
   }
 }

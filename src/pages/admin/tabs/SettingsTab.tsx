@@ -301,7 +301,12 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
       }
     } catch (err: any) {
       console.error('Failed to init stripe connect:', err)
-      toast.error(err?.response?.data?.error || 'Failed to connect to Stripe')
+      const apiError = err?.response?.data
+      if (err?.response?.status === 403 && apiError?.code === 'PLAN_LIMIT_EXCEEDED') {
+        toast.error('Stripe Connect requires a Professional plan. Please upgrade to enable payments.')
+      } else {
+        toast.error(apiError?.error || 'Failed to connect to Stripe. Please try again.')
+      }
     } finally {
       setConnectingStripe(false)
     }
@@ -812,7 +817,7 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
               <CreditCard size={18} style={{ color: '#C99C63' }} /> Stripe Integration
             </h3>
 
-            {subscriptionPlan === 'starter' ? (
+            {(subscriptionPlan === 'starter' || subscriptionPlan === 'free') ? (
               <UpgradeBanner
                 title="Stripe Payment Gateway is Locked"
                 description="Upgrade to the Professional plan to collect upfront payments, charge VIP membership fees, and reduce no-shows with integrated Stripe payments."

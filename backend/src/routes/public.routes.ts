@@ -7,6 +7,7 @@ import { publicApiLimiter } from '../middleware/rateLimiter';
 import { tableService } from '../services/table.service';
 import { broadcastService } from '../services/broadcast.service';
 import { supabaseAdmin } from '../config/database';
+import { stripeService } from '../services/stripe.service';
 
 const router = Router();
 
@@ -153,6 +154,72 @@ router.post('/:slug/reserve',
     }
   }
 );
+
+// POST /public/:slug/reservations/checkout — Create Stripe checkout for a premium table reservation
+router.post('/:slug/reservations/checkout', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const org = await organizationService.getBySlug(param(req, 'slug'));
+
+    const {
+      reservationDate, startTime, partySize, tableId,
+      guestFirstName, guestLastName, guestEmail, guestPhone,
+      specialRequests, tableFee, successUrl, cancelUrl,
+    } = req.body;
+
+    if (!tableFee || tableFee <= 0) {
+      res.status(400).json({ success: false, error: 'tableFee is required for premium checkout' });
+      return;
+    }
+    if (!successUrl || !cancelUrl) {
+      res.status(400).json({ success: false, error: 'successUrl and cancelUrl are required' });
+      return;
+    }
+
+    // Create reservation in pending state first
+    const reservation = await reservationService.create(org.id, {
+      reservationDate,
+      startTime,
+      partySize,
+      tableId: tableId || null,
+      guestFirstName: guestFirstName || 'Guest',
+      guestLastName: guestLastName || '',
+      guestEmail: guestEmail || '',
+      guestPhone: guestPhone || '',
+      specialRequests: specialRequests || '',
+      source: 'website',
+      paymentStatus: 'pending',
+    });
+
+    // Fetch org Stripe Connect details
+    const { data: orgStripe } = await supabaseAdmin
+      .from('organizations')
+      .select('currency, stripe_account_id, stripe_onboarding_complete')
+      .eq('id', org.id)
+      .single();
+
+    // Create Stripe Checkout session
+    const { url, sessionId } = await stripeService.createPremiumReservationCheckoutSession({
+      reservationId: reservation.id,
+      tableFee: parseFloat(tableFee),
+      currency: orgStripe?.currency || 'GBP',
+      restaurantName: org.name,
+      stripeAccountId: orgStripe?.stripe_account_id || null,
+      stripeOnboardingComplete: orgStripe?.stripe_onboarding_complete || false,
+      successUrl,
+      cancelUrl,
+    });
+
+    // Persist session ID and table_fee on the reservation
+    await supabaseAdmin
+      .from('reservations')
+      .update({ stripe_session_id: sessionId, table_fee: tableFee })
+      .eq('id', reservation.id);
+
+    res.status(201).json({ success: true, data: { reservationId: reservation.id, url } });
+  } catch (error) {
+    next(error);
+  }
+});
 
 // GET /public/reservations/:id — Get public reservation details
 router.get('/reservations/:id', async (req: Request, res: Response, next: NextFunction) => {

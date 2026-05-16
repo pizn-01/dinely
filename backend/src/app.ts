@@ -83,10 +83,31 @@ app.post('/api/v1/stripe/webhook', express.raw({ type: 'application/json' }), as
 
       if (isSaas) {
         await subscriptionService.handleSubscriptionWebhook(event);
-      } else {
-        // Delegate VIP/other checkout events to the existing handler
-        await stripeController.handleWebhook(req as any, res, () => {});
-        return;
+      } else if (event.type === 'checkout.session.completed') {
+        const eventSession = event.data?.object;
+        const metaType = eventSession?.metadata?.type;
+
+        if (metaType === 'premium_reservation') {
+          // Confirm the pending reservation once payment is complete
+          const reservationId = eventSession?.metadata?.reservationId;
+          if (reservationId) {
+            const { supabaseAdmin: db } = await import('./config/database');
+            await db
+              .from('reservations')
+              .update({
+                payment_status: 'paid',
+                status: 'confirmed',
+                payment_amount: eventSession?.amount_total ? eventSession.amount_total / 100 : null,
+                confirmed_at: new Date().toISOString(),
+              })
+              .eq('id', reservationId);
+            console.log(`[Webhook] ✅ Premium reservation confirmed: ${reservationId}`);
+          }
+        } else if (metaType === 'vip_upgrade') {
+          // Delegate VIP upgrade to existing handler
+          await stripeController.handleWebhook(req as any, res, () => {});
+          return;
+        }
       }
     }
 

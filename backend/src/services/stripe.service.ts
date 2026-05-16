@@ -60,8 +60,8 @@ export class StripeService {
 
     const accountLink = await stripe.accountLinks.create({
       account: accountId,
-      refresh_url: `${frontendUrl}/admin/tabs/settings?stripe_refresh=true`,
-      return_url: `${frontendUrl}/admin/tabs/settings?stripe_return=true`,
+      refresh_url: `${frontendUrl}/admin?stripe_refresh=true`,
+      return_url: `${frontendUrl}/admin?stripe_return=true`,
       type: 'account_onboarding',
     });
 
@@ -118,16 +118,17 @@ export class StripeService {
 
   /**
    * Generates a checkout session for a customer to pay the VIP premium fee.
+   * Payment routes through the restaurant's Stripe Connect account if configured.
    */
   async createCustomerVipCheckoutSession(userId: string, organizationId: string, returnUrl: string) {
     if (!stripe || !isStripeConfigured) {
       throw new AppError('Stripe is not configured. Please add STRIPE_SECRET_KEY to your environment.', 503);
     }
 
-    // Fetch org info for branding
+    // Fetch org info for branding + Connect routing
     const { data: org, error: orgError } = await supabaseAdmin
       .from('organizations')
-      .select('name, vip_membership_fee, currency')
+      .select('name, vip_membership_fee, currency, stripe_account_id, stripe_onboarding_complete')
       .eq('id', organizationId)
       .single();
 
@@ -148,9 +149,10 @@ export class StripeService {
 
     const fee = org.vip_membership_fee || 15;
     const currency = (org.currency || 'GBP').toLowerCase();
+    const hasConnect = !!(org.stripe_account_id && org.stripe_onboarding_complete);
 
     try {
-      const session = await stripe.checkout.sessions.create({
+      const sessionParams: any = {
         payment_method_types: ['card'],
         mode: 'payment',
         customer_email: customer.email,
@@ -159,7 +161,7 @@ export class StripeService {
             price_data: {
               currency,
               product_data: {
-                name: `Premium Membership - ${org.name}`,
+                name: `Premium Membership — ${org.name}`,
                 description: 'Unlock priority bookings, premium tables, and exclusive complimentary benefits.',
               },
               unit_amount: Math.round(fee * 100),
@@ -173,13 +175,82 @@ export class StripeService {
         metadata: {
           customerId: customer.id,
           organizationId,
-          type: 'vip_upgrade'
-        }
-      });
+          type: 'vip_upgrade',
+        },
+      };
 
+      // Route payment through restaurant's Stripe Connect account
+      if (hasConnect) {
+        sessionParams.payment_intent_data = {
+          transfer_data: { destination: org.stripe_account_id },
+        };
+      }
+
+      const session = await stripe.checkout.sessions.create(sessionParams);
       return { url: session.url };
     } catch (err: any) {
       console.error('[StripeService] VIP checkout error:', err.message);
+      throw new AppError(`Payment service error: ${err.message}`, 500);
+    }
+  }
+
+  /**
+   * Creates a Stripe Checkout session for a premium table reservation fee.
+   * Payment routes through the restaurant's Stripe Connect account if configured.
+   */
+  async createPremiumReservationCheckoutSession(params: {
+    reservationId: string;
+    tableFee: number;
+    currency: string;
+    restaurantName: string;
+    stripeAccountId?: string | null;
+    stripeOnboardingComplete?: boolean;
+    successUrl: string;
+    cancelUrl: string;
+  }) {
+    if (!stripe || !isStripeConfigured) {
+      throw new AppError('Stripe is not configured. Please add STRIPE_SECRET_KEY to your environment.', 503);
+    }
+
+    const currency = (params.currency || 'GBP').toLowerCase();
+    const hasConnect = !!(params.stripeAccountId && params.stripeOnboardingComplete);
+
+    try {
+      const sessionParams: any = {
+        payment_method_types: ['card'],
+        mode: 'payment',
+        line_items: [
+          {
+            price_data: {
+              currency,
+              product_data: {
+                name: `Premium Table Reservation — ${params.restaurantName}`,
+                description: 'Table deposit for your premium dining experience.',
+              },
+              unit_amount: Math.round(params.tableFee * 100),
+            },
+            quantity: 1,
+          },
+        ],
+        success_url: params.successUrl,
+        cancel_url: params.cancelUrl,
+        metadata: {
+          reservationId: params.reservationId,
+          type: 'premium_reservation',
+        },
+      };
+
+      // Route payment through restaurant's Stripe Connect account
+      if (hasConnect) {
+        sessionParams.payment_intent_data = {
+          transfer_data: { destination: params.stripeAccountId },
+        };
+      }
+
+      const session = await stripe.checkout.sessions.create(sessionParams);
+      return { url: session.url, sessionId: session.id };
+    } catch (err: any) {
+      console.error('[StripeService] Premium reservation checkout error:', err.message);
       throw new AppError(`Payment service error: ${err.message}`, 500);
     }
   }

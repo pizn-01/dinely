@@ -99,23 +99,35 @@ export default function BookATableWizard() {
           ? data.date.split('/').reverse().join('-')
           : data.date;
         
-        const payload = {
+        const basePayload = {
           reservationDate: formattedDate,
           startTime: data.time || '17:30',
           partySize: data.guests,
           tableId: data.tableId || null,
           guestFirstName: data.firstName || 'Guest',
           guestLastName: data.lastName || '',
-          guestEmail: data.email || 'guest@example.com',
+          guestEmail: data.email || '',
           guestPhone: data.phone || '',
           specialRequests: data.specialRequest || '',
-          source: 'website'
         }
 
-        // Public reservation endpoint
-        await api.post(`/public/${restaurantSlug}/reserve`, payload)
-        
-        navigate('/public-booking-confirmed', { state: { ...data, returnUrl } })
+        if (data.tableFee && data.tableFee > 0) {
+          // Premium table — create Stripe checkout session then redirect
+          const origin = window.location.origin
+          const { data: checkoutRes } = await api.post(`/public/${restaurantSlug}/reservations/checkout`, {
+            ...basePayload,
+            tableFee: data.tableFee,
+            successUrl: `${origin}/public-booking-confirmed?from_payment=true&restaurant=${restaurantSlug}&session_id={CHECKOUT_SESSION_ID}`,
+            cancelUrl: `${origin}/book-a-table/${restaurantSlug}?payment_cancelled=true`,
+          })
+          if (checkoutRes.data?.url) {
+            window.location.href = checkoutRes.data.url
+          }
+        } else {
+          // Standard table — direct reservation
+          await api.post(`/public/${restaurantSlug}/reserve`, { ...basePayload, source: 'website' })
+          navigate('/public-booking-confirmed', { state: { ...data, returnUrl } })
+        }
       } catch (err: any) {
         setError(err.response?.data?.error || 'Failed to confirm reservation. Please try again.')
       } finally {
