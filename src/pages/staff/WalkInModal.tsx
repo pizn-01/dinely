@@ -95,7 +95,6 @@ export default function WalkInModal({ restaurantId, onClose, onSuccess, isDark =
     : mergeSelection.size >= 2
 
   const handleSubmit = async () => {
-    if (!phone.trim()) { setError('Phone number is required.'); return }
     if (partySize < 1) { setError('Party size must be at least 1.'); return }
 
     if (tableMode === 'single') {
@@ -135,7 +134,7 @@ export default function WalkInModal({ restaurantId, onClose, onSuccess, isDark =
         guestFirstName: firstName.trim() || 'Walk-in',
         guestLastName: lastName.trim() || '',
         guestEmail: email.trim() || undefined,
-        guestPhone: phone.trim(),
+        guestPhone: phone.trim() || undefined,
         specialRequests: specialRequest.trim() || undefined,
         source: 'walk_in',
       }
@@ -548,7 +547,7 @@ export default function WalkInModal({ restaurantId, onClose, onSuccess, isDark =
             <div className="walkin-field-grid" style={{ marginBottom: '12px' }}>
               <div>
                 <label style={labelStyle}>
-                  Phone <span style={{ color: '#e05252', textTransform: 'none' }}>*</span>
+                  Phone <span style={{ color: textSecondary, textTransform: 'none', fontWeight: 400 }}>(optional)</span>
                 </label>
                 <input className="walkin-input" type="tel" placeholder="+44 7700 000000"
                   value={phone} onChange={e => setPhone(e.target.value)} style={inputStyle} />
