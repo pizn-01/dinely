@@ -42,14 +42,14 @@ export default function UserStepTableSelect({ data, updateData, restaurantSlug }
           const standard = allTables.filter(t => !t.isPremium)
           setStandardTables(standard)
 
-          // Auto-select the best-fit standard table
-          if (standard.length > 0) {
-            const t = standard[0]
+          // Auto-select the smallest available table that fits the party
+          const bestFit = standard.find(t => t.capacity >= data.guests) || standard[0]
+          if (bestFit) {
             updateData({
-              tableId: t.id,
-              tableName: t.name,
-              tableCapacity: t.capacity,
-              tableLocation: t.area?.name || 'General',
+              tableId: bestFit.id,
+              tableName: bestFit.name,
+              tableCapacity: bestFit.capacity,
+              tableLocation: bestFit.area?.name || 'General',
               tableFee: 0,
             })
           }

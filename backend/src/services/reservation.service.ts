@@ -685,7 +685,8 @@ export class ReservationService {
       .eq('restaurant_id', restaurantId)
       .or('is_active.eq.true,is_merged.eq.true');
 
-    const candidates = bookableTableRowsForDate(tableRows || [], date, partySize);
+    const laidOutTables = buildLayoutTableRows(tableRows || [], date);
+    const candidates = laidOutTables.filter((t: any) => (Number(t.capacity) || 0) >= partySize);
 
     const available = [];
     for (const table of candidates) {
