@@ -35,7 +35,11 @@ export class StripeService {
     // If no Stripe account exists for this org, create a new one
     if (!accountId) {
       const account = await stripe.accounts.create({
-        type: 'standard',
+        type: 'express',
+        capabilities: {
+          card_payments: { requested: true },
+          transfers: { requested: true },
+        },
       });
 
       accountId = account.id;
