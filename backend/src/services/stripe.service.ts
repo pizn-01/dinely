@@ -32,19 +32,37 @@ export class StripeService {
 
     let accountId = org.stripe_account_id;
 
-    // If no Stripe account exists for this org, create a new one
+    // If an account ID is already saved, verify it's an express account
+    // (earlier attempts may have created a standard account which doesn't support account links)
+    if (accountId) {
+      try {
+        const existingAccount = await stripe.accounts.retrieve(accountId);
+        if (existingAccount.type !== 'express') {
+          console.warn(`[Stripe Connect] Existing account ${accountId} is type '${existingAccount.type}', not 'express'. Clearing and creating a new express account.`);
+          accountId = null;
+          await supabaseAdmin.from('organizations').update({ stripe_account_id: null }).eq('id', organizationId);
+        }
+      } catch (retrieveErr: any) {
+        console.warn('[Stripe Connect] Could not retrieve existing account, will create new one:', retrieveErr?.message);
+        accountId = null;
+        await supabaseAdmin.from('organizations').update({ stripe_account_id: null }).eq('id', organizationId);
+      }
+    }
+
+    // If no valid express account exists, create one
     if (!accountId) {
       let account;
       try {
         account = await stripe.accounts.create({ type: 'express' });
+        console.log(`[Stripe Connect] Created express account: ${account.id}`);
       } catch (stripeErr: any) {
-        console.error('[Stripe Connect] accounts.create failed:', JSON.stringify(stripeErr?.raw || stripeErr?.message || stripeErr));
-        throw new AppError(`Stripe account creation failed: ${stripeErr?.raw?.message || stripeErr?.message || 'Unknown Stripe error'}`, 500);
+        const msg = stripeErr?.raw?.message || stripeErr?.message || 'Unknown error';
+        console.error('[Stripe Connect] accounts.create failed:', msg);
+        throw new AppError(`Stripe account creation failed: ${msg}`, 500);
       }
 
       accountId = account.id;
 
-      // Save it to Supabase
       const { error: updateError } = await supabaseAdmin
         .from('organizations')
         .update({ stripe_account_id: accountId })
@@ -55,19 +73,26 @@ export class StripeService {
       }
     }
 
-    // Now create an AccountLink for onboarding
-    // Dynamic refresh & return URLs depending on environment
+    // Create an AccountLink for onboarding (Express accounts only)
     let frontendUrl = process.env.FRONTEND_URL || frontendUrlOrOrigin || 'https://www.dinely.co.uk';
     if (process.env.NODE_ENV === 'production') {
       frontendUrl = process.env.FRONTEND_URL || 'https://www.dinely.co.uk';
     }
 
-    const accountLink = await stripe.accountLinks.create({
-      account: accountId,
-      refresh_url: `${frontendUrl}/admin?stripe_refresh=true`,
-      return_url: `${frontendUrl}/admin?stripe_return=true`,
-      type: 'account_onboarding',
-    });
+    let accountLink;
+    try {
+      accountLink = await stripe.accountLinks.create({
+        account: accountId,
+        refresh_url: `${frontendUrl}/admin?stripe_refresh=true`,
+        return_url: `${frontendUrl}/admin?stripe_return=true`,
+        type: 'account_onboarding',
+      });
+      console.log(`[Stripe Connect] Account link created for ${accountId}`);
+    } catch (linkErr: any) {
+      const msg = linkErr?.raw?.message || linkErr?.message || 'Unknown error';
+      console.error('[Stripe Connect] accountLinks.create failed:', msg, 'accountId:', accountId);
+      throw new AppError(`Stripe onboarding link creation failed: ${msg}`, 500);
+    }
 
     return {
       url: accountLink.url,
