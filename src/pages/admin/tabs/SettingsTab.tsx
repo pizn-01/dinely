@@ -293,19 +293,30 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
   }
 
   const handleConnectStripe = async () => {
+    if (!orgId) {
+      toast.error('Organisation ID missing. Please refresh and try again.')
+      return
+    }
     try {
       setConnectingStripe(true)
       const { data } = await api.post(`/organizations/${orgId}/stripe/connect`)
-      if (data.data?.url) {
-        window.location.href = data.data.url
+      const url = data?.data?.url
+      if (url) {
+        window.location.href = url
+      } else {
+        console.error('[Stripe Connect] No URL returned:', data)
+        toast.error('Stripe did not return an onboarding link. Please check your Stripe account is active and try again.')
       }
     } catch (err: any) {
-      console.error('Failed to init stripe connect:', err)
+      console.error('[Stripe Connect] Error:', err)
       const apiError = err?.response?.data
-      if (err?.response?.status === 403 && apiError?.code === 'PLAN_LIMIT_EXCEEDED') {
+      const status = err?.response?.status
+      if (status === 403 && apiError?.code === 'PLAN_LIMIT_EXCEEDED') {
         toast.error('Stripe Connect requires a Professional plan. Please upgrade to enable payments.')
+      } else if (status === 503) {
+        toast.error('Stripe is not configured on this server. Contact the platform administrator.')
       } else {
-        toast.error(apiError?.error || 'Failed to connect to Stripe. Please try again.')
+        toast.error(apiError?.error || `Failed to connect to Stripe (${status || 'network error'}). Please try again.`)
       }
     } finally {
       setConnectingStripe(false)
