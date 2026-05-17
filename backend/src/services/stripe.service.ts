@@ -34,13 +34,13 @@ export class StripeService {
 
     // If no Stripe account exists for this org, create a new one
     if (!accountId) {
-      const account = await stripe.accounts.create({
-        type: 'express',
-        capabilities: {
-          card_payments: { requested: true },
-          transfers: { requested: true },
-        },
-      });
+      let account;
+      try {
+        account = await stripe.accounts.create({ type: 'express' });
+      } catch (stripeErr: any) {
+        console.error('[Stripe Connect] accounts.create failed:', JSON.stringify(stripeErr?.raw || stripeErr?.message || stripeErr));
+        throw new AppError(`Stripe account creation failed: ${stripeErr?.raw?.message || stripeErr?.message || 'Unknown Stripe error'}`, 500);
+      }
 
       accountId = account.id;
 
