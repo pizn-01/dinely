@@ -17,10 +17,11 @@ interface UserTimeSlotPickerProps {
   selectedSlot: string | undefined
   onSelect: (slot: string) => void
   disabledSlots: string[]
+  pastSlots: string[]
   fullyBooked: boolean
 }
 
-const UserTimeSlotPicker = ({ slots, selectedSlot, onSelect, disabledSlots, fullyBooked }: UserTimeSlotPickerProps) => {
+const UserTimeSlotPicker = ({ slots, selectedSlot, onSelect, disabledSlots, pastSlots, fullyBooked }: UserTimeSlotPickerProps) => {
   const [hoveredDisabled, setHoveredDisabled] = useState<string | null>(null)
 
   return (
@@ -34,9 +35,10 @@ const UserTimeSlotPicker = ({ slots, selectedSlot, onSelect, disabledSlots, full
         gap: '12px'
       }}>
         {slots.map((slot) => {
-          const isDisabled = disabledSlots.includes(slot) || fullyBooked
+          const isPast = pastSlots.includes(slot)
+          const isDisabled = disabledSlots.includes(slot) || fullyBooked || isPast
           const isSelected = selectedSlot === slot && !isDisabled
-          const isConflict = disabledSlots.includes(slot) && !fullyBooked
+          const isConflict = disabledSlots.includes(slot) && !fullyBooked && !isPast
 
           let backgroundColor = 'transparent';
           let borderColor = '#30363d';
@@ -46,6 +48,10 @@ const UserTimeSlotPicker = ({ slots, selectedSlot, onSelect, disabledSlots, full
             backgroundColor = '#5E8B6A';
             borderColor = '#5E8B6A';
             fontColor = '#ffffff';
+          } else if (isPast) {
+            backgroundColor = 'transparent';
+            borderColor = '#1e2d30';
+            fontColor = '#374151';
           } else if (isConflict) {
             backgroundColor = 'transparent';
             borderColor = 'rgba(239, 68, 68, 0.5)';
@@ -114,6 +120,17 @@ const UserTimeSlotPicker = ({ slots, selectedSlot, onSelect, disabledSlots, full
 }
 
 
+function getPastSlots(slots: string[], date: string): string[] {
+  const today = new Date().toLocaleDateString('en-CA')
+  if (date !== today) return []
+  const now = new Date()
+  const currentMins = now.getHours() * 60 + now.getMinutes()
+  return slots.filter((slot) => {
+    const [h, m] = slot.split(':').map(Number)
+    return h * 60 + m <= currentMins
+  })
+}
+
 export default function UserStepDateTime({ data, updateData, restaurantSlug }: UserStepDateTimeProps) {
   const [showWaitingList, setShowWaitingList] = useState(false)
   const [timeSlots, setTimeSlots] = useState<string[]>([])
@@ -121,6 +138,8 @@ export default function UserStepDateTime({ data, updateData, restaurantSlug }: U
   const [fullyBooked, setFullyBooked] = useState(false)
   const [isClosed, setIsClosed] = useState(false)
   const [hoveredDisabled, setHoveredDisabled] = useState<string | null>(null) // This was misplaced in the instruction, moved here.
+
+  const pastSlots = getPastSlots(timeSlots, data.date)
 
   useEffect(() => {
     const fetchSlots = async () => {
@@ -141,11 +160,12 @@ export default function UserStepDateTime({ data, updateData, restaurantSlug }: U
           setConflictSlots(conflicts)
           setFullyBooked((availableSlots || []).length === 0 && (allSlots || []).length > 0)
           
-          // Clear selected time if the day is closed or the previously selected slot is now conflicted
+          // Clear selected time if the day is closed, conflicted, or in the past
+          const past = getPastSlots(allSlots || [], formattedDate)
           if (resIsClosed && data.time) {
             updateData({ time: '' })
-          } else if (data.time && conflicts.includes(data.time)) {
-             updateData({ time: '' })
+          } else if (data.time && (conflicts.includes(data.time) || past.includes(data.time))) {
+            updateData({ time: '' })
           }
         }
       } catch (error) {
@@ -264,6 +284,7 @@ export default function UserStepDateTime({ data, updateData, restaurantSlug }: U
             selectedSlot={data.time}
             onSelect={(slot) => updateData({ time: slot })}
             disabledSlots={conflictSlots}
+            pastSlots={pastSlots}
             fullyBooked={fullyBooked}
           />
         )}
