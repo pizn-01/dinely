@@ -13,7 +13,10 @@
       "Bash(dir /s \"D:\\\\WORKK\\\\dinely\\\\src\" -filter \"*.tsx\" -filter \"*.ts\")",
       "Bash(grep -E \"\\\\.\\(tsx|ts\\)$\")",
       "Bash(cd /d \"d:\\\\WORKK\\\\dinely\")",
-      "Bash(dir docs *)"
+      "Bash(dir docs *)",
+      "Bash(fly deploy *)",
+      "Bash(fly secrets *)",
+      "Bash(fly logs *)"
     ]
   }
 }
