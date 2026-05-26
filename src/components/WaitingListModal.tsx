@@ -37,7 +37,7 @@ export default function WaitingListModal({ isOpen, onClose }: WaitingListModalPr
                 onChange={(e) => setForm({ ...form, date: e.target.value })}
                 className="input-dark pr-10"
               />
-              <Calendar size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-dark-text-secondary" />
+              <Calendar size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-dark-text-secondary" />
             </div>
           </div>
           <div>
@@ -49,7 +49,7 @@ export default function WaitingListModal({ isOpen, onClose }: WaitingListModalPr
                 onChange={(e) => setForm({ ...form, time: e.target.value })}
                 className="input-dark pr-10"
               />
-              <Clock size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-dark-text-secondary" />
+              <Clock size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-dark-text-secondary" />
             </div>
           </div>
           <div>

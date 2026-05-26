@@ -179,6 +179,7 @@ export default function Landing() {
                         top: '50%',
                         transform: 'translateY(-50%)',
                         color: '#8b949e',
+                        pointerEvents: 'none',
                       }}
                     />
                   </div>
@@ -212,6 +213,7 @@ export default function Landing() {
                         top: '50%',
                         transform: 'translateY(-50%)',
                         color: '#8b949e',
+                        pointerEvents: 'none',
                       }}
                     />
                   </div>

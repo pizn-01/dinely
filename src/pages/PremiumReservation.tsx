@@ -3,6 +3,7 @@ import PoweredByFooter from '../components/PoweredByFooter'
 import { Calendar, Info, Minus, Plus, ChefHat, Users, MapPin, Lock, Pencil, Clock, User, Mail, Phone, Loader2 } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api } from '../services/api'
+import { openNativePicker } from '../utils/nativePicker'
 
 // Types for API responses
 interface TimeSlotData {
@@ -313,7 +314,9 @@ export default function PremiumReservation() {
                   <div style={{ position: 'relative' }}>
                     <input
                       type="date"
+                      className="native-picker-dark"
                       value={date}
+                      onClick={openNativePicker}
                       onChange={(e) => setDate(e.target.value)}
                       min={getTodayString()}
                       style={{

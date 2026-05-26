@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Calendar, AlertCircle } from 'lucide-react'
 import { api } from '../../services/api'
+import { openNativePicker } from '../../utils/nativePicker'
 import type { ReservationData } from './UserReservationWizard'
 
 interface UserStepDateTimeProps {
@@ -225,6 +226,8 @@ export default function UserStepDateTime({ data, updateData, restaurantSlug }: U
           {/* We capture the date directly from a true type="date" native picker */}
           <input
             type="date"
+            className="native-picker-dark"
+            onClick={openNativePicker}
             value={(() => {
               // Convert DD/MM/YYYY fallback into YYYY-MM-DD for native input
               if (data.date.includes('/')) {

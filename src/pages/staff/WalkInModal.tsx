@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { X, UserCheck, Users, Minus, Plus, AlertCircle, Loader2, Clock, Calendar, ChevronRight, Layers, Check, Info } from 'lucide-react'
 import { api } from '../../services/api'
 import { toast } from 'react-hot-toast'
+import { openNativePicker } from '../../utils/nativePicker'
 
 interface AvailableTable {
   id: string
@@ -302,14 +303,14 @@ export default function WalkInModal({ restaurantId, onClose, onSuccess, isDark =
                 <label style={labelStyle}>
                   <Calendar size={11} style={{ verticalAlign: 'middle', marginRight: '4px' }} />Date
                 </label>
-                <input className="walkin-input" type="date" value={date}
+                <input className={`walkin-input ${isDark ? 'native-picker-dark' : ''}`} type="date" value={date} onClick={openNativePicker}
                   onChange={e => setDate(e.target.value)} style={inputStyle} />
               </div>
               <div>
                 <label style={labelStyle}>
                   <Clock size={11} style={{ verticalAlign: 'middle', marginRight: '4px' }} />Time
                 </label>
-                <input className="walkin-input" type="time" value={time} step="900"
+                <input className={`walkin-input ${isDark ? 'native-picker-dark' : ''}`} type="time" value={time} step="900" onClick={openNativePicker}
                   onChange={e => setTime(e.target.value)} style={inputStyle} />
               </div>
             </div>

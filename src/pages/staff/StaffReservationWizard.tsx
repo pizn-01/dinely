@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { api } from '../../services/api'
-import { X, Calendar, Clock, Users, ChevronRight, ChevronLeft, Check } from 'lucide-react'
+import { X, Calendar, Clock, Users, ChevronRight, ChevronLeft, Check, ZoomIn, ZoomOut } from 'lucide-react'
+import { openNativePicker } from '../../utils/nativePicker'
 
 interface StaffReservationWizardProps {
   restaurantId: string
@@ -52,6 +53,11 @@ const getDefaultTime = () => {
 
 const defaultDate = getLocalISODate()
 
+const floorNameFromArea = (areaName?: string | null) => {
+  const name = areaName || 'Main Area'
+  return name.includes(' - ') ? name.split(' - ')[0].trim() : name
+}
+
 const initialData: ReservationData = {
   date: defaultDate,
   time: getDefaultTime(),
@@ -86,8 +92,9 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
   // Table Selection State
   const [availableTables, setAvailableTables] = useState<any[]>([])
   const [loadingTables, setLoadingTables] = useState(false)
-  const [selectedTableMode, setSelectedTableMode] = useState<'suitable' | 'mergeable'>('suitable')
   const [selectedMergeableTableIds, setSelectedMergeableTableIds] = useState<string[]>([])
+  const [selectedFloorMapFloor, setSelectedFloorMapFloor] = useState('')
+  const [floorMapZoom, setFloorMapZoom] = useState(1)
 
   const updateData = useCallback((updates: Partial<ReservationData>) => {
     setData((prev) => ({ ...prev, ...updates }))
@@ -118,10 +125,23 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
         params: {
           date: data.date,
           time: data.time,
-          partySize: data.guests
+          partySize: data.guests,
+          includeAllAvailable: true
         }
       })
-      setAvailableTables(res.data || [])
+      const tables: any[] = res.data || []
+      const floors: string[] = Array.from(new Set(tables.map((table: any) => floorNameFromArea(table.area?.name))))
+      setAvailableTables(tables)
+      setSelectedFloorMapFloor(prev => (prev && floors.includes(prev)) ? prev : floors[0] || '')
+      setSelectedMergeableTableIds([])
+      updateData({
+        tableId: null,
+        tableName: '',
+        tableCapacity: 0,
+        tableLocation: '',
+        isPremium: false,
+        premiumPrice: 0
+      })
     } catch (err) {
       console.error('Failed to fetch tables:', err)
       setError('Failed to fetch available tables.')
@@ -158,22 +178,26 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
         setError(`The restaurant is closed on ${selectedDayOfWeek.charAt(0).toUpperCase() + selectedDayOfWeek.slice(1)}s.`)
         return
       }
+      if (!Number.isInteger(data.guests) || data.guests < 1) {
+        setError('Please enter a valid party size.')
+        return
+      }
       if (!hasPreselectedTable) {
         await fetchAvailableTables()
       }
       setError(null)
       setCurrentStep(prev => prev + 1)
     } else if (content === 'table') {
-      const suitableTables = availableTables.filter(t => t.capacity >= data.guests)
-      const mergeableTables = availableTables.filter(t => t.isMergeable && t.capacity < data.guests)
-      const activeMode = (suitableTables.length === 0 && mergeableTables.length > 0) ? 'mergeable' : selectedTableMode
-
-      if (activeMode === 'mergeable') {
-        if (selectedMergeableTableIds.length === 0) {
-          setError('Please select one or more tables to combine.')
+      if (selectedMergeableTableIds.length > 0) {
+        if (selectedMergeableTableIds.length < 2) {
+          setError('Please select at least two mergeable tables to combine.')
           return
         }
         const selectedTables = availableTables.filter(t => selectedMergeableTableIds.includes(t.id))
+        if (selectedTables.some(t => !t.isMergeable || t.isMerged)) {
+          setError('Only available tables marked as mergeable can be combined.')
+          return
+        }
         const combinedCap = selectedTables.reduce((sum, t) => sum + (t.capacity || 0), 0)
         if (combinedCap < data.guests) {
           setError(`Combined capacity of selected tables (${combinedCap}) is insufficient for ${data.guests} guests. Please select additional mergeable tables.`)
@@ -204,26 +228,7 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
       setLoading(true)
       setError(null)
 
-      const suitableTables = availableTables.filter(t => t.capacity >= data.guests)
-      const mergeableTables = availableTables.filter(t => t.isMergeable && t.capacity < data.guests)
-      const activeMode = (suitableTables.length === 0 && mergeableTables.length > 0) ? 'mergeable' : selectedTableMode
-
-      let finalTableId: string | undefined = data.tableId || undefined
-
-      if (activeMode === 'mergeable' && selectedMergeableTableIds.length > 1) {
-        // Merge the selected tables first in the backend
-        const mergeRes = await api.post(`/organizations/${restaurantId}/tables/merge`, {
-          sourceTableIds: selectedMergeableTableIds,
-          mergedTable: {
-            name: data.tableName || 'Merged Table',
-            capacity: data.tableCapacity
-          },
-          mergeEffectiveFrom: data.date
-        })
-        if (mergeRes.data?.data?.id) {
-          finalTableId = mergeRes.data.data.id
-        }
-      }
+      const finalTableId: string | undefined = selectedMergeableTableIds.length > 1 ? undefined : data.tableId || undefined
       
       const fn = data.firstName?.trim()
       const ln = data.lastName?.trim()
@@ -231,7 +236,8 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
         reservationDate: data.date,
         startTime: data.time,
         partySize: data.guests,
-        tableId: finalTableId,
+        tableId: finalTableId || null,
+        autoMergeTableIds: selectedMergeableTableIds.length > 1 ? selectedMergeableTableIds : undefined,
         guestFirstName: fn || undefined,
         guestLastName: ln || undefined,
         guestEmail: data.email?.trim() ? data.email.trim() : undefined,
@@ -255,24 +261,26 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
       <div>
         <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>Date</label>
         <div style={{ position: 'relative' }}>
-          <Calendar size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }} />
+          <Calendar size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)', pointerEvents: 'none' }} />
           <input
             type="date"
             value={data.date}
+            onClick={openNativePicker}
             onChange={(e) => updateData({ date: e.target.value })}
-            style={{ width: '100%', padding: '10px 10px 10px 40px', borderRadius: '8px', border: '1px solid var(--border-input)', fontSize: '0.875rem', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)', outline: 'none' }}
+            style={{ width: '100%', padding: '10px 10px 10px 40px', borderRadius: '8px', border: '1px solid var(--border-input)', fontSize: '0.875rem', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)', outline: 'none', cursor: 'pointer' }}
           />
         </div>
       </div>
       <div>
         <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>Time</label>
         <div style={{ position: 'relative' }}>
-          <Clock size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }} />
+          <Clock size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)', pointerEvents: 'none' }} />
           <input
             type="time"
             value={data.time}
+            onClick={openNativePicker}
             onChange={(e) => updateData({ time: e.target.value })}
-            style={{ width: '100%', padding: '10px 10px 10px 40px', borderRadius: '8px', border: '1px solid var(--border-input)', fontSize: '0.875rem', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)', outline: 'none' }}
+            style={{ width: '100%', padding: '10px 10px 10px 40px', borderRadius: '8px', border: '1px solid var(--border-input)', fontSize: '0.875rem', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)', outline: 'none', cursor: 'pointer' }}
           />
         </div>
       </div>
@@ -284,8 +292,12 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
             type="number"
             min={1}
             max={20}
-            value={data.guests}
-            onChange={(e) => updateData({ guests: parseInt(e.target.value) || 1 })}
+            value={data.guests > 0 ? data.guests : ''}
+            onChange={(e) => {
+              const value = e.target.value
+              updateData({ guests: value === '' ? 0 : parseInt(value, 10) || 0 })
+              setError(null)
+            }}
             style={{ width: '100%', padding: '10px 10px 10px 40px', borderRadius: '8px', border: '1px solid var(--border-input)', fontSize: '0.875rem', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)', outline: 'none' }}
           />
         </div>
@@ -302,27 +314,42 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
     if (loadingTables) return <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>Loading available tables...</div>
     if (availableTables.length === 0) return <div style={{ textAlign: 'center', padding: '40px', color: 'var(--accent-red)' }}>No tables available for {data.guests} guests at {data.time}.</div>
 
-    const suitableTables = availableTables.filter(t => t.capacity >= data.guests)
-    const mergeableTables = availableTables.filter(t => t.isMergeable && t.capacity < data.guests)
-
-    const activeMode = (suitableTables.length === 0 && mergeableTables.length > 0) ? 'mergeable' : selectedTableMode
-    const displayedTables = activeMode === 'mergeable' ? mergeableTables : suitableTables
-
-    const tablesByArea = displayedTables.reduce((acc, table) => {
-      const areaName = table.area?.name || 'Main Area'
-      if (!acc[areaName]) acc[areaName] = []
-      acc[areaName].push(table)
-      return acc
-    }, {} as Record<string, any[]>)
-
-    // Calculate live selected capacity for UI banner feedback
     const selectedMergeableList = availableTables.filter(t => selectedMergeableTableIds.includes(t.id))
     const currentCombinedCap = selectedMergeableList.reduce((sum, t) => sum + (t.capacity || 0), 0)
+    const selectedAreaNames = Array.from(new Set(selectedMergeableList.map(t => t.area?.name || 'Main Area')))
+    const hasEnoughMergedCapacity = selectedMergeableTableIds.length >= 2 && currentCombinedCap >= data.guests
+    const tablesByFloor = availableTables.reduce((acc, table) => {
+      const floor = floorNameFromArea(table.area?.name)
+      if (!acc[floor]) acc[floor] = []
+      acc[floor].push(table)
+      return acc
+    }, {} as Record<string, any[]>)
+    const floorMapFloors = Object.keys(tablesByFloor)
+    const activeFloor = selectedFloorMapFloor && tablesByFloor[selectedFloorMapFloor]
+      ? selectedFloorMapFloor
+      : floorMapFloors[0] || ''
+    const visibleTables: any[] = activeFloor ? tablesByFloor[activeFloor] : availableTables
+
+    const positionedTables: Array<{ table: any; x: number; y: number }> = visibleTables.map((table: any, index: number) => ({
+      table,
+      x: table.positionX ?? ((index % 6) * 135 + 28),
+      y: table.positionY ?? (Math.floor(index / 6) * 112 + 28),
+    }))
+    const mapWidth = Math.max(760, ...positionedTables.map((item) => item.x + 170))
+    const mapHeight = Math.max(420, ...positionedTables.map((item) => item.y + 130))
 
     const handleTableClick = (table: any, areaName: string) => {
-      if (activeMode === 'mergeable') {
+      const canFitAlone = (table.capacity || 0) >= data.guests
+      const isInMergeSelection = selectedMergeableTableIds.includes(table.id)
+      const shouldToggleMerge = !canFitAlone || (selectedMergeableTableIds.length > 0 && table.isMergeable)
+
+      if (shouldToggleMerge) {
+        if (!table.isMergeable || table.isMerged) {
+          setError(canFitAlone ? 'This table can be assigned on its own, but it cannot be part of a merge.' : 'This table is not marked as mergeable.')
+          return
+        }
         let nextIds = [...selectedMergeableTableIds]
-        if (nextIds.includes(table.id)) {
+        if (isInMergeSelection) {
           nextIds = nextIds.filter(id => id !== table.id)
         } else {
           nextIds.push(table.id)
@@ -344,6 +371,7 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
           premiumPrice: combPrem
         })
       } else {
+        setSelectedMergeableTableIds([])
         updateData({
           tableId: table.id,
           tableName: table.name || `Table ${table.tableNumber}`,
@@ -356,102 +384,238 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
     }
 
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxHeight: '420px', overflowY: 'auto', paddingRight: '8px' }}>
-        {activeMode === 'mergeable' && (
-          <div style={{ backgroundColor: 'rgba(201,156,99,0.08)', border: '1px solid rgba(201,156,99,0.3)', padding: '12px 16px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.875rem' }}>
-            <span style={{ color: 'var(--text-secondary)' }}>
-              <strong style={{ color: 'var(--accent-gold)' }}>Merge Mode:</strong> Click multiple tables to combine them.
-            </span>
-            <span style={{ fontWeight: 700, color: currentCombinedCap >= data.guests ? '#10B981' : 'var(--accent-red)' }}>
-              Combined Cap: {currentCombinedCap} / {data.guests} Guests
-            </span>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        <style>
+          {`
+            .reservation-floor-map-scroll {
+              scrollbar-width: thin;
+              scrollbar-color: #5f7f7a #111b1e;
+            }
+            [data-theme="light"] .reservation-floor-map-scroll {
+              scrollbar-color: #98bbb5 #eef5f3;
+            }
+            .reservation-floor-map-scroll::-webkit-scrollbar {
+              width: 12px;
+              height: 12px;
+            }
+            .reservation-floor-map-scroll::-webkit-scrollbar-track {
+              background: #111b1e;
+              border-radius: 999px;
+            }
+            [data-theme="light"] .reservation-floor-map-scroll::-webkit-scrollbar-track {
+              background: #eef5f3;
+            }
+            .reservation-floor-map-scroll::-webkit-scrollbar-thumb {
+              background: #5f7f7a;
+              border: 3px solid #111b1e;
+              border-radius: 999px;
+            }
+            [data-theme="light"] .reservation-floor-map-scroll::-webkit-scrollbar-thumb {
+              background: #98bbb5;
+              border-color: #eef5f3;
+            }
+            .reservation-floor-map-scroll::-webkit-scrollbar-thumb:hover {
+              background: #7aa09a;
+            }
+            [data-theme="light"] .reservation-floor-map-scroll::-webkit-scrollbar-thumb:hover {
+              background: #7ca9a2;
+            }
+            .reservation-floor-map-scroll::-webkit-scrollbar-corner {
+              background: #111b1e;
+            }
+            [data-theme="light"] .reservation-floor-map-scroll::-webkit-scrollbar-corner {
+              background: #eef5f3;
+            }
+            .reservation-floor-map-shell {
+              border: 1px solid #25343a;
+              background-color: #0b1113;
+              box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
+            }
+            [data-theme="light"] .reservation-floor-map-shell {
+              border-color: #e8efed;
+              background-color: #fbfdfc;
+              box-shadow: inset 0 0 0 1px rgba(255,255,255,0.85);
+            }
+            .reservation-floor-table {
+              background-color: #183531;
+              border: 1px solid rgba(143,196,188,0.24);
+              color: #d9efec;
+              box-shadow: 0 1px 2px rgba(15,23,42,0.04);
+            }
+            [data-theme="light"] .reservation-floor-table {
+              background-color: #bfdfda;
+              border-color: rgba(132,183,174,0.18);
+              color: #36504c;
+            }
+            .reservation-floor-table-selected {
+              border: 3px solid #C99C63;
+              box-shadow: 0 1px 5px rgba(15,23,42,0.18);
+            }
+            .reservation-floor-table-disabled {
+              opacity: 0.58;
+            }
+          `}
+        </style>
+        {selectedMergeableTableIds.length > 0 && (
+          <div style={{ backgroundColor: 'rgba(201,156,99,0.08)', border: '1px solid rgba(201,156,99,0.3)', padding: '12px 14px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', fontSize: '0.8125rem', flexWrap: 'wrap' }}>
+            <>
+              <span style={{ color: 'var(--text-secondary)' }}>
+                <strong style={{ color: 'var(--accent-gold)' }}>Merge selection:</strong> {selectedMergeableList.map(t => t.name || `Table ${t.tableNumber}`).join(' + ') || 'No tables selected'}
+                {selectedAreaNames.length > 1 ? ' • Staff review needed' : ''}
+              </span>
+              <span style={{ fontWeight: 700, color: hasEnoughMergedCapacity ? '#10B981' : 'var(--accent-red)' }}>
+                Combined Cap: {currentCombinedCap} / {data.guests}
+              </span>
+            </>
           </div>
         )}
 
-        {displayedTables.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-            No individual tables large enough for {data.guests} guests. Please select the mergeable tables option below.
+        {floorMapFloors.length > 0 && (
+          <div style={{ display: 'flex', gap: '6px', borderBottom: '1px solid var(--border-secondary)', overflowX: 'auto' }}>
+            {floorMapFloors.map(floor => {
+              const active = activeFloor === floor
+              return (
+                <button
+                  key={floor}
+                  type="button"
+                  onClick={() => setSelectedFloorMapFloor(floor)}
+                  style={{
+                    padding: '8px 18px',
+                    border: 'none',
+                    borderBottom: `3px solid ${active ? '#2f8f83' : 'transparent'}`,
+                    backgroundColor: 'transparent',
+                    color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {floor}
+                </button>
+              )
+            })}
           </div>
-        ) : (
-          Object.entries(tablesByArea).map(([area, tables]) => (
-            <div key={area}>
-              <h4 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-tertiary)', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{area}</h4>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
-                {(tables as any[]).map(table => {
-                  const isSelected = activeMode === 'mergeable'
-                    ? selectedMergeableTableIds.includes(table.id)
-                    : data.tableId === table.id
+        )}
 
-                  return (
-                    <div
-                      key={table.id}
-                      onClick={() => handleTableClick(table, area)}
-                      style={{
-                        padding: '16px',
-                        borderRadius: '12px',
-                        border: `2px solid ${isSelected ? 'var(--accent-gold)' : 'var(--border-secondary)'}`,
-                        backgroundColor: isSelected ? 'var(--bg-hover)' : 'var(--bg-card)',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        position: 'relative',
-                        transition: 'all 0.2s'
-                      }}
-                    >
-                      {table.isPremium && (
-                        <span style={{ position: 'absolute', top: '-10px', backgroundColor: '#C99C63', color: '#fff', fontSize: '0.625rem', padding: '2px 8px', borderRadius: '100px', fontWeight: 800 }}>PREMIUM</span>
-                      )}
-                      <span style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: table.isPremium ? '8px' : '0' }}>{table.name || `Table ${table.tableNumber}`}</span>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                        {activeMode === 'mergeable' ? `Base Cap: ${table.capacity} (Mergeable)` : `Up to ${table.capacity} Guests`}
-                      </span>
-                      {table.isPremium && (
-                        <span style={{ fontSize: '0.75rem', color: '#D97706', fontWeight: 700, marginTop: '4px' }}>£{table.premiumPrice?.toFixed(2) || '0.00'}</span>
-                      )}
-                    </div>
-                  )
-                })}
+        <div style={{ position: 'relative' }}>
+          <div
+            className="reservation-floor-map-scroll reservation-floor-map-shell"
+            style={{
+              height: '430px',
+              overflow: 'auto',
+              borderRadius: '10px',
+              position: 'relative',
+            }}
+          >
+            <div style={{ width: `${mapWidth * floorMapZoom}px`, height: `${mapHeight * floorMapZoom}px`, position: 'relative' }}>
+              <div style={{ width: `${mapWidth}px`, height: `${mapHeight}px`, position: 'relative', transform: `scale(${floorMapZoom})`, transformOrigin: 'top left' }}>
+                {positionedTables.map(({ table, x, y }) => {
+              const areaName = table.area?.name || 'Main Area'
+              const canFitAlone = (table.capacity || 0) >= data.guests
+              const canMerge = table.isMergeable && !table.isMerged
+              const isSingleSelected = selectedMergeableTableIds.length === 0 && data.tableId === table.id
+              const isMergeSelected = selectedMergeableTableIds.includes(table.id)
+              const isDisabled = !canFitAlone && !canMerge
+              const shape = String(table.shape || 'rectangle').toLowerCase()
+              const isRound = shape === 'circle' || shape === 'round'
+              const isVip = table.isPremium || String(table.type || '').toLowerCase().includes('vip')
+              const tableWidth = isRound ? 82 : isVip ? 138 : 120
+              const tableHeight = isRound ? 82 : 82
+              const title = isDisabled
+                ? `${table.name || `Table ${table.tableNumber}`} is not mergeable`
+                : canFitAlone && selectedMergeableTableIds.length === 0
+                  ? `${table.name || `Table ${table.tableNumber}`} can be assigned directly`
+                  : `${table.name || `Table ${table.tableNumber}`} can be combined`
+
+              return (
+                <button
+                  key={table.id}
+                  type="button"
+                  className={`reservation-floor-table ${isSingleSelected || isMergeSelected ? 'reservation-floor-table-selected' : ''} ${isDisabled ? 'reservation-floor-table-disabled' : ''}`}
+                  title={title}
+                  onClick={() => handleTableClick(table, areaName)}
+                  style={{
+                    position: 'absolute',
+                    left: `${x}px`,
+                    top: `${y}px`,
+                    width: `${tableWidth}px`,
+                    height: `${tableHeight}px`,
+                    borderRadius: isRound ? '999px' : '8px',
+                    cursor: isDisabled ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '8px',
+                    textAlign: 'center',
+                    transition: 'border-color 0.18s, background-color 0.18s, transform 0.18s',
+                  }}
+                >
+                  {table.isPremium && (
+                    <span style={{ position: 'absolute', top: '5px', right: '5px', backgroundColor: '#C99C63', color: '#111827', fontSize: '0.55rem', padding: '2px 6px', borderRadius: '100px', fontWeight: 800 }}>
+                      VIP
+                    </span>
+                  )}
+                  {(isSingleSelected || isMergeSelected) && (
+                    <span style={{ position: 'absolute', top: '5px', left: '6px', color: 'var(--accent-gold)', display: 'flex' }}>
+                      <Check size={14} />
+                    </span>
+                  )}
+                  <span style={{ fontSize: '0.9rem', fontWeight: 800, lineHeight: 1.15, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {table.name || `Table ${table.tableNumber}`}
+                  </span>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '3px', lineHeight: 1.1 }}>
+                    {table.capacity || 0} guests
+                  </span>
+                  <span style={{ fontSize: '0.58rem', color: canFitAlone ? '#10B981' : canMerge ? '#60A5FA' : 'var(--accent-red)', fontWeight: 800, marginTop: '4px', textTransform: 'uppercase', lineHeight: 1.1 }}>
+                    {canFitAlone ? 'Fits' : canMerge ? 'Mergeable' : 'Not mergeable'}
+                  </span>
+                </button>
+              )
+            })}
               </div>
             </div>
-          ))
-        )}
-
-        {/* Radio buttons underneath to show available mergeable tables */}
-        {mergeableTables.length > 0 && (
-          <div style={{ marginTop: '12px', borderTop: '1px solid var(--border-secondary)', paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '10px', backgroundColor: 'var(--bg-tertiary)', padding: '16px', borderRadius: '12px' }}>
-            <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Table View Options
-            </span>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-              <input
-                type="radio"
-                name="tableMode"
-                checked={activeMode === 'suitable'}
-                onChange={() => {
-                  setSelectedTableMode('suitable')
-                  setSelectedMergeableTableIds([])
-                  setError(null)
-                }}
-                style={{ accentColor: 'var(--accent-gold)', width: '16px', height: '16px' }}
-              />
-              <span>Show individual suitable tables ({suitableTables.length})</span>
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-              <input
-                type="radio"
-                name="tableMode"
-                checked={activeMode === 'mergeable'}
-                onChange={() => {
-                  setSelectedTableMode('mergeable')
-                  setError(null)
-                }}
-                style={{ accentColor: 'var(--accent-gold)', width: '16px', height: '16px' }}
-              />
-              <span>Show available mergeable tables ({mergeableTables.length}) — Combinable for larger groups</span>
-            </label>
           </div>
-        )}
+          <div
+            style={{
+              position: 'absolute',
+              right: '18px',
+              bottom: '18px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '7px 9px',
+              borderRadius: '999px',
+              backgroundColor: 'rgba(11,17,19,0.88)',
+              color: '#a9cbc5',
+              boxShadow: '0 10px 28px rgba(15,23,42,0.16)',
+              border: '1px solid rgba(143,196,188,0.18)',
+              backdropFilter: 'blur(8px)',
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setFloorMapZoom(prev => Math.max(0.3, Number((prev - 0.1).toFixed(2))))}
+              aria-label="Zoom out floor map"
+              title="Zoom out"
+              style={{ width: '28px', height: '28px', borderRadius: '999px', border: 'none', backgroundColor: 'transparent', color: 'inherit', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            >
+              <ZoomOut size={18} strokeWidth={2.8} />
+            </button>
+            <span style={{ minWidth: '48px', textAlign: 'center', fontSize: '1rem', lineHeight: 1, fontWeight: 800 }}>
+              {Math.round(floorMapZoom * 100)}%
+            </span>
+            <button
+              type="button"
+              onClick={() => setFloorMapZoom(prev => Math.min(1.8, Number((prev + 0.1).toFixed(2))))}
+              aria-label="Zoom in floor map"
+              title="Zoom in"
+              style={{ width: '28px', height: '28px', borderRadius: '999px', border: 'none', backgroundColor: 'transparent', color: 'inherit', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            >
+              <ZoomIn size={18} strokeWidth={2.8} />
+            </button>
+          </div>
+        </div>
       </div>
     )
   }
@@ -527,7 +691,7 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
 
   return (
     <div style={{ position: 'fixed', inset: 0, backgroundColor: 'var(--modal-overlay)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200, padding: '24px', backdropFilter: 'var(--modal-backdrop)' }}>
-      <div style={{ backgroundColor: 'var(--bg-modal)', borderRadius: '24px', width: '100%', maxWidth: '600px', overflow: 'hidden', boxShadow: 'var(--shadow-lg)', display: 'flex', flexDirection: 'column', maxHeight: '90vh', border: '1px solid var(--border-primary)' }}>
+      <div style={{ backgroundColor: 'var(--bg-modal)', borderRadius: '24px', width: '100%', maxWidth: contentStep === 'table' ? '900px' : '600px', overflow: 'hidden', boxShadow: 'var(--shadow-lg)', display: 'flex', flexDirection: 'column', maxHeight: '90vh', border: '1px solid var(--border-primary)' }}>
         
         {/* Header */}
         <div style={{ padding: '24px 32px', borderBottom: '1px solid var(--border-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

@@ -5,7 +5,7 @@ import { ReservationStatus } from '../types/enums';
 import { addMinutesToTime, timeRangesOverlap, getTodayDate } from '../utils/time';
 import { parsePagination, buildPaginationMeta } from '../utils/pagination';
 import { sanitizeSearch } from '../utils/sanitize';
-import { bookableTableRowsForDate, buildLayoutTableRows } from '../utils/tableMergeLayout';
+import { buildLayoutTableRows } from '../utils/tableMergeLayout';
 import { emailService } from './email.service';
 import { tableService } from './table.service';
 import { getPlanLimits, hasUnlimitedReservations } from '../config/planLimits';
@@ -21,7 +21,296 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
   [ReservationStatus.NO_SHOW]: [],
 };
 
+type AvailableTableRow = {
+  id: string;
+  table_number?: string | null;
+  name?: string | null;
+  capacity?: number | null;
+  min_capacity?: number | null;
+  area_id?: string | null;
+  position_x?: number | null;
+  position_y?: number | null;
+  type?: string | null;
+  shape?: string | null;
+  is_premium?: boolean | null;
+  premium_price?: number | null;
+  is_mergeable?: boolean | null;
+  is_merged?: boolean | null;
+  floor_areas?: { id: string; name: string } | null;
+};
+
 export class ReservationService {
+  private tableDisplayName(table: AvailableTableRow) {
+    return table.name || table.table_number || `Table ${table.id.slice(0, 8)}`;
+  }
+
+  private formatAvailableTable(table: AvailableTableRow) {
+    return {
+      id: table.id,
+      tableNumber: table.table_number,
+      name: table.name,
+      capacity: table.capacity,
+      minCapacity: table.min_capacity,
+      area: table.floor_areas ? { id: table.floor_areas.id, name: table.floor_areas.name } : null,
+      type: table.type,
+      shape: table.shape,
+      positionX: table.position_x,
+      positionY: table.position_y,
+      isPremium: table.is_premium || false,
+      premiumPrice: table.premium_price || 0,
+      isMergeable: table.is_mergeable || false,
+      isMerged: table.is_merged || false,
+    };
+  }
+
+  private isTableFreeForReservations(tableId: string, reservations: any[], startTime: string, endTime: string) {
+    return !reservations.some(
+      (r) => r.table_id === tableId && timeRangesOverlap(startTime, endTime, r.start_time, r.end_time)
+    );
+  }
+
+  private bestCombination(tables: AvailableTableRow[], partySize: number): AvailableTableRow[] | null {
+    const usable = tables
+      .filter((t) => (Number(t.capacity) || 0) > 0)
+      .sort((a, b) => (Number(b.capacity) || 0) - (Number(a.capacity) || 0));
+
+    const maxCap = Math.max(0, ...usable.map((t) => Number(t.capacity) || 0));
+    const capLimit = partySize + maxCap;
+    const states = new Map<number, AvailableTableRow[]>();
+    states.set(0, []);
+
+    const isBetter = (next: AvailableTableRow[], current?: AvailableTableRow[]) => {
+      if (!current) return true;
+      const nextCap = next.reduce((sum, t) => sum + (Number(t.capacity) || 0), 0);
+      const currentCap = current.reduce((sum, t) => sum + (Number(t.capacity) || 0), 0);
+      if (next.length !== current.length) return next.length < current.length;
+      return nextCap < currentCap;
+    };
+
+    for (const table of usable) {
+      const snapshot = Array.from(states.entries());
+      for (const [cap, selected] of snapshot) {
+        if (selected.length >= 12) continue;
+        const next = [...selected, table];
+        const nextCap = Math.min(cap + (Number(table.capacity) || 0), capLimit);
+        if (isBetter(next, states.get(nextCap))) states.set(nextCap, next);
+      }
+    }
+
+    let best: AvailableTableRow[] | null = null;
+    for (const [cap, selected] of states.entries()) {
+      if (cap < partySize || selected.length < 2) continue;
+      if (isBetter(selected, best || undefined)) best = selected;
+    }
+    return best;
+  }
+
+  private findAutoMergeOption(tables: AvailableTableRow[], partySize: number) {
+    const standardTables = tables.filter((t) => t.is_mergeable === true && !t.is_premium && !t.is_merged);
+    const byArea = new Map<string, AvailableTableRow[]>();
+
+    for (const table of standardTables) {
+      const areaKey = table.area_id || table.floor_areas?.id || 'unassigned';
+      byArea.set(areaKey, [...(byArea.get(areaKey) || []), table]);
+    }
+
+    let adjacent: AvailableTableRow[] | null = null;
+    for (const areaTables of byArea.values()) {
+      const combo = this.bestAdjacentCombination(areaTables, partySize);
+      if (!combo) continue;
+      if (!adjacent || this.adjacentScore(combo, partySize) < this.adjacentScore(adjacent, partySize)) {
+        adjacent = combo;
+      }
+    }
+
+    if (adjacent && this.tablesAreVisuallyConnected(adjacent)) {
+      return this.formatAutoMergeOption(adjacent, partySize, false);
+    }
+
+    const fallback = this.bestCombination(standardTables, partySize);
+    return fallback ? this.formatAutoMergeOption(fallback, partySize, true) : null;
+  }
+
+  private bestAdjacentCombination(tables: AvailableTableRow[], partySize: number): AvailableTableRow[] | null {
+    const positioned = tables.filter((t) => t.position_x != null && t.position_y != null);
+    if (positioned.length < 2) return this.bestCombination(tables, partySize);
+
+    let best: AvailableTableRow[] | null = null;
+    for (const seed of positioned) {
+      const cluster = positioned
+        .filter((t) => t.id !== seed.id)
+        .sort((a, b) => this.distance(seed, a) - this.distance(seed, b));
+
+      const selected = [seed];
+      let capacity = Number(seed.capacity) || 0;
+      for (const table of cluster) {
+        if (capacity >= partySize) break;
+        selected.push(table);
+        capacity += Number(table.capacity) || 0;
+      }
+      if (capacity < partySize) continue;
+      if (!best || this.adjacentScore(selected, partySize) < this.adjacentScore(best, partySize)) {
+        best = selected;
+      }
+    }
+
+    return best || this.bestCombination(tables, partySize);
+  }
+
+  private distance(a: AvailableTableRow, b: AvailableTableRow) {
+    const dx = Number(a.position_x || 0) - Number(b.position_x || 0);
+    const dy = Number(a.position_y || 0) - Number(b.position_y || 0);
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  private tableSize(table: AvailableTableRow) {
+    const shape = String(table.shape || 'rectangle').toLowerCase();
+    if (shape === 'circle' || shape === 'round' || shape === 'square') return { width: 80, height: 80 };
+    return { width: String(table.type || '').toLowerCase().includes('vip') ? 140 : 120, height: 80 };
+  }
+
+  private tablesAreVisuallyConnected(tables: AvailableTableRow[]) {
+    if (tables.length < 2) return true;
+    if (tables.some((t) => t.position_x == null || t.position_y == null)) return false;
+
+    const linked = new Set<string>([tables[0].id]);
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const a of tables) {
+        if (!linked.has(a.id)) continue;
+        for (const b of tables) {
+          if (linked.has(b.id)) continue;
+          if (this.tablesAreNearEnoughToMerge(a, b)) {
+            linked.add(b.id);
+            changed = true;
+          }
+        }
+      }
+    }
+    return linked.size === tables.length;
+  }
+
+  private tablesAreNearEnoughToMerge(a: AvailableTableRow, b: AvailableTableRow) {
+    const aSize = this.tableSize(a);
+    const bSize = this.tableSize(b);
+    const aLeft = Number(a.position_x);
+    const aTop = Number(a.position_y);
+    const bLeft = Number(b.position_x);
+    const bTop = Number(b.position_y);
+    const aRight = aLeft + aSize.width;
+    const aBottom = aTop + aSize.height;
+    const bRight = bLeft + bSize.width;
+    const bBottom = bTop + bSize.height;
+
+    const gapX = Math.max(0, Math.max(aLeft, bLeft) - Math.min(aRight, bRight));
+    const gapY = Math.max(0, Math.max(aTop, bTop) - Math.min(aBottom, bBottom));
+    const overlapX = Math.max(0, Math.min(aRight, bRight) - Math.max(aLeft, bLeft));
+    const overlapY = Math.max(0, Math.min(aBottom, bBottom) - Math.max(aTop, bTop));
+    const nearGap = 40;
+
+    return (
+      (gapX <= nearGap && overlapY >= Math.min(aSize.height, bSize.height) * 0.35) ||
+      (gapY <= nearGap && overlapX >= Math.min(aSize.width, bSize.width) * 0.35)
+    );
+  }
+
+  private adjacentScore(tables: AvailableTableRow[], partySize: number) {
+    const cap = tables.reduce((sum, t) => sum + (Number(t.capacity) || 0), 0);
+    const xs = tables.map((t) => Number(t.position_x || 0));
+    const ys = tables.map((t) => Number(t.position_y || 0));
+    const spread = (Math.max(...xs) - Math.min(...xs)) + (Math.max(...ys) - Math.min(...ys));
+    return tables.length * 1000000 + Math.max(0, cap - partySize) * 10000 + spread;
+  }
+
+  private bestCombinationScore(tables: AvailableTableRow[], partySize: number) {
+    const cap = tables.reduce((sum, t) => sum + (Number(t.capacity) || 0), 0);
+    return tables.length * 10000 + Math.max(0, cap - partySize);
+  }
+
+  private formatAutoMergeOption(tables: AvailableTableRow[], partySize: number, requiresStaffReview: boolean) {
+    const capacity = tables.reduce((sum, t) => sum + (Number(t.capacity) || 0), 0);
+    const premiumPrice = tables.reduce((sum, t) => sum + (Number(t.premium_price) || 0), 0);
+    const names = tables.map((t) => this.tableDisplayName(t));
+    const sameArea = tables.every((t) => (t.area_id || t.floor_areas?.id || null) === (tables[0].area_id || tables[0].floor_areas?.id || null));
+
+    return {
+      id: `auto-merge:${tables.map((t) => t.id).join(',')}`,
+      tableNumber: 'AUTO',
+      name: `Combined ${names.join(' + ')}`,
+      capacity,
+      area: sameArea && tables[0].floor_areas ? { id: tables[0].floor_areas.id, name: tables[0].floor_areas.name } : null,
+      type: requiresStaffReview ? 'staff_review_required' : null,
+      shape: 'rectangle',
+      isPremium: tables.some((t) => t.is_premium),
+      premiumPrice,
+      isMergeable: true,
+      isAutoMerge: true,
+      autoMergeTableIds: tables.map((t) => t.id),
+      sourceTableNames: names,
+      requiresStaffReview,
+      staffReviewReason: requiresStaffReview
+        ? 'The assigned tables are not adjacent on the floor map. Staff should review the seating layout before arrival.'
+        : null,
+      requestedPartySize: partySize,
+    };
+  }
+
+  private sameIdSet(a: string[], b: string[]) {
+    if (a.length !== b.length) return false;
+    const left = [...a].sort();
+    const right = [...b].sort();
+    return left.every((id, idx) => id === right[idx]);
+  }
+
+  private async getStaffSelectedMergeOption(
+    restaurantId: string,
+    date: string,
+    startTime: string,
+    endTime: string,
+    duration: number,
+    partySize: number,
+    sourceIds: string[]
+  ) {
+    const uniqueIds = Array.from(new Set(sourceIds));
+    if (uniqueIds.length !== sourceIds.length || uniqueIds.length < 2) return null;
+
+    const { data: dayReservations } = await supabaseAdmin
+      .from('reservations')
+      .select('table_id, start_time, end_time, status')
+      .eq('restaurant_id', restaurantId)
+      .eq('reservation_date', date)
+      .not('status', 'in', `(${ReservationStatus.CANCELLED},${ReservationStatus.NO_SHOW},${ReservationStatus.COMPLETED})`);
+    const reservations = dayReservations || [];
+
+    const { data: tableRows } = await supabaseAdmin
+      .from('tables')
+      .select('*, floor_areas(id, name)')
+      .eq('restaurant_id', restaurantId)
+      .or('is_active.eq.true,is_merged.eq.true');
+
+    const laidOutTables = buildLayoutTableRows(tableRows || [], date, {
+      layoutTime: startTime,
+      reservations,
+      defaultDurationMins: duration,
+    }) as AvailableTableRow[];
+
+    const selectedTables = laidOutTables.filter((table) => uniqueIds.includes(table.id));
+    if (selectedTables.length !== uniqueIds.length) return null;
+    if (selectedTables.some((table) => table.is_merged || table.is_mergeable !== true)) return null;
+    if (selectedTables.some((table) => !this.isTableFreeForReservations(table.id, reservations, startTime, endTime))) return null;
+
+    const capacity = selectedTables.reduce((sum, table) => sum + (Number(table.capacity) || 0), 0);
+    if (capacity < partySize) return null;
+
+    const sameArea = selectedTables.every(
+      (table) => (table.area_id || table.floor_areas?.id || null) === (selectedTables[0].area_id || selectedTables[0].floor_areas?.id || null)
+    );
+    const requiresStaffReview = !sameArea || !this.tablesAreVisuallyConnected(selectedTables);
+
+    return this.formatAutoMergeOption(selectedTables, partySize, requiresStaffReview);
+  }
+
   /**
    * List reservations with filtering and pagination.
    */
@@ -30,7 +319,7 @@ export class ReservationService {
 
     let query = supabaseAdmin
       .from('reservations')
-      .select('*, tables(id, table_number, name, floor_areas(name))', { count: 'exact' })
+      .select('*, tables(id, table_number, name, type, floor_areas(name))', { count: 'exact' })
       .eq('restaurant_id', restaurantId);
 
     // Apply filters
@@ -83,7 +372,7 @@ export class ReservationService {
   async getById(reservationId: string, restaurantId: string) {
     const { data, error } = await supabaseAdmin
       .from('reservations')
-      .select('*, tables(id, table_number, name, floor_areas(name))')
+      .select('*, tables(id, table_number, name, type, floor_areas(name))')
       .eq('id', reservationId)
       .eq('restaurant_id', restaurantId)
       .single();
@@ -228,10 +517,81 @@ export class ReservationService {
       }
     }
 
+    let effectiveTableId = dto.tableId || null;
+    let autoMergeTableId: string | null = null;
+
+    if (!effectiveTableId && dto.autoMergeTableIds?.length) {
+      const available = await this.getAvailableTables(restaurantId, dto.reservationDate, dto.startTime, dto.partySize);
+      let requestedAutoMerge = available.find(
+        (t: any) => t.isAutoMerge && this.sameIdSet(t.autoMergeTableIds || [], dto.autoMergeTableIds || [])
+      ) as any;
+
+      if (!requestedAutoMerge && isStaffCreated) {
+        requestedAutoMerge = await this.getStaffSelectedMergeOption(
+          restaurantId,
+          dto.reservationDate,
+          dto.startTime,
+          endTime,
+          duration,
+          dto.partySize,
+          dto.autoMergeTableIds
+        );
+      }
+
+      if (!requestedAutoMerge) {
+        throw new AppError('Selected table combination is no longer available for this time slot', 409);
+      }
+
+      const sourceIds = requestedAutoMerge.autoMergeTableIds as string[];
+      const { data: sourceTables } = await supabaseAdmin
+        .from('tables')
+        .select('position_x, position_y')
+        .in('id', sourceIds)
+        .eq('restaurant_id', restaurantId);
+      const positionedTables = (sourceTables || []).filter((t) => t.position_x != null && t.position_y != null);
+      const avgX = positionedTables.length
+        ? positionedTables.reduce((sum, t) => sum + Number(t.position_x), 0) / positionedTables.length
+        : null;
+      const avgY = positionedTables.length
+        ? positionedTables.reduce((sum, t) => sum + Number(t.position_y), 0) / positionedTables.length
+        : null;
+      const { data: mergedTable, error: mergeErr } = await supabaseAdmin
+        .from('tables')
+        .insert({
+          restaurant_id: restaurantId,
+          table_number: `AUTO-${Date.now().toString().slice(-6)}-${Math.random().toString(36).slice(2, 5).toUpperCase()}`,
+          name: requestedAutoMerge.name,
+          capacity: requestedAutoMerge.capacity,
+          min_capacity: dto.partySize,
+          area_id: requestedAutoMerge.area?.id || null,
+          position_x: avgX,
+          position_y: avgY,
+          shape: 'rectangle',
+          type: requestedAutoMerge.requiresStaffReview ? 'staff_review_required' : null,
+          is_premium: requestedAutoMerge.isPremium || false,
+          premium_price: requestedAutoMerge.premiumPrice || 0,
+          is_merged: true,
+          merged_table_ids: sourceIds,
+          merge_effective_from: dto.reservationDate,
+          is_active: false,
+          start_time: dto.startTime,
+          end_time: endTime,
+        })
+        .select('id')
+        .single();
+
+      if (mergeErr || !mergedTable) {
+        throw new AppError(`Failed to prepare combined table: ${mergeErr?.message || 'unknown error'}`, 500);
+      }
+
+      effectiveTableId = mergedTable.id;
+      autoMergeTableId = mergedTable.id;
+    }
+
     // Use SQL RPC to securely lock table row and insert atomically
     const { data: rpcData, error } = await supabaseAdmin.rpc('create_reservation_atomic', {
       p_restaurant_id: restaurantId,
-      p_table_id: dto.tableId || null,
+      p_table_id: effectiveTableId,
       p_customer_id: customerId,
       p_reservation_date: dto.reservationDate,
       p_start_time: dto.startTime,
@@ -248,6 +608,9 @@ export class ReservationService {
     });
 
     if (error) {
+      if (autoMergeTableId) {
+        await supabaseAdmin.from('tables').delete().eq('id', autoMergeTableId).eq('restaurant_id', restaurantId);
+      }
       if (error.message.includes('Table is no longer available')) {
         throw new AppError('Table is no longer available for this time slot (booked by another user)', 409);
       }
@@ -255,9 +618,9 @@ export class ReservationService {
     }
     
     // Fetch the newly created reservation with relation data
-    const { data: createdRes, error: fetchErr } = await supabaseAdmin
+    let { data: createdRes, error: fetchErr } = await supabaseAdmin
       .from('reservations')
-      .select('*, tables(id, table_number, name, floor_areas(name))')
+      .select('*, tables(id, table_number, name, type, floor_areas(name))')
       .eq('id', rpcData.id)
       .single();
 
@@ -374,7 +737,7 @@ export class ReservationService {
 
       const { data: updatedRes, error: fetchErr } = await supabaseAdmin
         .from('reservations')
-        .select('*, tables(id, table_number, name, floor_areas(name))')
+        .select('*, tables(id, table_number, name, type, floor_areas(name))')
         .eq('id', reservationId)
         .eq('restaurant_id', restaurantId)
         .single();
@@ -451,7 +814,7 @@ export class ReservationService {
     // 2. Fetch the newly structured reservation payload for the response
     const { data: updatedRes, error: fetchErr } = await supabaseAdmin
       .from('reservations')
-      .select('*, tables(id, table_number, name, floor_areas(name))')
+      .select('*, tables(id, table_number, name, type, floor_areas(name))')
       .eq('id', reservationId)
       .eq('restaurant_id', restaurantId)
       .single();
@@ -550,7 +913,7 @@ export class ReservationService {
     // Fetch the detailed payload for frontend format and email side-effects
     const { data, error: fetchError } = await supabaseAdmin
       .from('reservations')
-      .select('*, tables(id, table_number, name, floor_areas(name))')
+      .select('*, tables(id, table_number, name, type, floor_areas(name))')
       .eq('id', reservationId)
       .eq('restaurant_id', restaurantId)
       .single();
@@ -602,7 +965,7 @@ export class ReservationService {
   async getCalendarView(restaurantId: string, date: string) {
     const { data: reservations, error } = await supabaseAdmin
       .from('reservations')
-      .select('*, tables(id, table_number, name, capacity, floor_areas(name))')
+      .select('*, tables(id, table_number, name, type, capacity, floor_areas(name))')
       .eq('restaurant_id', restaurantId)
       .eq('reservation_date', date)
       .neq('status', 'cancelled')
@@ -667,7 +1030,13 @@ export class ReservationService {
   /**
    * Get available tables.
    */
-  async getAvailableTables(restaurantId: string, date: string, startTime: string, partySize: number) {
+  async getAvailableTables(
+    restaurantId: string,
+    date: string,
+    startTime: string,
+    partySize: number,
+    options?: { includeAllAvailable?: boolean }
+  ) {
     await tableService.dematerializeScheduledMerges(restaurantId);
 
     const { data: org } = await supabaseAdmin
@@ -679,34 +1048,57 @@ export class ReservationService {
     const duration = org?.default_reservation_duration_min || 90;
     const endTime = addMinutesToTime(startTime, duration);
 
+    const { data: dayReservations } = await supabaseAdmin
+      .from('reservations')
+      .select('table_id, start_time, end_time, status')
+      .eq('restaurant_id', restaurantId)
+      .eq('reservation_date', date)
+      .not('status', 'in', `(${ReservationStatus.CANCELLED},${ReservationStatus.NO_SHOW},${ReservationStatus.COMPLETED})`);
+    const reservations = dayReservations || [];
+
     const { data: tableRows } = await supabaseAdmin
       .from('tables')
       .select('*, floor_areas(id, name)')
       .eq('restaurant_id', restaurantId)
       .or('is_active.eq.true,is_merged.eq.true');
 
-    const laidOutTables = buildLayoutTableRows(tableRows || [], date);
-    const candidates = laidOutTables.filter((t: any) => (Number(t.capacity) || 0) >= partySize);
+    const laidOutTables = buildLayoutTableRows(tableRows || [], date, {
+      layoutTime: startTime,
+      reservations,
+      defaultDurationMins: duration,
+    });
+    const candidates = options?.includeAllAvailable
+      ? laidOutTables
+      : laidOutTables.filter((t: any) => (Number(t.capacity) || 0) >= partySize);
 
-    const available = [];
+    const available: any[] = [];
     for (const table of candidates) {
-      if (await this.checkTableAvailability(table.id, date, startTime, endTime)) {
-        available.push({
-          id: table.id,
-          tableNumber: table.table_number,
-          name: table.name,
-          capacity: table.capacity,
-          area: table.floor_areas ? { id: table.floor_areas.id, name: table.floor_areas.name } : null,
-          type: table.type,
-          shape: table.shape,
-          isPremium: table.is_premium || false,
-          premiumPrice: table.premium_price || 0,
-          isMergeable: table.is_mergeable || false,
-        });
+      if (this.isTableFreeForReservations(table.id, reservations, startTime, endTime)) {
+        available.push(this.formatAvailableTable(table));
       }
     }
+
+    if (!options?.includeAllAvailable && !available.some((t) => !t.isPremium)) {
+      const availableStandardTables = (laidOutTables as AvailableTableRow[]).filter(
+        (table) =>
+          table.is_mergeable === true &&
+          !table.is_merged &&
+          !table.is_premium &&
+          this.isTableFreeForReservations(table.id, reservations, startTime, endTime)
+      );
+      const autoMerge = this.findAutoMergeOption(availableStandardTables, partySize);
+      if (autoMerge) available.push(autoMerge);
+    }
+
     // Best-fit: smallest table that can accommodate the party is assigned first
-    available.sort((a, b) => a.capacity - b.capacity);
+    available.sort((a, b) => {
+      if (a.isAutoMerge !== b.isAutoMerge) return a.isAutoMerge ? 1 : -1;
+      if (options?.includeAllAvailable) {
+        if (a.positionY != null && b.positionY != null && a.positionY !== b.positionY) return a.positionY - b.positionY;
+        if (a.positionX != null && b.positionX != null && a.positionX !== b.positionX) return a.positionX - b.positionX;
+      }
+      return a.capacity - b.capacity;
+    });
     return available;
   }
 
@@ -791,16 +1183,9 @@ export class ReservationService {
 
     const { data: wideRows } = await supabaseAdmin
       .from('tables')
-      .select('id, capacity, is_mergeable, is_merged, merged_table_ids, merge_effective_from, is_active')
+      .select('*, floor_areas(id, name)')
       .eq('restaurant_id', restaurantId)
       .or('is_active.eq.true,is_merged.eq.true');
-
-    const laidOut = buildLayoutTableRows(wideRows || [], date);
-    const candidates = laidOut.filter((t: { capacity?: number }) => (Number(t.capacity) || 0) >= partySize);
-
-    if (!candidates || candidates.length === 0) {
-      return { allSlots, availableSlots, isClosed: false };
-    }
 
     // Get org duration for end-time calculation
     const { data: orgDuration } = await supabaseAdmin
@@ -823,12 +1208,27 @@ export class ReservationService {
     // Check each slot in-memory
     for (const slot of allSlots) {
       const slotEnd = addMinutesToTime(slot, duration);
-      // Check if at least one table has no conflicting reservation
-      const hasAvailable = candidates.some((table) => {
-        return !reservations.some(
-          (r) => r.table_id === table.id && timeRangesOverlap(slot, slotEnd, r.start_time, r.end_time)
-        );
-      });
+      const laidOut = buildLayoutTableRows(wideRows || [], date, {
+        layoutTime: slot,
+        reservations,
+        defaultDurationMins: duration,
+      }) as AvailableTableRow[];
+      const candidates = laidOut.filter((t) => (Number(t.capacity) || 0) >= partySize);
+
+      const hasSingle = candidates.some((table) => this.isTableFreeForReservations(table.id, reservations, slot, slotEnd));
+      const hasAutoMerge = !hasSingle && Boolean(
+        this.findAutoMergeOption(
+          laidOut.filter(
+            (table) =>
+              table.is_mergeable === true &&
+              !table.is_merged &&
+              !table.is_premium &&
+              this.isTableFreeForReservations(table.id, reservations, slot, slotEnd)
+          ),
+          partySize
+        )
+      );
+      const hasAvailable = hasSingle || hasAutoMerge;
       if (hasAvailable) availableSlots.push(slot);
     }
 
@@ -874,6 +1274,15 @@ export class ReservationService {
       reservationDate = reservationDate.split('T')[0];
     }
 
+    const legacyReviewNote =
+      typeof row.internal_notes === 'string' && row.internal_notes.startsWith('Auto-assigned non-adjacent tables')
+        ? row.internal_notes
+        : null;
+    const staffReviewReason =
+      row.tables?.type === 'staff_review_required'
+        ? 'The assigned tables are not adjacent on the floor map. Staff should review the seating layout before arrival.'
+        : legacyReviewNote;
+
     return {
       id: row.id,
       restaurantId: row.restaurant_id,
@@ -888,7 +1297,8 @@ export class ReservationService {
       status: row.status,
       source: row.source,
       specialRequests: row.special_requests,
-      internalNotes: row.internal_notes,
+      internalNotes: legacyReviewNote ? null : row.internal_notes,
+      staffReviewReason,
       paymentMethod: row.payment_method,
       paymentStatus: row.payment_status,
       totalAmount: row.total_amount ?? null,
@@ -904,6 +1314,7 @@ export class ReservationService {
             id: row.tables.id,
             tableNumber: row.tables.table_number,
             name: row.tables.name,
+            type: row.tables.type,
             area: row.tables.floor_areas?.name || null,
           }
         : null,
@@ -925,7 +1336,7 @@ export class ReservationService {
       })
       .eq('id', reservationId)
       .eq('restaurant_id', restaurantId)
-      .select('*, tables(id, table_number, name, floor_areas(name))')
+      .select('*, tables(id, table_number, name, type, floor_areas(name))')
       .single();
 
     if (error || !data) throw new NotFoundError('Reservation');
@@ -948,7 +1359,7 @@ export class ReservationService {
     // 1. Fetch all completed/active reservations in the date range
     let query = supabaseAdmin
       .from('reservations')
-      .select('id, table_id, reservation_date, start_time, end_time, party_size, status, source, total_amount, seated_at, completed_at, created_at, tables(id, table_number, name, floor_areas(name))')
+      .select('id, table_id, reservation_date, start_time, end_time, party_size, status, source, total_amount, seated_at, completed_at, created_at, tables(id, table_number, name, type, floor_areas(name))')
       .eq('restaurant_id', restaurantId)
       .gte('reservation_date', startDate)
       .lte('reservation_date', endDate)

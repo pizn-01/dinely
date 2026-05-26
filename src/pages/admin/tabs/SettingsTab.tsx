@@ -3,6 +3,7 @@ import { Link, Copy, Check, Upload, Image as ImageIcon, Save, Clock, Users, Cred
 import { api } from '../../../services/api'
 import { toast } from 'react-hot-toast'
 import { UpgradeBanner } from '../../../components/UpgradeBanner'
+import { openNativePicker } from '../../../utils/nativePicker'
 
 interface SettingsTabProps {
   theme: 'dark' | 'light'
@@ -476,25 +477,29 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
                     </span>
                     <input
                       type="time"
+                      className={theme === 'dark' ? 'native-picker-dark' : undefined}
                       value={dayData.open}
                       disabled={dayData.closed}
+                      onClick={openNativePicker}
                       onChange={(e) => {
                         const updated = { ...settings.weeklyHours }
                         updated[day] = { ...updated[day], open: e.target.value }
                         setSettings({ ...settings, weeklyHours: updated })
                       }}
-                      style={{ ...inputStyle, opacity: dayData.closed ? 0.4 : 1 }}
+                      style={{ ...inputStyle, opacity: dayData.closed ? 0.4 : 1, cursor: dayData.closed ? 'not-allowed' : 'pointer' }}
                     />
                     <input
                       type="time"
+                      className={theme === 'dark' ? 'native-picker-dark' : undefined}
                       value={dayData.close}
                       disabled={dayData.closed}
+                      onClick={openNativePicker}
                       onChange={(e) => {
                         const updated = { ...settings.weeklyHours }
                         updated[day] = { ...updated[day], close: e.target.value }
                         setSettings({ ...settings, weeklyHours: updated })
                       }}
-                      style={{ ...inputStyle, opacity: dayData.closed ? 0.4 : 1 }}
+                      style={{ ...inputStyle, opacity: dayData.closed ? 0.4 : 1, cursor: dayData.closed ? 'not-allowed' : 'pointer' }}
                     />
                     <label style={{
                       display: 'flex',
@@ -840,7 +845,7 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
                   </div>
                 </div>
 
-                <div style={{ marginTop: '24px' }}>
+                {/* <div style={{ marginTop: '24px' }}>
                   <label style={labelStyle}>One-Time Premium VIP Membership Fee</label>
                   <p style={{ color: isDark ? '#8b949e' : '#6b7280', fontSize: '0.85rem', marginBottom: '8px', marginTop: 0 }}>
                     Set the price users must pay to unlock Premium VIP status at your restaurant, which grants them access to premium table reservations.
@@ -853,7 +858,7 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
                       type="number"
                       min={0}
                       step="0.50"
-                      value={settings.vipMembershipFee || 15}
+                      value={settings.vipMembershipFee || 0}
                       onChange={(e) => setSettings({ ...settings, vipMembershipFee: parseFloat(e.target.value) || 0 })}
                       style={{
                         ...inputStyle,
@@ -861,7 +866,7 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
                       }}
                     />
                   </div>
-                </div>
+                </div> */}
               </>
             ) : (
               <>

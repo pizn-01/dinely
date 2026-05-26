@@ -11,6 +11,8 @@ export type TableRowForMerge = {
   merge_effective_from?: string | null;
   is_active?: boolean | null;
   table_number?: string | null;
+  start_time?: string | null;
+  end_time?: string | null;
 };
 
 export type ReservationLite = {
@@ -42,6 +44,14 @@ function reservationContainsProbe(
   return probeMins >= startM && probeMins < endM;
 }
 
+function rowSlotContainsProbe(row: TableRowForMerge, probeMins: number): boolean {
+  if (!row.start_time || !row.end_time) return false;
+  const startM = timeToMins(row.start_time);
+  const endM = timeToMins(row.end_time);
+  if (endM <= startM) return false;
+  return probeMins >= startM && probeMins < endM;
+}
+
 export function isMergeActiveOnDate(row: TableRowForMerge, layoutDate: string): boolean {
   if (!row.is_merged || !row.merged_table_ids || row.merged_table_ids.length === 0) return false;
   const eff = row.merge_effective_from;
@@ -60,7 +70,7 @@ export function mergedChildIdsForDate(rows: TableRowForMerge[], layoutDate: stri
 }
 
 export type BuildLayoutOpts = {
-  /** HH:mm — when set with reservations, merged parent is shown only if a reservation on that parent covers this time. */
+  /** HH:mm — when set, time-scoped merges are shown only if this time is inside their slot. */
   layoutTime?: string | null;
   reservations?: ReservationLite[];
   defaultDurationMins?: number;
@@ -68,9 +78,10 @@ export type BuildLayoutOpts = {
 
 /**
  * Tables to show on floor / calendar for `layoutDate`.
- * - Without layoutTime: date-only (calendar, availability) — merged replaces children for the full day when active on date.
+ * - Without layoutTime: date-only (calendar, availability) — whole-day merged rows replace children when active on date.
  * - With layoutTime + reservations: staff snapshot — for scheduled merges (merge_effective_from set),
- *   merged parent only when a booking on that parent overlaps layoutTime. Immediate merges stay merged whenever active on the date.
+ *   merged parent only when its own slot or a booking on that parent overlaps layoutTime.
+ *   Immediate whole-day merges stay merged whenever active on the date.
  */
 export function buildLayoutTableRows<T extends TableRowForMerge>(
   rows: T[],
@@ -78,7 +89,7 @@ export function buildLayoutTableRows<T extends TableRowForMerge>(
   opts?: BuildLayoutOpts
 ): T[] {
   const mergedParents = rows.filter((r) => r.is_merged && r.merged_table_ids && r.merged_table_ids.length > 0);
-  const timeScoped = Boolean(opts?.layoutTime?.trim()) && Array.isArray(opts?.reservations);
+  const timeScoped = Boolean(opts?.layoutTime?.trim());
 
   const parentsShowingMerged = new Set<string>();
   const dur = opts?.defaultDurationMins ?? 90;
@@ -90,13 +101,25 @@ export function buildLayoutTableRows<T extends TableRowForMerge>(
     /** Immediate merges are materialized in DB; time-of-day split applies only to scheduled (future-dated) merges. */
     const scheduledLogical =
       m.merge_effective_from != null && String(m.merge_effective_from).trim() !== '';
+    const hasMergeSlot = Boolean(m.start_time && m.end_time);
 
-    if (timeScoped && scheduledLogical) {
+    if (timeScoped) {
       const probe = timeToMins(opts!.layoutTime);
-      const has = (opts!.reservations || []).some(
-        (r) => r.table_id === m.id && reservationContainsProbe(r, probe, dur)
-      );
-      if (has) parentsShowingMerged.add(m.id);
+      if (hasMergeSlot) {
+        if (rowSlotContainsProbe(m, probe)) parentsShowingMerged.add(m.id);
+        continue;
+      }
+      if (scheduledLogical) {
+        const has = (opts!.reservations || []).some(
+          (r) => r.table_id === m.id && reservationContainsProbe(r, probe, dur)
+        );
+        if (has) parentsShowingMerged.add(m.id);
+        continue;
+      }
+    }
+
+    if (hasMergeSlot) {
+      continue;
     } else {
       parentsShowingMerged.add(m.id);
     }

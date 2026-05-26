@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Plus, X, Users, Clock, Phone, Mail, AlertCircle, Bell, UserCheck, XCircle, Trash2, ChevronDown } from 'lucide-react'
 import { api } from '../../../services/api'
 import { toast } from 'react-hot-toast'
+import { openNativePicker } from '../../../utils/nativePicker'
 
 interface WaitingListTabProps {
   theme: 'dark' | 'light'
@@ -557,9 +558,11 @@ export default function WaitingListTab({ theme, orgId, serverToday }: WaitingLis
                   <label style={labelStyle}>Preferred Time</label>
                   <input
                     type="time"
+                    className={theme === 'dark' ? 'native-picker-dark' : undefined}
                     value={form.requestedTime}
+                    onClick={openNativePicker}
                     onChange={(e) => setForm({ ...form, requestedTime: e.target.value })}
-                    style={inputStyle}
+                    style={{ ...inputStyle, cursor: 'pointer' }}
                   />
                 </div>
                 <div>
