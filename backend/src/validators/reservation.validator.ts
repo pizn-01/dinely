@@ -30,6 +30,7 @@ export const createReservationSchema = z.object({
   guestPhone: z.string().max(50).optional(),
   specialRequests: z.string().max(1000).optional(),
   source: z.enum(['website', 'app', 'pos', 'phone', 'walk_in', 'third_party']).optional(),
+  bookingAudience: z.enum(['guest', 'logged_in']).optional(),
   paymentMethod: z.string().max(50).optional(),
 });
 

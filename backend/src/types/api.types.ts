@@ -78,6 +78,11 @@ export interface UpdateOrganizationDto {
   weeklyHours?: Record<string, { open: string; close: string; closed: boolean }>;
   brandingColor?: string;
   emailCustomNote?: string;
+  bookingPause?: {
+    guestEnabled: boolean;
+    loggedInEnabled: boolean;
+    dates: Array<{ id?: string; date: string; message: string }>;
+  };
 }
 
 // ─── Table Types ───────────────────────────────────────
@@ -128,6 +133,7 @@ export interface CreateReservationDto {
   guestPhone?: string;
   specialRequests?: string;
   source?: string;
+  bookingAudience?: 'guest' | 'logged_in';
   paymentMethod?: string;
 }
 
