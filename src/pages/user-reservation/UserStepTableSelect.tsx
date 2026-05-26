@@ -11,6 +11,9 @@ interface Table {
   reservationFee?: number
   isPremium: boolean
   premiumPrice: number
+  isAutoMerge?: boolean
+  autoMergeTableIds?: string[]
+  requiresStaffReview?: boolean
 }
 
 interface UserStepTableSelectProps {
@@ -46,10 +49,20 @@ export default function UserStepTableSelect({ data, updateData, restaurantSlug }
           const bestFit = standard.find(t => t.capacity >= data.guests) || standard[0]
           if (bestFit) {
             updateData({
-              tableId: bestFit.id,
+              tableId: bestFit.isAutoMerge ? null : bestFit.id,
+              autoMergeTableIds: bestFit.isAutoMerge ? bestFit.autoMergeTableIds : undefined,
               tableName: bestFit.name,
               tableCapacity: bestFit.capacity,
               tableLocation: bestFit.area?.name || 'General',
+              tableFee: 0,
+            })
+          } else {
+            updateData({
+              tableId: null,
+              autoMergeTableIds: undefined,
+              tableName: '',
+              tableCapacity: 0,
+              tableLocation: '',
               tableFee: 0,
             })
           }
@@ -111,7 +124,9 @@ export default function UserStepTableSelect({ data, updateData, restaurantSlug }
                   Standard Table
                 </h3>
                 <p style={{ fontSize: '0.8rem', color: '#8b949e', margin: '0 0 14px', lineHeight: 1.5 }}>
-                  Comfortable seating in our main dining area. No deposit required.
+                  {standardTables.some(t => t.isAutoMerge)
+                    ? 'We will combine available tables to seat your party. No deposit required.'
+                    : 'Comfortable seating in our main dining area. No deposit required.'}
                 </p>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                   <span style={{

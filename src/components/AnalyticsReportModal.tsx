@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react'
 import { X, BarChart2, Download, RefreshCw, Loader2, TrendingUp, Users, ArrowRight } from 'lucide-react'
 import { api } from '../services/api'
+import { openNativePicker } from '../utils/nativePicker'
 
 interface AnalyticsReportModalProps {
   restaurantId: string
@@ -232,9 +233,9 @@ export default function AnalyticsReportModal({ restaurantId, restaurantName, onC
               ))}
             </div>
 
-            <input type="date" value={date} onChange={e => handleDateChange(e.target.value)} style={{
+            <input type="date" className={isDark ? 'native-picker-dark' : undefined} value={date} onClick={openNativePicker} onChange={e => handleDateChange(e.target.value)} style={{
               padding: '6px 10px', borderRadius: '8px', border: `1px solid ${border}`,
-              backgroundColor: 'var(--bg-primary, #0d1117)', color: textPrimary, fontSize: '0.8rem', outline: 'none',
+              backgroundColor: 'var(--bg-primary, #0d1117)', color: textPrimary, fontSize: '0.8rem', outline: 'none', cursor: 'pointer',
             }} />
 
             <button onClick={() => fetchReport()} disabled={loading} title="Refresh" style={{

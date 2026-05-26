@@ -10,7 +10,8 @@ const trimmedOptionalName = z
   });
 
 export const createReservationSchema = z.object({
-  tableId: z.string().uuid().optional(),
+  tableId: z.union([z.string().uuid(), z.null()]).optional(),
+  autoMergeTableIds: z.array(z.string().uuid()).min(2).max(12).optional(),
   reservationDate: z.string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format')
     .refine(d => {
@@ -69,4 +70,3 @@ export const analyticsReportFilterSchema = z.object({
   period: z.enum(['daily', 'weekly', 'bi-weekly', 'monthly']).default('weekly'),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD').optional(),
 });
-

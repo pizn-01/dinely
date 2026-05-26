@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Users, MapPin, Coffee, ChevronLeft, ChevronRight, Upload, Plus, Calendar, Clock, Layout, Moon, Sun, CircleUser, LogOut, KeyRound, Link2, Unlink, X, UserCheck, BarChart2 } from 'lucide-react'
+import { Users, MapPin, Coffee, ChevronLeft, ChevronRight, Upload, Plus, Calendar, Clock, Layout, Moon, Sun, CircleUser, LogOut, KeyRound, Link2, Unlink, X, UserCheck, BarChart2, ZoomIn, ZoomOut } from 'lucide-react'
 import { api } from '../../services/api'
 import { toast } from 'react-hot-toast'
 import { useAuth } from '../../context/AuthContext'
@@ -11,6 +11,7 @@ import StaffReservationWizard from './StaffReservationWizard'
 import WalkInModal from './WalkInModal'
 import AnalyticsReportModal from '../../components/AnalyticsReportModal'
 import { staffForgotPasswordPath, staffLoginPath, staffTablesPath } from '../../utils/restaurantRoutes'
+import { openNativePicker } from '../../utils/nativePicker'
 
 interface TableData {
   id: string
@@ -36,6 +37,11 @@ const IconContainer = ({ children, color = '#6B9E78' }: { children: React.ReactN
   </div>
 )
 
+const floorNameFromArea = (areaName?: string | null) => {
+  const name = areaName || 'Main Area'
+  return name.includes(' - ') ? name.split(' - ')[0].trim() : name
+}
+
 const getLocalISODate = (date: Date = new Date()) => {
   const y = date.getFullYear()
   const m = String(date.getMonth() + 1).padStart(2, '0')
@@ -47,6 +53,13 @@ function timeStrToMinutes(t: string | undefined | null): number {
   if (!t) return 0
   const parts = String(t).slice(0, 5).split(':').map(Number)
   return (parts[0] || 0) * 60 + (parts[1] || 0)
+}
+
+function minutesToTime(totalMins: number): string {
+  const mins = Math.max(0, Math.min(totalMins, 23 * 60 + 59))
+  const h = Math.floor(mins / 60)
+  const m = mins % 60
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
 
 function bookingEndMinutes(res: any, defaultDurMin: number): number {
@@ -107,6 +120,7 @@ export default function StaffTableManagement() {
   const [orgData, setOrgData] = useState<any>(null)
   const [usageData, setUsageData] = useState<any>(null)
 
+
   // Modal State
   const [selectedBooking, setSelectedBooking] = useState<any>(null)
   const [selectedTable, setSelectedTable] = useState<any>(null)
@@ -143,13 +157,24 @@ export default function StaffTableManagement() {
   const [isMergeMode, setIsMergeMode] = useState(false)
   const [showMergeModal, setShowMergeModal] = useState(false)
   const [mergedTableName, setMergedTableName] = useState('')
+  const [mergeScope, setMergeScope] = useState<'slot' | 'day'>('slot')
   const [isMerging, setIsMerging] = useState(false)
+
+  const mergeTimeSlot = useMemo(() => {
+    const startTime = viewTime.slice(0, 5)
+    const duration = Number(orgData?.defaultReservationDurationMin) || 90
+    const startMins = timeStrToMinutes(startTime)
+    const endTime = minutesToTime(startMins + duration)
+    return { startTime, endTime, duration }
+  }, [orgData?.defaultReservationDurationMin, viewTime])
 
   // ── Area Filter State ──────────────────────────────────────────────────────
   const [selectedAreaFilter, setSelectedAreaFilter] = useState<string>('All Areas')
 
   // ── Table View Mode ────────────────────────────────────────────────────────
   const [tableViewMode, setTableViewMode] = useState<'grid' | 'floormap'>('grid')
+  const [floorMapZoom, setFloorMapZoom] = useState(1)
+  const [selectedFloorMapFloor, setSelectedFloorMapFloor] = useState('')
 
   // ── Reservation Edit State ─────────────────────────────────────────────────
   const [editingBooking, setEditingBooking] = useState(false)
@@ -499,6 +524,31 @@ export default function StaffTableManagement() {
     return areasMap
   }, [dbTables, dbAreas])
 
+  const floorMapGroups = useMemo(() => {
+    return dbTables.reduce((acc, table) => {
+      const floor = floorNameFromArea(table.area?.name || table.floor_areas?.name || table.location)
+      if (!acc[floor]) acc[floor] = []
+      acc[floor].push(table)
+      return acc
+    }, {} as Record<string, any[]>)
+  }, [dbTables])
+
+  const floorMapFloors = useMemo(() => Object.keys(floorMapGroups), [floorMapGroups])
+  const floorMapTables = useMemo<any[]>(() => {
+    const floor = selectedFloorMapFloor && floorMapGroups[selectedFloorMapFloor]
+      ? selectedFloorMapFloor
+      : floorMapFloors[0]
+    if (!floor) return []
+    return floorMapGroups[floor] || []
+  }, [floorMapGroups, floorMapFloors, selectedFloorMapFloor])
+
+  useEffect(() => {
+    if (!floorMapFloors.length) return
+    if (!selectedFloorMapFloor || !floorMapFloors.includes(selectedFloorMapFloor)) {
+      setSelectedFloorMapFloor(floorMapFloors[0])
+    }
+  }, [floorMapFloors, selectedFloorMapFloor])
+
   const handleStatusUpdate = async (resId: string, status: string) => {
     try {
       await api.patch(`/organizations/${restaurantId}/reservations/${resId}/status`, { status })
@@ -683,11 +733,16 @@ export default function StaffTableManagement() {
       const totalCapacity = dbTables
         .filter(t => ids.includes(t.id))
         .reduce((sum, t) => sum + (t.capacity || 0), 0)
-      await api.post(`/organizations/${restaurantId}/tables/merge`, {
+      const payload: any = {
         sourceTableIds: ids,
         mergedTable: { name: mergedTableName.trim() || 'Merged Table', capacity: totalCapacity },
         mergeEffectiveFrom: selectedDate
-      })
+      }
+      if (mergeScope === 'slot') {
+        payload.startTime = mergeTimeSlot.startTime
+        payload.endTime = mergeTimeSlot.endTime
+      }
+      await api.post(`/organizations/${restaurantId}/tables/merge`, payload)
       toast.success(
         selectedDate > getLocalISODate()
           ? 'Merge scheduled: separate tables stay available until that day.'
@@ -697,6 +752,7 @@ export default function StaffTableManagement() {
       setIsMergeMode(false)
       setShowMergeModal(false)
       setMergedTableName('')
+      setMergeScope('slot')
       fetchData(selectedDate, restaurantId)
     } catch (err: any) {
       toast.error(err?.response?.data?.error || 'Failed to merge tables')
@@ -1303,12 +1359,7 @@ export default function StaffTableManagement() {
                               </div>
                             )}
                             
-                            {/* Plus Chair Layout - Rendered based on capacity */}
-                            {capacity >= 1 && <div style={{ position: 'absolute', top: '-12px', left: '50%', transform: 'translateX(-50%)', width: '28px', height: '28px', backgroundColor: 'var(--chair-bg)', borderRadius: '6px', border: `1px solid var(--chair-border)` }} />} {/* Top */}
-                            {capacity >= 2 && <div style={{ position: 'absolute', bottom: '-12px', left: '50%', transform: 'translateX(-50%)', width: '28px', height: '28px', backgroundColor: 'var(--chair-bg)', borderRadius: '6px', border: `1px solid var(--chair-border)` }} />} {/* Bottom */}
-                            {capacity >= 3 && <div style={{ position: 'absolute', left: '-12px', top: '50%', transform: 'translateY(-50%)', width: '28px', height: '28px', backgroundColor: 'var(--chair-bg)', borderRadius: '6px', border: `1px solid var(--chair-border)` }} />} {/* Left */}
-                            {capacity >= 4 && <div style={{ position: 'absolute', right: '-12px', top: '50%', transform: 'translateY(-50%)', width: '28px', height: '28px', backgroundColor: 'var(--chair-bg)', borderRadius: '6px', border: `1px solid var(--chair-border)` }} />} {/* Right */}
-
+                          
                             {/* The Table */}
                             <div style={{ 
                               width: '100%', 
@@ -1428,94 +1479,196 @@ export default function StaffTableManagement() {
 
                 {/* ── Floor Map View ────────────────────────────────────────────────────── */}
                 {tableViewMode === 'floormap' && (
-                  <div style={{ position: 'relative' }}>
-                    <div
-                      style={{
-                        width: 'calc(100% - 120px)',
-                        height: '680px',
-                        overflow: 'auto',
-                        border: `1px solid var(--border-primary)`,
-                        borderRadius: '12px',
-                        margin: '24px 60px',
-                        cursor: 'default',
-                      }}
-                    >
-                      {/* Inner canvas — matches admin floor plan dimensions */}
-                      <div
-                        style={{
-                          width: '2400px',
-                          height: '1800px',
-                          position: 'relative',
-                          backgroundImage: isDark
-                            ? 'linear-gradient(rgba(48,54,61,0.4) 1px, transparent 1px), linear-gradient(90deg, rgba(48,54,61,0.4) 1px, transparent 1px)'
-                            : 'linear-gradient(#e5e7eb 1px, transparent 1px), linear-gradient(90deg, #e5e7eb 1px, transparent 1px)',
-                          backgroundSize: '20px 20px',
-                          backgroundColor: isDark ? '#0D1117' : '#F9FAFB',
-                        }}
-                      >
-                        {dbTables.map((table, tableIndex) => {
-                          const posX = table.positionX || (tableIndex % 8) * 160 + 40
-                          const posY = table.positionY || Math.floor(tableIndex / 8) * 160 + 40
-
-                          const tableReservations = dbReservations.filter(r => r.table?.id === table.id && !['cancelled', 'no_show', 'completed'].includes(r.status))
-                          const defaultDur = orgData?.defaultReservationDurationMin ?? 90
-                          const { status, nextReservationTime } = computeTableViewStatus(tableReservations, viewTime, defaultDur)
-
-                          const visualStatus = status === 'pending_arrival' ? 'arriving' : status
-                          const style = getStatusStyle(visualStatus)
-                          const capacity = table.capacity || 4
-                          const areaName = table.area?.name || table.floor_areas?.name || table.location || ''
-
+                  <div style={{ position: 'relative', padding: '24px 60px 36px' }}>
+                    <style>
+                      {`
+                        .staff-floor-map-scroll {
+                          scrollbar-width: thin;
+                          scrollbar-color: ${isDark ? '#5f7f7a #111b1e' : '#98bbb5 #eef5f3'};
+                        }
+                        .staff-floor-map-scroll::-webkit-scrollbar {
+                          width: 12px;
+                          height: 12px;
+                        }
+                        .staff-floor-map-scroll::-webkit-scrollbar-track {
+                          background: ${isDark ? '#111b1e' : '#eef5f3'};
+                          border-radius: 999px;
+                        }
+                        .staff-floor-map-scroll::-webkit-scrollbar-thumb {
+                          background: ${isDark ? '#5f7f7a' : '#98bbb5'};
+                          border: 3px solid ${isDark ? '#111b1e' : '#eef5f3'};
+                          border-radius: 999px;
+                        }
+                        .staff-floor-map-scroll::-webkit-scrollbar-thumb:hover {
+                          background: ${isDark ? '#7aa09a' : '#7ca9a2'};
+                        }
+                        .staff-floor-map-scroll::-webkit-scrollbar-corner {
+                          background: ${isDark ? '#111b1e' : '#eef5f3'};
+                        }
+                      `}
+                    </style>
+                    {floorMapFloors.length > 0 && (
+                      <div style={{ display: 'flex', gap: '6px', borderBottom: `1px solid ${isDark ? '#25343a' : '#e8efed'}`, marginBottom: '12px', overflowX: 'auto' }}>
+                        {floorMapFloors.map(floor => {
+                          const active = (selectedFloorMapFloor || floorMapFloors[0]) === floor
                           return (
-                            <div
-                              key={table.id}
-                              onClick={(e) => handleTableClick(table, e)}
+                            <button
+                              key={floor}
+                              type="button"
+                              onClick={() => setSelectedFloorMapFloor(floor)}
                               style={{
-                                position: 'absolute',
-                                left: `${posX}px`,
-                                top: `${posY}px`,
-                                width: '120px',
-                                height: '120px',
+                                padding: '8px 18px',
+                                border: 'none',
+                                borderBottom: `3px solid ${active ? '#2f8f83' : 'transparent'}`,
+                                backgroundColor: 'transparent',
+                                color: active ? (isDark ? '#d9efec' : '#2f6f67') : 'var(--text-secondary)',
+                                fontWeight: 800,
                                 cursor: 'pointer',
+                                whiteSpace: 'nowrap',
                               }}
                             >
-                              {/* Chair indicators */}
-                              {capacity >= 1 && <div style={{ position: 'absolute', top: '-12px', left: '50%', transform: 'translateX(-50%)', width: '28px', height: '28px', backgroundColor: 'var(--chair-bg)', borderRadius: '6px', border: '1px solid var(--chair-border)' }} />}
-                              {capacity >= 2 && <div style={{ position: 'absolute', bottom: '-12px', left: '50%', transform: 'translateX(-50%)', width: '28px', height: '28px', backgroundColor: 'var(--chair-bg)', borderRadius: '6px', border: '1px solid var(--chair-border)' }} />}
-                              {capacity >= 3 && <div style={{ position: 'absolute', left: '-12px', top: '50%', transform: 'translateY(-50%)', width: '28px', height: '28px', backgroundColor: 'var(--chair-bg)', borderRadius: '6px', border: '1px solid var(--chair-border)' }} />}
-                              {capacity >= 4 && <div style={{ position: 'absolute', right: '-12px', top: '50%', transform: 'translateY(-50%)', width: '28px', height: '28px', backgroundColor: 'var(--chair-bg)', borderRadius: '6px', border: '1px solid var(--chair-border)' }} />}
-
-                              {/* Table card */}
-                              <div style={{
-                                width: '100%',
-                                height: '100%',
-                                borderRadius: '16px',
-                                border: `2px solid ${style.color}`,
-                                backgroundColor: style.bg,
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '4px',
-                                boxShadow: 'var(--shadow-sm)',
-                                transition: 'all 0.2s',
-                              }}>
-                                <span style={{ fontSize: '1rem', fontWeight: 700, color: style.color, textAlign: 'center', maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                  {table.name || `T-${table.tableNumber}`}
-                                </span>
-                                {areaName && (
-                                  <span style={{ fontSize: '0.6rem', color: style.color, opacity: 0.6, textAlign: 'center' }}>{areaName}</span>
-                                )}
-                                <span style={{ fontSize: '0.65rem', fontWeight: 700, color: style.color, opacity: 0.7, textAlign: 'center' }}>{visualStatus.toUpperCase()}</span>
-                              </div>
-                            </div>
+                              {floor}
+                            </button>
                           )
                         })}
                       </div>
+                    )}
+                    <div
+                      className="staff-floor-map-scroll"
+                      style={{
+                        width: '100%',
+                        height: '540px',
+                        overflow: 'auto',
+                        border: `1px solid ${isDark ? '#25343a' : '#e8efed'}`,
+                        borderRadius: '10px',
+                        backgroundColor: isDark ? '#0b1113' : '#fbfdfc',
+                        boxShadow: isDark ? 'inset 0 0 0 1px rgba(255,255,255,0.02)' : 'inset 0 0 0 1px rgba(255,255,255,0.85)',
+                        cursor: 'default',
+                        position: 'relative',
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: `${2400 * floorMapZoom}px`,
+                          height: `${1800 * floorMapZoom}px`,
+                          position: 'relative',
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: '2400px',
+                            height: '1800px',
+                            position: 'relative',
+                            transform: `scale(${floorMapZoom})`,
+                            transformOrigin: 'top left',
+                          }}
+                        >
+                          {floorMapTables.map((table, tableIndex) => {
+                            const posX = table.positionX || (tableIndex % 8) * 170 + 40
+                            const posY = table.positionY || Math.floor(tableIndex / 8) * 145 + 40
+
+                            const tableReservations = dbReservations.filter(r => r.table?.id === table.id && !['cancelled', 'no_show', 'completed'].includes(r.status))
+                            const defaultDur = orgData?.defaultReservationDurationMin ?? 90
+                            const { status } = computeTableViewStatus(tableReservations, viewTime, defaultDur)
+
+                            const visualStatus = status === 'pending_arrival' ? 'arriving' : status
+                            const style = getStatusStyle(visualStatus)
+                            const capacity = table.capacity || 4
+                            const minCapacity = table.minCapacity || table.min_capacity || Math.max(1, Math.min(capacity, Math.floor(capacity / 2)))
+                            const shape = String(table.shape || 'rectangle').toLowerCase()
+                            const tableType = String(table.type || '').toLowerCase()
+                            const isRound = shape === 'circle' || shape === 'round'
+                            const isVip = tableType.includes('vip')
+                            const tableWidth = isRound ? (isVip ? 92 : 80) : (isVip ? 140 : 120)
+                            const tableHeight = isRound ? (isVip ? 92 : 80) : (isVip ? 92 : 80)
+                            const isHighlighted = selectedTableIds.has(table.id) || table.isMerged || visualStatus !== 'available'
+
+                            return (
+                              <div
+                                key={table.id}
+                                onClick={(e) => handleTableClick(table, e)}
+                                title={`${table.name || `T-${table.tableNumber}`} • ${minCapacity}-${capacity}p • ${visualStatus}`}
+                                style={{
+                                  position: 'absolute',
+                                  left: `${posX}px`,
+                                  top: `${posY}px`,
+                                  width: `${tableWidth}px`,
+                                  height: `${tableHeight}px`,
+                                  cursor: 'pointer',
+                                  borderRadius: isRound ? '999px' : '7px',
+                                  border: isHighlighted ? `3px solid ${selectedTableIds.has(table.id) ? '#C99C63' : table.isMerged ? '#111827' : style.color}` : `1px solid ${isDark ? 'rgba(143,196,188,0.24)' : 'rgba(132,183,174,0.18)'}`,
+                                  backgroundColor: visualStatus === 'available' ? (isDark ? '#183531' : '#bfdfda') : style.bg,
+                                  color: visualStatus === 'available' ? (isDark ? '#d9efec' : '#36504c') : style.color,
+                                  boxShadow: isHighlighted ? '0 1px 5px rgba(15,23,42,0.18)' : '0 1px 2px rgba(15,23,42,0.04)',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  padding: '8px',
+                                  textAlign: 'center',
+                                  userSelect: 'none',
+                                  transition: 'border-color 0.18s, box-shadow 0.18s, transform 0.18s',
+                                }}
+                                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)' }}
+                                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)' }}
+                              >
+                                {isVip && (
+                                  <span style={{ position: 'absolute', top: '6px', right: '6px', padding: '2px 7px', borderRadius: '999px', backgroundColor: '#C99C63', color: '#111827', fontSize: '0.55rem', fontWeight: 900, letterSpacing: '0.04em', boxShadow: '0 2px 8px rgba(201,156,99,0.28)' }}>
+                                    VIP
+                                  </span>
+                                )}
+                                <span style={{ fontSize: isVip ? '0.9rem' : '0.82rem', fontWeight: 800, lineHeight: 1.15, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {table.name || `T-${table.tableNumber}`}
+                                </span>
+                                <span style={{ fontSize: isVip ? '0.8rem' : '0.72rem', fontWeight: 700, lineHeight: 1.1, opacity: 0.62 }}>
+                                  {minCapacity}-{capacity}p
+                                </span>
+                                <span style={{ fontSize: '0.58rem', fontWeight: 800, lineHeight: 1.1, marginTop: '3px', opacity: 0.76, textTransform: 'uppercase' }}>
+                                  {visualStatus}
+                                </span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
                     </div>
-                    <p style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', textAlign: 'center', margin: '-12px 0 16px' }}>
-                      Layout mirrors the admin floor plan. Scroll to navigate. Click a table to manage reservations.
-                    </p>
+                    <div
+                      style={{
+                        position: 'absolute',
+                        right: '84px',
+                        bottom: '58px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        padding: '8px 10px',
+                        borderRadius: '999px',
+                        backgroundColor: isDark ? 'rgba(11,17,19,0.88)' : 'rgba(251,253,252,0.9)',
+                        color: isDark ? '#a9cbc5' : '#6f928b',
+                        boxShadow: '0 10px 28px rgba(15,23,42,0.12)',
+                        border: `1px solid ${isDark ? 'rgba(143,196,188,0.18)' : 'rgba(132,183,174,0.26)'}`,
+                        backdropFilter: 'blur(8px)',
+                      }}
+                    >
+                      <button
+                        onClick={() => setFloorMapZoom(prev => Math.max(0.3, Number((prev - 0.1).toFixed(2))))}
+                        aria-label="Zoom out floor map"
+                        title="Zoom out"
+                        style={{ width: '30px', height: '30px', borderRadius: '999px', border: 'none', backgroundColor: 'transparent', color: 'inherit', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      >
+                        <ZoomOut size={20} strokeWidth={2.8} />
+                      </button>
+                      <span style={{ minWidth: '58px', textAlign: 'center', fontSize: '1.35rem', lineHeight: 1, fontWeight: 800 }}>
+                        {Math.round(floorMapZoom * 100)}%
+                      </span>
+                      <button
+                        onClick={() => setFloorMapZoom(prev => Math.min(1.8, Number((prev + 0.1).toFixed(2))))}
+                        aria-label="Zoom in floor map"
+                        title="Zoom in"
+                        style={{ width: '30px', height: '30px', borderRadius: '999px', border: 'none', backgroundColor: 'transparent', color: 'inherit', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      >
+                        <ZoomIn size={20} strokeWidth={2.8} />
+                      </button>
+                    </div>
                   </div>
                 )}
 
@@ -1578,6 +1731,11 @@ export default function StaffTableManagement() {
                           <div>
                             <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>{guestDisplayName(res)}</div>
                             <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginTop: '2px' }}>Table {res.table?.tableNumber || res.table?.name || 'N/A'} • {res.partySize} Guests</div>
+                            {res.staffReviewReason && (
+                              <div style={{ fontSize: '0.78rem', color: '#C99C63', marginTop: '4px'}}>
+                                Review: {res.staffReviewReason}
+                              </div>
+                            )}
                           </div>
                         </div>
                         <div style={{ 
@@ -2200,8 +2358,9 @@ export default function StaffTableManagement() {
                       <input
                         type="date"
                         value={editFields.reservationDate}
+                        onClick={openNativePicker}
                         onChange={e => setEditFields({ ...editFields, reservationDate: e.target.value })}
-                        style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border-primary)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.875rem', fontFamily: 'inherit', boxSizing: 'border-box' as const, outline: 'none' }}
+                        style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border-primary)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.875rem', fontFamily: 'inherit', boxSizing: 'border-box' as const, outline: 'none', cursor: 'pointer' }}
                       />
                     </div>
 
@@ -2212,8 +2371,9 @@ export default function StaffTableManagement() {
                         <input
                           type="time"
                           value={editFields.startTime}
+                          onClick={openNativePicker}
                           onChange={e => setEditFields({ ...editFields, startTime: e.target.value })}
-                          style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border-primary)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.875rem', fontFamily: 'inherit', boxSizing: 'border-box' as const, outline: 'none' }}
+                          style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border-primary)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.875rem', fontFamily: 'inherit', boxSizing: 'border-box' as const, outline: 'none', cursor: 'pointer' }}
                         />
                       </div>
                       <div>
@@ -2221,8 +2381,9 @@ export default function StaffTableManagement() {
                         <input
                           type="time"
                           value={editFields.endTime}
+                          onClick={openNativePicker}
                           onChange={e => setEditFields({ ...editFields, endTime: e.target.value })}
-                          style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border-primary)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.875rem', fontFamily: 'inherit', boxSizing: 'border-box' as const, outline: 'none' }}
+                          style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border-primary)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.875rem', fontFamily: 'inherit', boxSizing: 'border-box' as const, outline: 'none', cursor: 'pointer' }}
                         />
                       </div>
                     </div>
@@ -2296,7 +2457,7 @@ export default function StaffTableManagement() {
                       )}
                       {selectedBooking.specialRequests && (
                         <p style={{ margin: '6px 0 0 0', color: 'var(--text-tertiary)', fontSize: '0.8rem', fontStyle: 'italic' }}>"{selectedBooking.specialRequests}"</p>
-                      )}
+                      )}                    
                       {selectedBooking.internalNotes && (
                         <p style={{ margin: '4px 0 0 0', color: '#C99C63', fontSize: '0.8rem' }}>Note: {selectedBooking.internalNotes}</p>
                       )}
@@ -2500,6 +2661,36 @@ export default function StaffTableManagement() {
                 Combined capacity: {dbTables.filter(t => selectedTableIds.has(t.id)).reduce((s, t) => s + (t.capacity || 0), 0)} guests
               </span>
             </div>
+            {/* Scope control */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', padding: '4px', borderRadius: '12px', backgroundColor: isDark ? '#161B22' : '#f3f4f6', border: `1px solid ${isDark ? '#30363d' : '#e5e7eb'}`, marginBottom: '18px' }}>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={mergeScope === 'slot'}
+                onClick={() => setMergeScope('slot')}
+                style={{ padding: '10px 12px', borderRadius: '9px', border: 'none', backgroundColor: mergeScope === 'slot' ? '#C99C63' : 'transparent', color: mergeScope === 'slot' ? '#0B1517' : (isDark ? '#d1d5db' : '#374151'), fontWeight: 700, cursor: 'pointer', fontSize: '0.82rem' }}
+              >
+                Time slot
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={mergeScope === 'day'}
+                onClick={() => setMergeScope('day')}
+                style={{ padding: '10px 12px', borderRadius: '9px', border: 'none', backgroundColor: mergeScope === 'day' ? '#C99C63' : 'transparent', color: mergeScope === 'day' ? '#0B1517' : (isDark ? '#d1d5db' : '#374151'), fontWeight: 700, cursor: 'pointer', fontSize: '0.82rem' }}
+              >
+                Full day
+              </button>
+            </div>
+            {/* Scope badge */}
+            <div style={{ padding: '13px 16px', backgroundColor: isDark ? 'rgba(56,189,248,0.1)' : 'rgba(56,189,248,0.06)', borderRadius: '12px', border: '1px solid rgba(56,189,248,0.2)', marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Clock size={16} color="#38bdf8" />
+              <span style={{ fontSize: '0.875rem', fontWeight: 600, color: isDark ? '#bae6fd' : '#075985' }}>
+                {mergeScope === 'slot'
+                  ? `Time slot: ${mergeTimeSlot.startTime} - ${mergeTimeSlot.endTime}`
+                  : `Full day: ${selectedDate}`}
+              </span>
+            </div>
             {/* Name input */}
             <div style={{ marginBottom: '18px' }}>
               <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: isDark ? '#d1d5db' : '#374151', marginBottom: '8px' }}>Label for merged table</label>
@@ -2518,15 +2709,19 @@ export default function StaffTableManagement() {
               <span style={{ fontSize: '1rem', flexShrink: 0 }}>⚠</span>
               <p style={{ margin: 0, fontSize: '0.8rem', color: isDark ? 'rgba(251,191,36,0.85)' : '#92400e', lineHeight: 1.5 }}>
                 {selectedDate > getLocalISODate() ? (
-                  <>This merge takes effect on <strong>{selectedDate}</strong>. Until then, each table stays available on its own. On that date the floor shows one combined table until you Unmerge.</>
+                  mergeScope === 'slot'
+                    ? <>This merge takes effect on <strong>{selectedDate}</strong> from <strong>{mergeTimeSlot.startTime}</strong> to <strong>{mergeTimeSlot.endTime}</strong>. Outside that time, each table stays available on its own.</>
+                    : <>This merge takes effect for the full day on <strong>{selectedDate}</strong>. Use Unmerge to restore the separate tables.</>
                 ) : (
-                  <>The separate tables are combined for <strong>today</strong>. Use Unmerge when the party is finished to restore them for normal service.</>
+                  mergeScope === 'slot'
+                    ? <>The separate tables are combined for <strong>today</strong> from <strong>{mergeTimeSlot.startTime}</strong> to <strong>{mergeTimeSlot.endTime}</strong>. Outside that time, each table stays available on its own.</>
+                    : <>The separate tables are combined for the full day <strong>today</strong>. Use Unmerge to restore them for normal service.</>
                 )}
               </p>
             </div>
             {/* Actions */}
             <div style={{ display: 'flex', gap: '12px' }}>
-              <button onClick={() => { setShowMergeModal(false); setMergedTableName('') }} disabled={isMerging} style={{ flex: 1, padding: '12px', borderRadius: '12px', backgroundColor: 'transparent', border: `1px solid ${isDark ? '#30363d' : '#d1d5db'}`, color: isDark ? '#e6edf3' : '#374151', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+              <button onClick={() => { setShowMergeModal(false); setMergedTableName(''); setMergeScope('slot') }} disabled={isMerging} style={{ flex: 1, padding: '12px', borderRadius: '12px', backgroundColor: 'transparent', border: `1px solid ${isDark ? '#30363d' : '#d1d5db'}`, color: isDark ? '#e6edf3' : '#374151', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
               <button onClick={handleConfirmMerge} disabled={isMerging} style={{ flex: 1, padding: '12px', borderRadius: '12px', backgroundColor: isMerging ? '#9ca3af' : '#C99C63', color: '#0B1517', border: 'none', fontWeight: 700, cursor: isMerging ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                 {isMerging ? 'Merging...' : (<><Link2 size={16} /> Confirm Merge</>)}
               </button>

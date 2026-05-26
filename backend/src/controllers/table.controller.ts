@@ -129,6 +129,7 @@ export class TableController {
       const date = req.query.date as string;
       const time = req.query.time as string;
       const partySize = req.query.partySize as string;
+      const includeAllAvailable = req.query.includeAllAvailable === 'true';
 
       if (!date || !time || !partySize) {
         res.status(400).json({
@@ -143,7 +144,8 @@ export class TableController {
         param(req, 'orgId'),
         date,
         time,
-        parseInt(partySize, 10)
+        parseInt(partySize, 10),
+        { includeAllAvailable }
       );
 
       res.json({ success: true, data: result });
@@ -164,8 +166,15 @@ export class TableController {
 
   async mergeTables(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const { sourceTableIds, mergedTable, mergeEffectiveFrom } = req.body;
-      const result = await tableService.mergeTables(param(req, 'orgId'), sourceTableIds, mergedTable, mergeEffectiveFrom);
+      const { sourceTableIds, mergedTable, mergeEffectiveFrom, startTime, endTime} = req.body;
+      const result = await tableService.mergeTables(
+        param(req, 'orgId'),
+        sourceTableIds,
+        mergedTable,
+        mergeEffectiveFrom,
+        startTime,
+        endTime
+      );
       res.status(201).json({ success: true, data: result });
     } catch (error) {
       next(error);

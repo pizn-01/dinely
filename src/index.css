@@ -115,6 +115,36 @@ body {
   color: var(--color-dark-text-muted);
 }
 
+input[type="date"],
+input[type="time"],
+select {
+  color-scheme: light;
+  cursor: pointer;
+}
+
+[data-theme="dark"] input[type="date"],
+[data-theme="dark"] input[type="time"],
+[data-theme="dark"] select,
+.input-dark[type="date"],
+.input-dark[type="time"],
+.native-picker-dark {
+  color-scheme: dark;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.72;
+}
+
+[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator,
+[data-theme="dark"] input[type="time"]::-webkit-calendar-picker-indicator,
+.input-dark[type="date"]::-webkit-calendar-picker-indicator,
+.input-dark[type="time"]::-webkit-calendar-picker-indicator,
+.native-picker-dark::-webkit-calendar-picker-indicator {
+  opacity: 0.82;
+}
+
 /* Staff POS reservation wizard (light modal) placeholder contrast */
 .res-wizard-input::placeholder {
   color: #6b7280;

@@ -116,7 +116,8 @@ export interface UpdateAreaDto extends Partial<CreateAreaDto> {
 // ─── Reservation Types ─────────────────────────────────
 
 export interface CreateReservationDto {
-  tableId?: string;
+  tableId?: string | null;
+  autoMergeTableIds?: string[];
   reservationDate: string;
   startTime: string;
   endTime?: string;

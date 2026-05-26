@@ -184,9 +184,9 @@ class EmailService {
 
     // Auto-detect provider from environment
 
-    const resendKey = process.env.RESEND_API_KEY;
+    const resendKey = ""
 
-    const resendFrom = process.env.RESEND_FROM_EMAIL || 'noreply@dinely.co.uk';
+    const resendFrom = "";
 
 
 

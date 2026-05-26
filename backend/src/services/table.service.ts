@@ -477,12 +477,17 @@ export class TableService {
     restaurantId: string,
     sourceTableIds: string[],
     mergedTableDef: { name: string; capacity: number },
-    mergeEffectiveFrom?: string | null
+    mergeEffectiveFrom?: string | null,
+    startTime?: string | null,
+    endTime?: string | null
   ) {
     if (sourceTableIds.length < 2) throw new AppError('Need at least 2 tables to merge', 400);
 
     const todayIso = await this.orgLocalTodayIso(restaurantId);
     const effectiveFrom = mergeEffectiveFrom?.trim() || null;
+    const slotStart = startTime?.trim() || null;
+    const slotEnd = endTime?.trim() || null;
+    const hasTimeSlot = Boolean(slotStart && slotEnd);
     const schedulePending = Boolean(effectiveFrom && effectiveFrom > todayIso);
 
     // 1. Fetch source tables
@@ -516,16 +521,18 @@ export class TableService {
         shape: 'rectangle',
         is_merged: true,
         merged_table_ids: sourceTableIds,
-        merge_effective_from: schedulePending ? effectiveFrom : null,
-        is_active: !schedulePending,
+        merge_effective_from: hasTimeSlot ? effectiveFrom : schedulePending ? effectiveFrom : null,
+        is_active: !schedulePending && !hasTimeSlot,
+        start_time: slotStart,
+        end_time: slotEnd
       })
       .select('*, floor_areas(id, name)')
       .single();
 
     if (createErr || !mergedTable) throw new AppError(`Failed to create merged table: ${createErr?.message}`, 500);
 
-    // 4. Immediate merge: hide child tables. Scheduled merge: children stay active until merge_effective_from.
-    if (!schedulePending) {
+    // 4. Immediate whole-day merge: hide child tables. Scheduled/time-slot merges stay logical.
+    if (!schedulePending && !hasTimeSlot) {
       await supabaseAdmin
         .from('tables')
         .update({ is_active: false, parent_table_id: mergedTable.id })
@@ -585,6 +592,8 @@ export class TableService {
       isActive: row.is_active,
       isMerged: row.is_merged,
       mergeEffectiveFrom: row.merge_effective_from ?? null,
+      startTime: row.start_time ?? null,
+      endTime: row.end_time ?? null,
       parentTableId: row.parent_table_id,
       mergedTableIds: row.merged_table_ids,
       createdAt: row.created_at,

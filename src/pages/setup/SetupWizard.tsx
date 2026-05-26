@@ -6,6 +6,7 @@ import { X, Upload, Download, Eye, EyeOff, ChefHat, MapPin, Clock } from 'lucide
 import { api } from '../../services/api'
 import { toast } from 'react-hot-toast'
 import { useAuth } from '../../context/AuthContext'
+import { openNativePicker } from '../../utils/nativePicker'
 
 const TOTAL_STEPS = 4
 
@@ -167,10 +168,11 @@ export default function SetupWizard() {
                 <div>
                   <label style={{ display: 'block', fontSize: '1rem', fontWeight: 600, color: '#111827', marginBottom: '12px' }}>Opening Time</label>
                   <div style={{ position: 'relative' }}>
-                    <Clock size={20} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#9ca3af' }} />
+                    <Clock size={20} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', pointerEvents: 'none' }} />
                     <input
                       type="time"
                       value={details.openingTime}
+                      onClick={openNativePicker}
                       onChange={(e) => setDetails({ ...details, openingTime: e.target.value })}
                       style={{
                         width: '100%',
@@ -181,6 +183,7 @@ export default function SetupWizard() {
                         color: '#111827',
                         fontSize: '1.125rem',
                         outline: 'none',
+                        cursor: 'pointer',
                       }}
                     />
                   </div>
@@ -188,10 +191,11 @@ export default function SetupWizard() {
                 <div>
                   <label style={{ display: 'block', fontSize: '1rem', fontWeight: 600, color: '#111827', marginBottom: '12px' }}>Closing Time</label>
                   <div style={{ position: 'relative' }}>
-                    <Clock size={20} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#9ca3af' }} />
+                    <Clock size={20} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', pointerEvents: 'none' }} />
                     <input
                       type="time"
                       value={details.closingTime}
+                      onClick={openNativePicker}
                       onChange={(e) => setDetails({ ...details, closingTime: e.target.value })}
                       style={{
                         width: '100%',
@@ -202,6 +206,7 @@ export default function SetupWizard() {
                         color: '#111827',
                         fontSize: '1.125rem',
                         outline: 'none',
+                        cursor: 'pointer',
                       }}
                     />
                   </div>

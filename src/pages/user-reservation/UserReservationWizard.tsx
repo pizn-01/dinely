@@ -15,6 +15,7 @@ export interface ReservationData {
   time: string
   guests: number
   tableId: string | null
+  autoMergeTableIds?: string[]
   tableName: string
   tableCapacity: number
   tableLocation: string
@@ -149,6 +150,7 @@ export default function UserReservationWizard() {
           startTime: data.time || '17:30',
           partySize: data.guests,
           tableId: data.tableId || null,
+          autoMergeTableIds: data.autoMergeTableIds,
           guestFirstName: data.firstName || 'Guest',
           guestLastName: data.lastName || undefined,
           guestEmail: data.email || undefined,
@@ -216,6 +218,11 @@ export default function UserReservationWizard() {
     if (currentStep === 4 && data.tableFee) return 'Review Booking'
     return 'Next'
   }
+
+  const nextDisabled =
+    loading ||
+    (currentStep === 1 && !data.time) ||
+    (currentStep === 2 && !data.tableId && !data.autoMergeTableIds?.length)
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#0B1517', display: 'flex', flexDirection: 'column', fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}>
@@ -352,15 +359,15 @@ export default function UserReservationWizard() {
 
             <button
               onClick={nextStep}
-              disabled={loading}
+              disabled={nextDisabled}
               style={{
                 padding: '10px 24px',
                 borderRadius: '8px',
                 fontSize: '0.875rem',
                 fontWeight: 600,
                 border: 'none',
-                cursor: loading ? 'not-allowed' : 'pointer',
-                backgroundColor: loading ? '#b58b57' : '#C99C63',
+                cursor: nextDisabled ? 'not-allowed' : 'pointer',
+                backgroundColor: nextDisabled ? '#b58b57' : '#C99C63',
                 color: '#ffffff',
                 boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.2)'
               }}

@@ -102,7 +102,7 @@ export default function StepDateTime({ data, updateData }: StepDateTimeProps) {
               fontFamily: 'var(--font-sans)'
             }}
           />
-          <Calendar size={18} style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', color: '#6b7280' }} />
+          <Calendar size={18} style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', color: '#6b7280', pointerEvents: 'none' }} />
         </div>
       </div>
 
