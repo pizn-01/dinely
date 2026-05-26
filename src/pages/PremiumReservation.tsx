@@ -9,6 +9,13 @@ import { openNativePicker } from '../utils/nativePicker'
 interface TimeSlotData {
   allSlots: string[];
   availableSlots: string[];
+  isBookingPaused?: boolean;
+  bookingPauseMessage?: string;
+  bookingPauseOrganization?: {
+    name?: string;
+    phone?: string | null;
+    address?: string | null;
+  };
 }
 
 interface TableData {
@@ -32,6 +39,8 @@ interface RestaurantInfo {
   maxPartySize: number;
   requirePayment?: boolean;
   currency?: string;
+  phone?: string | null;
+  address?: string | null;
 }
 
 export default function PremiumReservation() {
@@ -116,8 +125,14 @@ export default function PremiumReservation() {
     if (!slug || !date) return
     setSlotsLoading(true)
     try {
-      const res = await api.get(`/public/${slug}/slots`, { params: { date, partySize: guests } })
+      const res = await api.get(`/public/${slug}/slots`, { params: { date, partySize: guests, audience: 'guest' } })
       setSlotData(res.data.data)
+      if (res.data.data?.isBookingPaused) {
+        setSelectedTime(null)
+        setTables([])
+        setSelectedTable(null)
+        return
+      }
       // Reset selected time if no longer available
       if (selectedTime && !res.data.data.availableSlots.includes(selectedTime)) {
         setSelectedTime(null)
@@ -196,7 +211,8 @@ export default function PremiumReservation() {
         guestEmail: contact.email || 'premium@example.com',
         guestPhone: contact.phone || '',
         specialRequests: contact.specialRequest || '',
-        source: 'website'
+        source: 'website',
+        bookingAudience: 'guest',
       })
 
       navigate('/premium-booking-confirmed', {
@@ -341,7 +357,48 @@ export default function PremiumReservation() {
                     Preferred Time {slotsLoading && <Loader2 size={14} style={{ display: 'inline', animation: 'spin 1s linear infinite' }} />}
                   </label>
 
-                  {slotData.allSlots.length === 0 && !slotsLoading ? (
+                  {slotData.isBookingPaused ? (
+                    <div style={{
+                      borderRadius: '16px',
+                      padding: '20px',
+                      border: '1px solid rgba(201, 156, 99, 0.35)',
+                      background: 'linear-gradient(135deg, rgba(201, 156, 99, 0.14), rgba(74, 158, 107, 0.08))',
+                    }}>
+                      <div style={{ display: 'flex', gap: '14px', alignItems: 'flex-start' }}>
+                        <div style={{
+                          width: '42px',
+                          height: '42px',
+                          borderRadius: '12px',
+                          backgroundColor: 'rgba(201, 156, 99, 0.16)',
+                          color: '#C99C63',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                        }}>
+                          <Calendar size={21} />
+                        </div>
+                        <div>
+                          <h3 style={{ margin: '0 0 8px 0', fontSize: '1.05rem' }}>Online bookings are paused for this date</h3>
+                          <p style={{ margin: '0 0 14px 0', color: '#d1d5db', lineHeight: 1.6 }}>
+                            {slotData.bookingPauseMessage || 'Please contact the restaurant directly to make a reservation.'}
+                          </p>
+                          {(slotData.bookingPauseOrganization?.phone || slotData.bookingPauseOrganization?.address || restaurantInfo?.phone || restaurantInfo?.address) && (
+                            <div style={{ display: 'grid', gap: '10px', color: '#c9d1d9', fontSize: '0.9rem' }}>
+                              {(slotData.bookingPauseOrganization?.phone || restaurantInfo?.phone) && (
+                                <a href={`tel:${slotData.bookingPauseOrganization?.phone || restaurantInfo?.phone}`} style={{ color: '#C99C63', textDecoration: 'none', fontWeight: 600 }}>
+                                  {slotData.bookingPauseOrganization?.phone || restaurantInfo?.phone}
+                                </a>
+                              )}
+                              {(slotData.bookingPauseOrganization?.address || restaurantInfo?.address) && (
+                                <span>{slotData.bookingPauseOrganization?.address || restaurantInfo?.address}</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ) : slotData.allSlots.length === 0 && !slotsLoading ? (
                     <p style={{ color: '#8b949e', fontSize: '0.875rem' }}>No time slots available for this date.</p>
                   ) : (
                     <div className="res-prem-time-grid" style={{

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Calendar, AlertCircle } from 'lucide-react'
+import { AlertCircle, CalendarDays, MapPin, Phone } from 'lucide-react'
 import { api } from '../../services/api'
 import { openNativePicker } from '../../utils/nativePicker'
 import type { ReservationData } from './UserReservationWizard'
@@ -8,6 +8,16 @@ interface UserStepDateTimeProps {
   data: ReservationData
   updateData: (updates: Partial<ReservationData>) => void
   restaurantSlug: string
+  bookingAudience?: 'guest' | 'logged_in'
+}
+
+interface BookingPauseInfo {
+  message: string
+  organization?: {
+    name?: string
+    phone?: string | null
+    address?: string | null
+  }
 }
 
 // Placeholder for UserTimeSlotPicker - assuming it will be defined or imported elsewhere
@@ -132,12 +142,13 @@ function getPastSlots(slots: string[], date: string): string[] {
   })
 }
 
-export default function UserStepDateTime({ data, updateData, restaurantSlug }: UserStepDateTimeProps) {
+export default function UserStepDateTime({ data, updateData, restaurantSlug, bookingAudience = 'guest' }: UserStepDateTimeProps) {
   const [showWaitingList, setShowWaitingList] = useState(false)
   const [timeSlots, setTimeSlots] = useState<string[]>([])
   const [conflictSlots, setConflictSlots] = useState<string[]>([])
   const [fullyBooked, setFullyBooked] = useState(false)
   const [isClosed, setIsClosed] = useState(false)
+  const [bookingPause, setBookingPause] = useState<BookingPauseInfo | null>(null)
   const [hoveredDisabled, setHoveredDisabled] = useState<string | null>(null) // This was misplaced in the instruction, moved here.
 
   const pastSlots = getPastSlots(timeSlots, data.date)
@@ -151,10 +162,32 @@ export default function UserStepDateTime({ data, updateData, restaurantSlug }: U
           : data.date;
 
         const res = await api.get(`/public/${restaurantSlug}/slots`, {
-          params: { date: formattedDate, partySize: data.guests }
+          params: { date: formattedDate, partySize: data.guests, audience: bookingAudience }
         })
         if (res.data?.success) {
-          const { allSlots, availableSlots, isClosed: resIsClosed } = res.data.data
+          const {
+            allSlots,
+            availableSlots,
+            isClosed: resIsClosed,
+            isBookingPaused,
+            bookingPauseMessage,
+            bookingPauseOrganization,
+          } = res.data.data
+
+          if (isBookingPaused) {
+            setBookingPause({
+              message: bookingPauseMessage || 'Online bookings are unavailable for this date. Please contact the restaurant directly.',
+              organization: bookingPauseOrganization,
+            })
+            setIsClosed(false)
+            setTimeSlots([])
+            setConflictSlots([])
+            setFullyBooked(false)
+            if (data.time) updateData({ time: '' })
+            return
+          }
+
+          setBookingPause(null)
           setIsClosed(resIsClosed || false)
           setTimeSlots(allSlots || [])
           const conflicts = (allSlots || []).filter((slot: string) => !(availableSlots || []).includes(slot))
@@ -174,7 +207,7 @@ export default function UserStepDateTime({ data, updateData, restaurantSlug }: U
       }
     }
     fetchSlots()
-  }, [data.date, data.guests, restaurantSlug]) // Time slots only depend on date, guests, and restaurant.
+  }, [data.date, data.guests, restaurantSlug, bookingAudience]) // Time slots only depend on date, guests, restaurant, and audience.
 
   const presets = [2, 4, 6, 8]
 
@@ -263,7 +296,64 @@ export default function UserStepDateTime({ data, updateData, restaurantSlug }: U
 
       {/* Time Slots */}
       <div style={{ marginBottom: '32px' }}>
-        {isClosed ? (
+        {bookingPause ? (
+          <div style={{
+            borderRadius: '16px',
+            padding: '20px',
+            border: '1px solid rgba(201, 156, 99, 0.35)',
+            background: 'linear-gradient(135deg, rgba(201, 156, 99, 0.14), rgba(94, 139, 106, 0.08))',
+            boxShadow: '0 16px 40px rgba(0, 0, 0, 0.22)',
+          }}>
+            <div style={{ display: 'flex', gap: '14px', alignItems: 'flex-start' }}>
+              <div style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '12px',
+                backgroundColor: 'rgba(201, 156, 99, 0.16)',
+                color: '#C99C63',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}>
+                <CalendarDays size={21} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <h3 style={{ margin: '0 0 8px 0', color: '#ffffff', fontSize: '1.05rem', fontWeight: 700 }}>
+                  Online bookings are paused for this date
+                </h3>
+                <p style={{ margin: '0 0 16px 0', color: '#d1d5db', lineHeight: 1.6, fontSize: '0.95rem' }}>
+                  {bookingPause.message}
+                </p>
+                {(bookingPause.organization?.phone || bookingPause.organization?.address) && (
+                  <div style={{
+                    display: 'grid',
+                    gap: '10px',
+                    padding: '14px',
+                    borderRadius: '12px',
+                    backgroundColor: 'rgba(11, 21, 23, 0.58)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                  }}>
+                    {bookingPause.organization?.phone && (
+                      <a
+                        href={`tel:${bookingPause.organization.phone}`}
+                        style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#C99C63', textDecoration: 'none', fontSize: '0.9rem', fontWeight: 600 }}
+                      >
+                        <Phone size={15} /> {bookingPause.organization.phone}
+                      </a>
+                    )}
+                    {bookingPause.organization?.address && (
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', color: '#c9d1d9', fontSize: '0.9rem', lineHeight: 1.4 }}>
+                        <MapPin size={15} style={{ marginTop: '2px', color: '#8b949e', flexShrink: 0 }} />
+                        <span>{bookingPause.organization.address}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : isClosed ? (
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -293,103 +383,104 @@ export default function UserStepDateTime({ data, updateData, restaurantSlug }: U
         )}
       </div>
 
-      {/* Guest Counter */}
-      <div style={{ marginTop: '32px' }}>
-        <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#ffffff', marginBottom: '16px' }}>
-          How many people will be dining?
-        </h3>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', marginTop: '32px' }}>
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ color: '#8b949e', opacity: 0.7 }}>
-            <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
-            <circle cx="12" cy="7" r="4" />
-          </svg>
-          
-          <div style={{ display: 'flex', alignItems: 'center', gap: '24px', margin: '16px 0' }}>
-            <button
-              onClick={() => updateData({ guests: Math.max(1, data.guests - 1) })}
-              style={{
-                width: '48px',
-                height: '48px',
-                borderRadius: '9999px',
-                backgroundColor: '#5E8B6A',
-                color: '#ffffff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                border: 'none',
-                cursor: 'pointer',
-                transition: 'background-color 0.2s',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
-                fontSize: '1.5rem',
-                fontWeight: 700
-              }}
-            >
-              −
-            </button>
+      {!bookingPause && (
+        <div style={{ marginTop: '32px' }}>
+          <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#ffffff', marginBottom: '16px' }}>
+            How many people will be dining?
+          </h3>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', marginTop: '32px' }}>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ color: '#8b949e', opacity: 0.7 }}>
+              <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+              <circle cx="12" cy="7" r="4" />
+            </svg>
             
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '80px' }}>
-              <span style={{
-                color: '#ffffff',
-                fontSize: '3rem',
-                fontWeight: 500,
-                lineHeight: 1
-              }}>
-                {data.guests}
-              </span>
-              <span style={{ color: '#8b949e', fontSize: '1.125rem' }}>Guests</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '24px', margin: '16px 0' }}>
+              <button
+                onClick={() => updateData({ guests: Math.max(1, data.guests - 1) })}
+                style={{
+                  width: '48px',
+                  height: '48px',
+                  borderRadius: '9999px',
+                  backgroundColor: '#5E8B6A',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  border: 'none',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.2s',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+                  fontSize: '1.5rem',
+                  fontWeight: 700
+                }}
+              >
+                −
+              </button>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '80px' }}>
+                <span style={{
+                  color: '#ffffff',
+                  fontSize: '3rem',
+                  fontWeight: 500,
+                  lineHeight: 1
+                }}>
+                  {data.guests}
+                </span>
+                <span style={{ color: '#8b949e', fontSize: '1.125rem' }}>Guests</span>
+              </div>
+
+              <button
+                onClick={() => updateData({ guests: Math.min(20, data.guests + 1) })}
+                style={{
+                  width: '48px',
+                  height: '48px',
+                  borderRadius: '9999px',
+                  backgroundColor: '#5E8B6A',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  border: 'none',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.2s',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+                  fontSize: '1.5rem',
+                  fontWeight: 700
+                }}
+              >
+                +
+              </button>
             </div>
 
-            <button
-              onClick={() => updateData({ guests: Math.min(20, data.guests + 1) })}
-              style={{
-                width: '48px',
-                height: '48px',
-                borderRadius: '9999px',
-                backgroundColor: '#5E8B6A',
-                color: '#ffffff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                border: 'none',
-                cursor: 'pointer',
-                transition: 'background-color 0.2s',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
-                fontSize: '1.5rem',
-                fontWeight: 700
-              }}
-            >
-              +
-            </button>
-          </div>
-
-          <div className="res-guest-presets" style={{ display: 'flex', gap: '16px', marginTop: '16px', flexWrap: 'wrap', justifyContent: 'center' }}>
-            {presets.map((preset) => {
-              const isSelected = data.guests === preset;
-              return (
-                <button
-                  key={preset}
-                  onClick={() => updateData({ guests: preset })}
-                  style={{
-                    width: '80px',
-                    padding: '10px 0',
-                    borderRadius: '6px',
-                    fontSize: '1rem',
-                    fontWeight: 500,
-                    border: isSelected ? '1px solid #5E8B6A' : '1px solid #30363d',
-                    backgroundColor: isSelected ? '#5E8B6A' : 'transparent',
-                    color: '#ffffff',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                    fontFamily: 'Inter, system-ui, sans-serif'
-                  }}
-                >
-                  {preset}
-                </button>
-              )
-            })}
+            <div className="res-guest-presets" style={{ display: 'flex', gap: '16px', marginTop: '16px', flexWrap: 'wrap', justifyContent: 'center' }}>
+              {presets.map((preset) => {
+                const isSelected = data.guests === preset;
+                return (
+                  <button
+                    key={preset}
+                    onClick={() => updateData({ guests: preset })}
+                    style={{
+                      width: '80px',
+                      padding: '10px 0',
+                      borderRadius: '6px',
+                      fontSize: '1rem',
+                      fontWeight: 500,
+                      border: isSelected ? '1px solid #5E8B6A' : '1px solid #30363d',
+                      backgroundColor: isSelected ? '#5E8B6A' : 'transparent',
+                      color: '#ffffff',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      fontFamily: 'Inter, system-ui, sans-serif'
+                    }}
+                  >
+                    {preset}
+                  </button>
+                )
+              })}
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

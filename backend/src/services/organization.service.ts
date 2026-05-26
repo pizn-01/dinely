@@ -72,6 +72,7 @@ export class OrganizationService {
     if (dto.weeklyHours !== undefined) updateData.weekly_hours = dto.weeklyHours;
     if (dto.brandingColor !== undefined) updateData.branding_color = dto.brandingColor;
     if (dto.emailCustomNote !== undefined) updateData.email_custom_note = dto.emailCustomNote;
+    if (dto.bookingPause !== undefined) updateData.booking_pause = dto.bookingPause;
 
     // ── Plan-gated fields: landing page customization (Professional only) ──
     // Fetch current plan before allowing these fields to be saved.
@@ -413,6 +414,7 @@ export class OrganizationService {
       widgetBgUrl: row.widget_bg_url || null,
       brandingColor: row.branding_color || '#0B1517',
       emailCustomNote: row.email_custom_note || null,
+      bookingPause: row.booking_pause || { guestEnabled: false, loggedInEnabled: false, dates: [] },
       isActive: row.is_active,
       createdAt: row.created_at,
       updatedAt: row.updated_at,

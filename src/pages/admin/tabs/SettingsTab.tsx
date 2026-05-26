@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link, Copy, Check, Upload, Image as ImageIcon, Save, Clock, Users, CreditCard, Merge, Footprints, FileText, DollarSign, CalendarDays, Settings2, RefreshCw } from 'lucide-react'
+import { Link, Copy, Check, Upload, Image as ImageIcon, Save, Clock, Users, CreditCard, Merge, Footprints, FileText, DollarSign, CalendarDays, Settings2, RefreshCw, Plus, Trash2 } from 'lucide-react'
 import { api } from '../../../services/api'
 import { toast } from 'react-hot-toast'
 import { UpgradeBanner } from '../../../components/UpgradeBanner'
@@ -26,6 +26,18 @@ interface WeeklyHours {
   sunday: DayHours
 }
 
+interface BookingPauseDate {
+  id?: string
+  date: string
+  message: string
+}
+
+interface BookingPauseSettings {
+  guestEnabled: boolean
+  loggedInEnabled: boolean
+  dates: BookingPauseDate[]
+}
+
 interface OrgSettings {
   name: string
   address: string
@@ -50,6 +62,7 @@ interface OrgSettings {
   weeklyHours: WeeklyHours
   brandingColor?: string
   emailCustomNote?: string
+  bookingPause: BookingPauseSettings
 }
 
 const defaultWeeklyHours: WeeklyHours = {
@@ -85,7 +98,22 @@ const defaultSettings: OrgSettings = {
   weeklyHours: { ...defaultWeeklyHours },
   brandingColor: '#0B1517',
   emailCustomNote: '',
+  bookingPause: { guestEnabled: false, loggedInEnabled: false, dates: [] },
 }
+
+const normalizeBookingPause = (value: any): BookingPauseSettings => ({
+  guestEnabled: Boolean(value?.guestEnabled),
+  loggedInEnabled: Boolean(value?.loggedInEnabled),
+  dates: Array.isArray(value?.dates)
+    ? value.dates
+        .filter((item: any) => item?.date || item?.message)
+        .map((item: any) => ({
+          id: item.id || `${item.date || 'date'}-${Math.random().toString(36).slice(2, 8)}`,
+          date: item.date || '',
+          message: item.message || '',
+        }))
+    : [],
+})
 
 export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
   const isDark = theme === 'dark'
@@ -158,6 +186,7 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
           weeklyHours: org?.weeklyHours || { ...defaultWeeklyHours },
           brandingColor: org?.brandingColor || '#0B1517',
           emailCustomNote: org?.emailCustomNote || '',
+          bookingPause: normalizeBookingPause(org?.bookingPause),
         }
         setSettings(loaded)
         setOriginalSettings(loaded)
@@ -267,6 +296,17 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
         weeklyHours: settings.weeklyHours,
         brandingColor: settings.brandingColor,
         emailCustomNote: settings.emailCustomNote,
+        bookingPause: {
+          guestEnabled: settings.bookingPause.guestEnabled,
+          loggedInEnabled: settings.bookingPause.loggedInEnabled,
+          dates: settings.bookingPause.dates
+            .map((day) => ({
+              id: day.id,
+              date: day.date,
+              message: day.message.trim(),
+            }))
+            .filter((day) => day.date && day.message),
+        },
       })
       setOriginalSettings({ ...settings })
       setSaveSuccess(true)
@@ -414,6 +454,65 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
       </button>
     </div>
   )
+
+  const AudienceRadio = ({ enabled, onChange }: { enabled: boolean; onChange: (enabled: boolean) => void }) => (
+    <div style={{ display: 'inline-flex', border: `1px solid ${isDark ? '#30363d' : '#d1d5db'}`, borderRadius: '8px', overflow: 'hidden' }}>
+      {[{ label: 'Disabled', value: false }, { label: 'Enabled', value: true }].map((option) => (
+        <button
+          key={option.label}
+          type="button"
+          onClick={() => onChange(option.value)}
+          style={{
+            padding: '8px 14px',
+            border: 'none',
+            borderRight: option.label === 'Disabled' ? `1px solid ${isDark ? '#30363d' : '#d1d5db'}` : 'none',
+            backgroundColor: enabled === option.value ? '#C99C63' : 'transparent',
+            color: enabled === option.value ? '#ffffff' : (isDark ? '#c9d1d9' : '#374151'),
+            fontSize: '0.8125rem',
+            fontWeight: 600,
+            cursor: 'pointer',
+          }}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  )
+
+  const addBookingPauseDate = () => {
+    setSettings({
+      ...settings,
+      bookingPause: {
+        ...settings.bookingPause,
+        dates: [
+          ...settings.bookingPause.dates,
+          { id: `pause-${Date.now()}`, date: '', message: settings.bookingPause.dates[0]?.message || '' },
+        ],
+      },
+    })
+  }
+
+  const updateBookingPauseDate = (id: string | undefined, updates: Partial<BookingPauseDate>) => {
+    setSettings({
+      ...settings,
+      bookingPause: {
+        ...settings.bookingPause,
+        dates: settings.bookingPause.dates.map((day) => (
+          day.id === id ? { ...day, ...updates } : day
+        )),
+      },
+    })
+  }
+
+  const removeBookingPauseDate = (id: string | undefined) => {
+    setSettings({
+      ...settings,
+      bookingPause: {
+        ...settings.bookingPause,
+        dates: settings.bookingPause.dates.filter((day) => day.id !== id),
+      },
+    })
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
@@ -597,6 +696,142 @@ export default function SettingsTab({ theme, orgId }: SettingsTabProps) {
                   style={inputStyle}
                 />
               </div>
+            </div>
+
+            <div style={{
+              marginTop: '24px',
+              paddingTop: '24px',
+              borderTop: `1px solid ${isDark ? '#21262d' : '#f3f4f6'}`,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                <div>
+                  <h4 style={{ ...sectionTitleStyle, fontSize: '0.95rem', marginBottom: '4px' }}>
+                    <CalendarDays size={15} style={{ color: '#C99C63' }} /> Booking Pause Dates
+                  </h4>
+                  <p style={{ ...sectionDescStyle, marginBottom: 0 }}>
+                    Stop customer bookings on selected dates and show a custom contact message.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={addBookingPauseDate}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '9px 14px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    backgroundColor: '#C99C63',
+                    color: '#ffffff',
+                    fontSize: '0.8125rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Plus size={15} /> Add Date
+                </button>
+              </div>
+
+              <div className="res-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                <div>
+                  <label style={labelStyle}>Guest Visitors</label>
+                  <AudienceRadio
+                    enabled={settings.bookingPause.guestEnabled}
+                    onChange={(enabled) => setSettings({
+                      ...settings,
+                      bookingPause: { ...settings.bookingPause, guestEnabled: enabled },
+                    })}
+                  />
+                </div>
+                <div>
+                  <label style={labelStyle}>Logged-in Guests</label>
+                  <AudienceRadio
+                    enabled={settings.bookingPause.loggedInEnabled}
+                    onChange={(enabled) => setSettings({
+                      ...settings,
+                      bookingPause: { ...settings.bookingPause, loggedInEnabled: enabled },
+                    })}
+                  />
+                </div>
+              </div>
+
+              {settings.bookingPause.dates.length === 0 ? (
+                <div style={{
+                  padding: '16px',
+                  borderRadius: '8px',
+                  border: `1px dashed ${isDark ? '#30363d' : '#d1d5db'}`,
+                  color: isDark ? '#8b949e' : '#6b7280',
+                  fontSize: '0.875rem',
+                }}>
+                  No paused booking dates added.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  {settings.bookingPause.dates.map((day) => (
+                    <div
+                      key={day.id}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '180px 1fr 40px',
+                        gap: '12px',
+                        alignItems: 'start',
+                        padding: '14px',
+                        borderRadius: '8px',
+                        border: `1px solid ${isDark ? '#30363d' : '#e5e7eb'}`,
+                        backgroundColor: isDark ? '#161B22' : '#f9fafb',
+                      }}
+                    >
+                      <div>
+                        <label style={labelStyle}>Date</label>
+                        <input
+                          type="date"
+                          className={theme === 'dark' ? 'native-picker-dark' : undefined}
+                          value={day.date}
+                          onClick={openNativePicker}
+                          onChange={(e) => updateBookingPauseDate(day.id, { date: e.target.value })}
+                          style={{ ...inputStyle, cursor: 'pointer' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={labelStyle}>Message shown to customers</label>
+                        <textarea
+                          value={day.message}
+                          onChange={(e) => updateBookingPauseDate(day.id, { message: e.target.value })}
+                          placeholder="Due to the high volume of bookings, please contact the restaurant directly to make a reservation."
+                          maxLength={1000}
+                          style={{
+                            ...inputStyle,
+                            minHeight: '76px',
+                            resize: 'vertical' as const,
+                            fontFamily: 'inherit',
+                          }}
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeBookingPauseDate(day.id)}
+                        aria-label="Remove paused booking date"
+                        style={{
+                          width: '38px',
+                          height: '38px',
+                          marginTop: '25px',
+                          borderRadius: '8px',
+                          border: `1px solid ${isDark ? '#30363d' : '#d1d5db'}`,
+                          backgroundColor: 'transparent',
+                          color: isDark ? '#fca5a5' : '#b91c1c',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 

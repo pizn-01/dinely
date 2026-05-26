@@ -15,6 +15,16 @@ const dayHoursSchema = z.object({
   closed: z.boolean(),
 });
 
+const bookingPauseSchema = z.object({
+  guestEnabled: z.boolean(),
+  loggedInEnabled: z.boolean(),
+  dates: z.array(z.object({
+    id: z.string().max(80).optional(),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format'),
+    message: z.string().trim().min(1).max(1000),
+  })).max(120),
+});
+
 export const updateOrganizationSchema = z.object({
   name: z.string().min(2).max(255).optional(),
   address: z.string().optional(),
@@ -47,6 +57,7 @@ export const updateOrganizationSchema = z.object({
   }).optional(),
   brandingColor: z.string().max(50).optional(),
   emailCustomNote: z.string().max(2000).optional(),
+  bookingPause: bookingPauseSchema.optional(),
 });
 
 export const setupStepSchema = z.object({

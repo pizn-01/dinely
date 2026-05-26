@@ -156,6 +156,7 @@ export default function UserReservationWizard() {
           guestEmail: data.email || undefined,
           guestPhone: data.phone || undefined,
           specialRequests: data.specialRequest || undefined,
+          bookingAudience: 'logged_in' as const,
         }
 
         if (data.tableFee && data.tableFee > 0) {
@@ -196,7 +197,7 @@ export default function UserReservationWizard() {
   const renderStep = () => {
     switch (currentStep) {
       case 1:
-        return <UserStepDateTime data={data} updateData={updateData} restaurantSlug={restaurantSlug} />
+        return <UserStepDateTime data={data} updateData={updateData} restaurantSlug={restaurantSlug} bookingAudience="logged_in" />
       case 2:
         return <UserStepTableSelect data={data} updateData={updateData} restaurantSlug={restaurantSlug} />
       case 3:

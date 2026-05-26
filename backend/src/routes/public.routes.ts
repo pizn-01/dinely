@@ -4,18 +4,59 @@ import { reservationService } from '../services/reservation.service';
 import { validate } from '../middleware/validator';
 import { createReservationSchema } from '../validators/reservation.validator';
 import { publicApiLimiter } from '../middleware/rateLimiter';
+import { optionalAuth } from '../middleware/auth';
 import { tableService } from '../services/table.service';
 import { broadcastService } from '../services/broadcast.service';
 import { supabaseAdmin } from '../config/database';
 import { stripeService } from '../services/stripe.service';
+import { AppError } from '../middleware/errorHandler';
+import { UserRole } from '../types/enums';
 
 const router = Router();
 
 // Apply strict rate limiting for public unauthenticated endpoints
 router.use(publicApiLimiter);
+router.use(optionalAuth);
 
 // Helper to safely extract string param from Express v5
 const param = (req: Request, key: string): string => req.params[key] as string;
+
+type BookingAudience = 'guest' | 'logged_in';
+
+const resolveBookingAudience = (req: Request): BookingAudience => {
+  return (req as any).user?.role === UserRole.CUSTOMER ? 'logged_in' : 'guest';
+};
+
+const getBookingPauseForDate = (org: any, date: string, audience: BookingAudience) => {
+  const bookingPause = org?.bookingPause || {};
+  const isEnabled = audience === 'logged_in'
+    ? bookingPause.loggedInEnabled
+    : bookingPause.guestEnabled;
+
+  if (!isEnabled || !Array.isArray(bookingPause.dates)) return null;
+
+  const match = bookingPause.dates.find((day: any) => {
+    return day?.date === date && typeof day?.message === 'string' && day.message.trim().length > 0;
+  });
+
+  if (!match) return null;
+
+  return {
+    message: match.message.trim(),
+    organization: {
+      name: org.name,
+      phone: org.phone || null,
+      address: org.address || null,
+    },
+  };
+};
+
+const assertBookingNotPaused = (org: any, date: string, audience: BookingAudience) => {
+  const pause = getBookingPauseForDate(org, date, audience);
+  if (pause) {
+    throw new AppError(pause.message, 409);
+  }
+};
 
 /**
  * Public endpoints for restaurant website widgets and POS.
@@ -78,6 +119,12 @@ router.get('/:slug/availability', async (req: Request, res: Response, next: Next
       return;
     }
 
+    assertBookingNotPaused(
+      org,
+      date,
+      resolveBookingAudience(req)
+    );
+
     const available = await reservationService.getAvailableTables(
       org.id,
       date,
@@ -97,11 +144,28 @@ router.get('/:slug/slots', async (req: Request, res: Response, next: NextFunctio
     const org = await organizationService.getBySlug(param(req, 'slug'));
     const date = req.query.date as string;
     const partySize = req.query.partySize as string;
+    const audience = resolveBookingAudience(req);
 
     if (!date || !partySize) {
       res.status(400).json({
         success: false,
         error: 'date and partySize query parameters are required',
+      });
+      return;
+    }
+
+    const bookingPause = getBookingPauseForDate(org, date, audience);
+    if (bookingPause) {
+      res.json({
+        success: true,
+        data: {
+          allSlots: [],
+          availableSlots: [],
+          isClosed: false,
+          isBookingPaused: true,
+          bookingPauseMessage: bookingPause.message,
+          bookingPauseOrganization: bookingPause.organization,
+        },
       });
       return;
     }
@@ -135,6 +199,11 @@ router.post('/:slug/reserve',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const org = await organizationService.getBySlug(param(req, 'slug'));
+      assertBookingNotPaused(
+        org,
+        req.body.reservationDate,
+        resolveBookingAudience(req)
+      );
 
       const result = await reservationService.create(org.id, {
         ...req.body,
@@ -165,6 +234,12 @@ router.post('/:slug/reservations/checkout', async (req: Request, res: Response, 
       guestFirstName, guestLastName, guestEmail, guestPhone,
       specialRequests, tableFee, successUrl, cancelUrl,
     } = req.body;
+
+    assertBookingNotPaused(
+      org,
+      reservationDate,
+      resolveBookingAudience(req)
+    );
 
     if (!tableFee || tableFee <= 0) {
       res.status(400).json({ success: false, error: 'tableFee is required for premium checkout' });
