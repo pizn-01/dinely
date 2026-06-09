@@ -36,6 +36,7 @@ type AvailableTableRow = {
   premium_price?: number | null;
   is_mergeable?: boolean | null;
   is_merged?: boolean | null;
+  merged_table_ids?: string[] | null;
   floor_areas?: { id: string; name: string } | null;
 };
 
@@ -63,10 +64,66 @@ export class ReservationService {
     };
   }
 
-  private isTableFreeForReservations(tableId: string, reservations: any[], startTime: string, endTime: string) {
+  private relatedTableIdsForConflict(tableId: string, tableRows?: AvailableTableRow[]) {
+    const related = new Set<string>([tableId]);
+    if (!tableRows?.length) return related;
+
+    for (const row of tableRows) {
+      const childIds = row.is_merged && Array.isArray(row.merged_table_ids)
+        ? row.merged_table_ids
+        : [];
+
+      if (!childIds.length) continue;
+
+      if (row.id === tableId) {
+        childIds.forEach((id) => related.add(id));
+      } else if (childIds.includes(tableId)) {
+        related.add(row.id);
+      }
+    }
+
+    return related;
+  }
+
+  private isTableFreeForReservations(
+    tableId: string,
+    reservations: any[],
+    startTime: string,
+    endTime: string,
+    tableRows?: AvailableTableRow[]
+  ) {
+    const relatedTableIds = this.relatedTableIdsForConflict(tableId, tableRows);
     return !reservations.some(
-      (r) => r.table_id === tableId && timeRangesOverlap(startTime, endTime, r.start_time, r.end_time)
+      (r) => r.table_id && relatedTableIds.has(r.table_id) && timeRangesOverlap(startTime, endTime, r.start_time, r.end_time)
     );
+  }
+
+  private async ensureTableFreeForReservation(
+    restaurantId: string,
+    tableId: string,
+    date: string,
+    startTime: string,
+    endTime: string
+  ) {
+    const { data: tableRows } = await supabaseAdmin
+      .from('tables')
+      .select('id, is_merged, merged_table_ids')
+      .eq('restaurant_id', restaurantId)
+      .or('is_active.eq.true,is_merged.eq.true');
+
+    const relatedTableIds = Array.from(this.relatedTableIdsForConflict(tableId, tableRows || []));
+
+    const { data: reservations } = await supabaseAdmin
+      .from('reservations')
+      .select('table_id, start_time, end_time, status')
+      .eq('restaurant_id', restaurantId)
+      .eq('reservation_date', date)
+      .in('table_id', relatedTableIds)
+      .not('status', 'in', `(${ReservationStatus.CANCELLED},${ReservationStatus.NO_SHOW},${ReservationStatus.COMPLETED})`);
+
+    if (!this.isTableFreeForReservations(tableId, reservations || [], startTime, endTime, tableRows || [])) {
+      throw new AppError('Table is no longer available for this time slot (booked by another user)', 409);
+    }
   }
 
   private bestCombination(tables: AvailableTableRow[], partySize: number): AvailableTableRow[] | null {
@@ -298,10 +355,7 @@ export class ReservationService {
     const selectedTables = laidOutTables.filter((table) => uniqueIds.includes(table.id));
     if (selectedTables.length !== uniqueIds.length) return null;
     if (selectedTables.some((table) => table.is_merged || table.is_mergeable !== true)) return null;
-    if (selectedTables.some((table) => !this.isTableFreeForReservations(table.id, reservations, startTime, endTime))) return null;
-
-    const capacity = selectedTables.reduce((sum, table) => sum + (Number(table.capacity) || 0), 0);
-    if (capacity < partySize) return null;
+    if (selectedTables.some((table) => !this.isTableFreeForReservations(table.id, reservations, startTime, endTime, tableRows || []))) return null;
 
     const sameArea = selectedTables.every(
       (table) => (table.area_id || table.floor_areas?.id || null) === (selectedTables[0].area_id || selectedTables[0].floor_areas?.id || null)
@@ -586,6 +640,10 @@ export class ReservationService {
 
       effectiveTableId = mergedTable.id;
       autoMergeTableId = mergedTable.id;
+    }
+
+    if (effectiveTableId && !autoMergeTableId) {
+      await this.ensureTableFreeForReservation(restaurantId, effectiveTableId, dto.reservationDate, dto.startTime, endTime);
     }
 
     // Use SQL RPC to securely lock table row and insert atomically
@@ -1073,7 +1131,7 @@ export class ReservationService {
 
     const available: any[] = [];
     for (const table of candidates) {
-      if (this.isTableFreeForReservations(table.id, reservations, startTime, endTime)) {
+      if (this.isTableFreeForReservations(table.id, reservations, startTime, endTime, tableRows || [])) {
         available.push(this.formatAvailableTable(table));
       }
     }
@@ -1084,7 +1142,7 @@ export class ReservationService {
           table.is_mergeable === true &&
           !table.is_merged &&
           !table.is_premium &&
-          this.isTableFreeForReservations(table.id, reservations, startTime, endTime)
+          this.isTableFreeForReservations(table.id, reservations, startTime, endTime, tableRows || [])
       );
       const autoMerge = this.findAutoMergeOption(availableStandardTables, partySize);
       if (autoMerge) available.push(autoMerge);
@@ -1215,7 +1273,7 @@ export class ReservationService {
       }) as AvailableTableRow[];
       const candidates = laidOut.filter((t) => (Number(t.capacity) || 0) >= partySize);
 
-      const hasSingle = candidates.some((table) => this.isTableFreeForReservations(table.id, reservations, slot, slotEnd));
+      const hasSingle = candidates.some((table) => this.isTableFreeForReservations(table.id, reservations, slot, slotEnd, wideRows || []));
       const hasAutoMerge = !hasSingle && Boolean(
         this.findAutoMergeOption(
           laidOut.filter(
@@ -1223,7 +1281,7 @@ export class ReservationService {
               table.is_mergeable === true &&
               !table.is_merged &&
               !table.is_premium &&
-              this.isTableFreeForReservations(table.id, reservations, slot, slotEnd)
+              this.isTableFreeForReservations(table.id, reservations, slot, slotEnd, wideRows || [])
           ),
           partySize
         )
