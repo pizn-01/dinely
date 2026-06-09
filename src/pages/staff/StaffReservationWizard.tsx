@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { api } from '../../services/api'
-import { X, Calendar, Clock, Users, ChevronRight, ChevronLeft, Check, ZoomIn, ZoomOut } from 'lucide-react'
+import { X, Calendar, Clock, Users, ChevronRight, ChevronLeft, ChevronDown, Check, ZoomIn, ZoomOut } from 'lucide-react'
 import { openNativePicker } from '../../utils/nativePicker'
+import { QUARTER_HOUR_TIME_OPTIONS } from '../../utils/timeOptions'
 
 interface StaffReservationWizardProps {
   restaurantId: string
@@ -95,6 +96,9 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
   const [selectedMergeableTableIds, setSelectedMergeableTableIds] = useState<string[]>([])
   const [selectedFloorMapFloor, setSelectedFloorMapFloor] = useState('')
   const [floorMapZoom, setFloorMapZoom] = useState(1)
+  const [isTimeDropdownOpen, setIsTimeDropdownOpen] = useState(false)
+  const timeDropdownRef = useRef<HTMLDivElement | null>(null)
+  const timeOptionsListRef = useRef<HTMLDivElement | null>(null)
 
   const updateData = useCallback((updates: Partial<ReservationData>) => {
     setData((prev) => ({ ...prev, ...updates }))
@@ -116,6 +120,28 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
       setData(prev => ({ ...prev, ...updates }))
     }
   }, [initialDate, initialTime, preselectedTable])
+
+  useEffect(() => {
+    if (!isTimeDropdownOpen) return
+
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (timeDropdownRef.current && !timeDropdownRef.current.contains(event.target as Node)) {
+        setIsTimeDropdownOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleOutsideClick)
+    return () => document.removeEventListener('mousedown', handleOutsideClick)
+  }, [isTimeDropdownOpen])
+
+  useEffect(() => {
+    if (!isTimeDropdownOpen || !timeOptionsListRef.current) return
+
+    const selectedIndex = QUARTER_HOUR_TIME_OPTIONS.indexOf(data.time)
+    if (selectedIndex < 0) return
+
+    timeOptionsListRef.current.scrollTop = Math.max(0, (selectedIndex - 3) * 36)
+  }, [data.time, isTimeDropdownOpen])
 
   const fetchAvailableTables = async () => {
     setLoadingTables(true)
@@ -198,18 +224,9 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
           setError('Only available tables marked as mergeable can be combined.')
           return
         }
-        const combinedCap = selectedTables.reduce((sum, t) => sum + (t.capacity || 0), 0)
-        if (combinedCap < data.guests) {
-          setError(`Combined capacity of selected tables (${combinedCap}) is insufficient for ${data.guests} guests. Please select additional mergeable tables.`)
-          return
-        }
       } else {
         if (!data.tableId) {
           setError('Please select a table to continue.')
-          return
-        }
-        if (data.tableCapacity < data.guests) {
-          setError(`Selected table capacity (${data.tableCapacity}) is insufficient for ${data.guests} guests.`)
           return
         }
       }
@@ -258,6 +275,28 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
 
   const renderDateTimeStep = () => (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      <style>
+        {`
+          .staff-res-time-options {
+            scrollbar-width: thin;
+            scrollbar-color: var(--border-input) transparent;
+          }
+          .staff-res-time-options::-webkit-scrollbar {
+            width: 8px;
+          }
+          .staff-res-time-options::-webkit-scrollbar-track {
+            background: transparent;
+          }
+          .staff-res-time-options::-webkit-scrollbar-thumb {
+            background-color: var(--border-input);
+            border-radius: 999px;
+            border: 2px solid var(--bg-input);
+          }
+          .staff-res-time-options::-webkit-scrollbar-thumb:hover {
+            background-color: var(--text-tertiary);
+          }
+        `}
+      </style>
       <div>
         <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>Date</label>
         <div style={{ position: 'relative' }}>
@@ -273,15 +312,46 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
       </div>
       <div>
         <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>Time</label>
-        <div style={{ position: 'relative' }}>
-          <Clock size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)', pointerEvents: 'none' }} />
-          <input
-            type="time"
-            value={data.time}
-            onClick={openNativePicker}
-            onChange={(e) => updateData({ time: e.target.value })}
-            style={{ width: '100%', padding: '10px 10px 10px 40px', borderRadius: '8px', border: '1px solid var(--border-input)', fontSize: '0.875rem', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)', outline: 'none', cursor: 'pointer' }}
-          />
+        <div ref={timeDropdownRef} style={{ position: 'relative' }}>
+          <Clock size={18} style={{ position: 'absolute', left: '12px', top: '20px', transform: 'translateY(-50%)', color: 'var(--text-tertiary)', pointerEvents: 'none' }} />
+          <button
+            type="button"
+            aria-haspopup="listbox"
+            aria-expanded={isTimeDropdownOpen}
+            onClick={() => setIsTimeDropdownOpen((open) => !open)}
+            style={{ width: '100%', padding: '10px 38px 10px 40px', borderRadius: '8px', border: '1px solid var(--border-input)', fontSize: '0.875rem', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)', outline: 'none', cursor: 'pointer', textAlign: 'left', minHeight: '40px' }}
+          >
+            {data.time}
+          </button>
+          <ChevronDown size={16} style={{ position: 'absolute', right: '12px', top: '20px', transform: `translateY(-50%) ${isTimeDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)'}`, color: 'var(--text-tertiary)', pointerEvents: 'none', transition: 'transform 0.15s ease' }} />
+          {isTimeDropdownOpen && (
+            <div
+              ref={timeOptionsListRef}
+              className="staff-res-time-options"
+              role="listbox"
+              aria-label="Reservation time"
+              style={{ marginTop: '6px', maxHeight: '288px', overflowY: 'auto', borderRadius: '10px', border: '1px solid var(--border-input)', backgroundColor: 'var(--bg-input)', boxShadow: 'var(--shadow-lg)', padding: '4px', paddingRight: '6px', zIndex: 2 }}
+            >
+              {QUARTER_HOUR_TIME_OPTIONS.map((option) => {
+                const selected = option === data.time
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    role="option"
+                    aria-selected={selected}
+                    onClick={() => {
+                      updateData({ time: option })
+                      setIsTimeDropdownOpen(false)
+                    }}
+                    style={{ width: '100%', height: '36px', border: 'none', borderRadius: '7px', backgroundColor: selected ? 'var(--accent-gold)' : 'transparent', color: selected ? '#ffffff' : 'var(--text-primary)', cursor: 'pointer', fontSize: '0.875rem', fontWeight: selected ? 700 : 500, textAlign: 'left', padding: '0 12px' }}
+                  >
+                    {option}
+                  </button>
+                )
+              })}
+            </div>
+          )}
         </div>
       </div>
       <div>
@@ -317,7 +387,6 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
     const selectedMergeableList = availableTables.filter(t => selectedMergeableTableIds.includes(t.id))
     const currentCombinedCap = selectedMergeableList.reduce((sum, t) => sum + (t.capacity || 0), 0)
     const selectedAreaNames = Array.from(new Set(selectedMergeableList.map(t => t.area?.name || 'Main Area')))
-    const hasEnoughMergedCapacity = selectedMergeableTableIds.length >= 2 && currentCombinedCap >= data.guests
     const tablesByFloor = availableTables.reduce((acc, table) => {
       const floor = floorNameFromArea(table.area?.name)
       if (!acc[floor]) acc[floor] = []
@@ -341,7 +410,7 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
     const handleTableClick = (table: any, areaName: string) => {
       const canFitAlone = (table.capacity || 0) >= data.guests
       const isInMergeSelection = selectedMergeableTableIds.includes(table.id)
-      const shouldToggleMerge = !canFitAlone || (selectedMergeableTableIds.length > 0 && table.isMergeable)
+      const shouldToggleMerge = (!canFitAlone && table.isMergeable) || (selectedMergeableTableIds.length > 0 && table.isMergeable)
 
       if (shouldToggleMerge) {
         if (!table.isMergeable || table.isMerged) {
@@ -463,8 +532,8 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
                 <strong style={{ color: 'var(--accent-gold)' }}>Merge selection:</strong> {selectedMergeableList.map(t => t.name || `Table ${t.tableNumber}`).join(' + ') || 'No tables selected'}
                 {selectedAreaNames.length > 1 ? ' • Staff review needed' : ''}
               </span>
-              <span style={{ fontWeight: 700, color: hasEnoughMergedCapacity ? '#10B981' : 'var(--accent-red)' }}>
-                Combined Cap: {currentCombinedCap} / {data.guests}
+              <span style={{ fontWeight: 700, color: 'var(--text-secondary)' }}>
+                Combined Cap: {currentCombinedCap}
               </span>
             </>
           </div>
@@ -515,7 +584,7 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
               const canMerge = table.isMergeable && !table.isMerged
               const isSingleSelected = selectedMergeableTableIds.length === 0 && data.tableId === table.id
               const isMergeSelected = selectedMergeableTableIds.includes(table.id)
-              const isDisabled = !canFitAlone && !canMerge
+              const isDisabled = selectedMergeableTableIds.length > 0 && !canMerge
               const shape = String(table.shape || 'rectangle').toLowerCase()
               const isRound = shape === 'circle' || shape === 'round'
               const isVip = table.isPremium || String(table.type || '').toLowerCase().includes('vip')
@@ -525,7 +594,9 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
                 ? `${table.name || `Table ${table.tableNumber}`} is not mergeable`
                 : canFitAlone && selectedMergeableTableIds.length === 0
                   ? `${table.name || `Table ${table.tableNumber}`} can be assigned directly`
-                  : `${table.name || `Table ${table.tableNumber}`} can be combined`
+                  : canMerge
+                    ? `${table.name || `Table ${table.tableNumber}`} can be combined`
+                    : `${table.name || `Table ${table.tableNumber}`} can be assigned directly`
 
               return (
                 <button
@@ -567,8 +638,8 @@ export default function StaffReservationWizard({ restaurantId, onClose, onSucces
                   <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '3px', lineHeight: 1.1 }}>
                     {table.capacity || 0} guests
                   </span>
-                  <span style={{ fontSize: '0.58rem', color: canFitAlone ? '#10B981' : canMerge ? '#60A5FA' : 'var(--accent-red)', fontWeight: 800, marginTop: '4px', textTransform: 'uppercase', lineHeight: 1.1 }}>
-                    {canFitAlone ? 'Fits' : canMerge ? 'Mergeable' : 'Not mergeable'}
+                  <span style={{ fontSize: '0.58rem', color: canFitAlone ? '#10B981' : canMerge ? '#60A5FA' : 'var(--text-secondary)', fontWeight: 800, marginTop: '4px', textTransform: 'uppercase', lineHeight: 1.1 }}>
+                    {canFitAlone ? 'Fits' : canMerge ? 'Mergeable' : 'Assign'}
                   </span>
                 </button>
               )

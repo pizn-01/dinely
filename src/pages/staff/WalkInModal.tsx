@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react'
-import { X, UserCheck, Users, Minus, Plus, AlertCircle, Loader2, Clock, Calendar, ChevronRight, Layers, Check, Info } from 'lucide-react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { X, UserCheck, Users, Minus, Plus, AlertCircle, Loader2, Clock, Calendar, ChevronRight, ChevronDown, Layers, Check, Info } from 'lucide-react'
 import { api } from '../../services/api'
 import { toast } from 'react-hot-toast'
 import { openNativePicker } from '../../utils/nativePicker'
+import { QUARTER_HOUR_TIME_OPTIONS } from '../../utils/timeOptions'
 
 interface AvailableTable {
   id: string
@@ -54,6 +55,9 @@ export default function WalkInModal({ restaurantId, onClose, onSuccess, isDark =
   const [tablesLoading, setTablesLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [isTimeDropdownOpen, setIsTimeDropdownOpen] = useState(false)
+  const timeDropdownRef = useRef<HTMLDivElement | null>(null)
+  const timeOptionsListRef = useRef<HTMLDivElement | null>(null)
 
   const fetchTables = useCallback(async () => {
     if (!date || !time) return
@@ -75,6 +79,28 @@ export default function WalkInModal({ restaurantId, onClose, onSuccess, isDark =
   }, [restaurantId, date, time, partySize, tableMode])
 
   useEffect(() => { fetchTables() }, [fetchTables])
+
+  useEffect(() => {
+    if (!isTimeDropdownOpen) return
+
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (timeDropdownRef.current && !timeDropdownRef.current.contains(event.target as Node)) {
+        setIsTimeDropdownOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleOutsideClick)
+    return () => document.removeEventListener('mousedown', handleOutsideClick)
+  }, [isTimeDropdownOpen])
+
+  useEffect(() => {
+    if (!isTimeDropdownOpen || !timeOptionsListRef.current) return
+
+    const selectedIndex = QUARTER_HOUR_TIME_OPTIONS.indexOf(time)
+    if (selectedIndex < 0) return
+
+    timeOptionsListRef.current.scrollTop = Math.max(0, (selectedIndex - 3) * 36)
+  }, [time, isTimeDropdownOpen])
 
   const mergeableTables = tables.filter(t => t.isMergeable)
   const mergeCapacity = tables
@@ -197,6 +223,24 @@ export default function WalkInModal({ restaurantId, onClose, onSuccess, isDark =
         .walkin-party-step:hover { border-color: ${gold} !important; }
         .walkin-input:focus { border-color: ${gold} !important; }
         .walkin-table-card:hover { border-color: ${gold} !important; }
+        .walkin-time-options {
+          scrollbar-width: thin;
+          scrollbar-color: ${border} transparent;
+        }
+        .walkin-time-options::-webkit-scrollbar {
+          width: 8px;
+        }
+        .walkin-time-options::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .walkin-time-options::-webkit-scrollbar-thumb {
+          background-color: ${border};
+          border-radius: 999px;
+          border: 2px solid ${bgInput};
+        }
+        .walkin-time-options::-webkit-scrollbar-thumb:hover {
+          background-color: ${textSecondary};
+        }
         @media (max-width: 500px) {
           .walkin-field-grid { grid-template-columns: 1fr !important; }
           .walkin-datetime-grid { grid-template-columns: 1fr !important; }
@@ -310,8 +354,48 @@ export default function WalkInModal({ restaurantId, onClose, onSuccess, isDark =
                 <label style={labelStyle}>
                   <Clock size={11} style={{ verticalAlign: 'middle', marginRight: '4px' }} />Time
                 </label>
-                <input className={`walkin-input ${isDark ? 'native-picker-dark' : ''}`} type="time" value={time} step="900" onClick={openNativePicker}
-                  onChange={e => setTime(e.target.value)} style={inputStyle} />
+                <div ref={timeDropdownRef} style={{ position: 'relative' }}>
+                  <Clock size={16} style={{ position: 'absolute', left: '12px', top: '20px', transform: 'translateY(-50%)', color: textSecondary, pointerEvents: 'none' }} />
+                  <button
+                    type="button"
+                    className="walkin-input"
+                    aria-haspopup="listbox"
+                    aria-expanded={isTimeDropdownOpen}
+                    onClick={() => setIsTimeDropdownOpen((open) => !open)}
+                    style={{ ...inputStyle, padding: '10px 38px 10px 40px', textAlign: 'left', minHeight: '40px', cursor: 'pointer' }}
+                  >
+                    {time}
+                  </button>
+                  <ChevronDown size={16} style={{ position: 'absolute', right: '12px', top: '20px', transform: `translateY(-50%) ${isTimeDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)'}`, color: textSecondary, pointerEvents: 'none', transition: 'transform 0.15s ease' }} />
+                  {isTimeDropdownOpen && (
+                    <div
+                      ref={timeOptionsListRef}
+                      className="walkin-time-options"
+                      role="listbox"
+                      aria-label="Walk-in time"
+                      style={{ marginTop: '6px', maxHeight: '288px', overflowY: 'auto', borderRadius: '10px', border: `1px solid ${border}`, backgroundColor: bgInput, boxShadow: '0 18px 40px rgba(0,0,0,0.32)', padding: '4px', paddingRight: '6px', zIndex: 2 }}
+                    >
+                      {QUARTER_HOUR_TIME_OPTIONS.map((option) => {
+                        const selected = option === time
+                        return (
+                          <button
+                            key={option}
+                            type="button"
+                            role="option"
+                            aria-selected={selected}
+                            onClick={() => {
+                              setTime(option)
+                              setIsTimeDropdownOpen(false)
+                            }}
+                            style={{ width: '100%', height: '36px', border: 'none', borderRadius: '7px', backgroundColor: selected ? gold : 'transparent', color: selected ? '#0B1517' : textPrimary, cursor: 'pointer', fontSize: '0.875rem', fontWeight: selected ? 700 : 500, textAlign: 'left', padding: '0 12px' }}
+                          >
+                            {option}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
