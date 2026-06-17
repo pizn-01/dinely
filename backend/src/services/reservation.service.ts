@@ -40,6 +40,9 @@ type AvailableTableRow = {
   floor_areas?: { id: string; name: string } | null;
 };
 
+const RESERVATION_SELECT_WITH_TABLE =
+  '*, tables(id, table_number, name, type, is_merged, merged_table_ids, capacity, floor_areas(name))' as const;
+
 export class ReservationService {
   private tableDisplayName(table: AvailableTableRow) {
     return table.name || table.table_number || `Table ${table.id.slice(0, 8)}`;
@@ -294,7 +297,7 @@ export class ReservationService {
     return {
       id: `auto-merge:${tables.map((t) => t.id).join(',')}`,
       tableNumber: 'AUTO',
-      name: `Combined ${names.join(' + ')}`,
+      name: `${names.join(' + ')}`,
       capacity,
       area: sameArea && tables[0].floor_areas ? { id: tables[0].floor_areas.id, name: tables[0].floor_areas.name } : null,
       type: requiresStaffReview ? 'staff_review_required' : null,
@@ -327,26 +330,29 @@ export class ReservationService {
     endTime: string,
     duration: number,
     partySize: number,
-    sourceIds: string[]
+    sourceIds: string[],
+    excludeReservationId?: string,
+    ignoreMergedTableId?: string | null
   ) {
     const uniqueIds = Array.from(new Set(sourceIds));
     if (uniqueIds.length !== sourceIds.length || uniqueIds.length < 2) return null;
 
     const { data: dayReservations } = await supabaseAdmin
       .from('reservations')
-      .select('table_id, start_time, end_time, status')
+      .select('id, table_id, start_time, end_time, status')
       .eq('restaurant_id', restaurantId)
       .eq('reservation_date', date)
       .not('status', 'in', `(${ReservationStatus.CANCELLED},${ReservationStatus.NO_SHOW},${ReservationStatus.COMPLETED})`);
-    const reservations = dayReservations || [];
+    const reservations = (dayReservations || []).filter((r: any) => r.id !== excludeReservationId);
 
-    const { data: tableRows } = await supabaseAdmin
+    const { data: rawTableRows } = await supabaseAdmin
       .from('tables')
       .select('*, floor_areas(id, name)')
       .eq('restaurant_id', restaurantId)
       .or('is_active.eq.true,is_merged.eq.true');
+    const tableRows = (rawTableRows || []).filter((row: any) => row.id !== ignoreMergedTableId);
 
-    const laidOutTables = buildLayoutTableRows(tableRows || [], date, {
+    const laidOutTables = buildLayoutTableRows(tableRows, date, {
       layoutTime: startTime,
       reservations,
       defaultDurationMins: duration,
@@ -355,7 +361,7 @@ export class ReservationService {
     const selectedTables = laidOutTables.filter((table) => uniqueIds.includes(table.id));
     if (selectedTables.length !== uniqueIds.length) return null;
     if (selectedTables.some((table) => table.is_merged || table.is_mergeable !== true)) return null;
-    if (selectedTables.some((table) => !this.isTableFreeForReservations(table.id, reservations, startTime, endTime, tableRows || []))) return null;
+    if (selectedTables.some((table) => !this.isTableFreeForReservations(table.id, reservations, startTime, endTime, tableRows))) return null;
 
     const sameArea = selectedTables.every(
       (table) => (table.area_id || table.floor_areas?.id || null) === (selectedTables[0].area_id || selectedTables[0].floor_areas?.id || null)
@@ -373,7 +379,7 @@ export class ReservationService {
 
     let query = supabaseAdmin
       .from('reservations')
-      .select('*, tables(id, table_number, name, type, floor_areas(name))', { count: 'exact' })
+      .select(RESERVATION_SELECT_WITH_TABLE, { count: 'exact' })
       .eq('restaurant_id', restaurantId);
 
     // Apply filters
@@ -426,7 +432,7 @@ export class ReservationService {
   async getById(reservationId: string, restaurantId: string) {
     const { data, error } = await supabaseAdmin
       .from('reservations')
-      .select('*, tables(id, table_number, name, type, floor_areas(name))')
+      .select(RESERVATION_SELECT_WITH_TABLE)
       .eq('id', reservationId)
       .eq('restaurant_id', restaurantId)
       .single();
@@ -678,7 +684,7 @@ export class ReservationService {
     // Fetch the newly created reservation with relation data
     let { data: createdRes, error: fetchErr } = await supabaseAdmin
       .from('reservations')
-      .select('*, tables(id, table_number, name, type, floor_areas(name))')
+      .select(RESERVATION_SELECT_WITH_TABLE)
       .eq('id', rpcData.id)
       .single();
 
@@ -795,13 +801,102 @@ export class ReservationService {
 
       const { data: updatedRes, error: fetchErr } = await supabaseAdmin
         .from('reservations')
-        .select('*, tables(id, table_number, name, type, floor_areas(name))')
+        .select(RESERVATION_SELECT_WITH_TABLE)
         .eq('id', reservationId)
         .eq('restaurant_id', restaurantId)
         .single();
 
       if (fetchErr || !updatedRes) throw new NotFoundError('Reservation');
       return this.formatReservation(updatedRes);
+    }
+
+    const { data: currentRes, error: currentErr } = await supabaseAdmin
+      .from('reservations')
+      .select('id, table_id, reservation_date, start_time, end_time, party_size, tables(id, is_merged, merged_table_ids)')
+      .eq('id', reservationId)
+      .eq('restaurant_id', restaurantId)
+      .single();
+
+    if (currentErr || !currentRes) throw new NotFoundError('Reservation');
+
+    const { data: orgSettings } = await supabaseAdmin
+      .from('organizations')
+      .select('default_reservation_duration_min')
+      .eq('id', restaurantId)
+      .single();
+    const duration = orgSettings?.default_reservation_duration_min || 90;
+    const updateDate = dto.reservationDate || currentRes.reservation_date;
+    const updateStartTime = dto.startTime || currentRes.start_time;
+    const updateEndTime = dto.endTime || currentRes.end_time || addMinutesToTime(updateStartTime, duration);
+    const updatePartySize = dto.partySize || currentRes.party_size;
+    let effectiveTableId = dto.tableId;
+    let createdMergedTableId: string | null = null;
+    const oldMergedTableId =
+      currentRes.table_id && (currentRes.tables as any)?.is_merged
+        ? currentRes.table_id
+        : null;
+
+    if (dto.autoMergeTableIds?.length) {
+      const requestedAutoMerge = await this.getStaffSelectedMergeOption(
+        restaurantId,
+        updateDate,
+        updateStartTime,
+        updateEndTime,
+        duration,
+        updatePartySize,
+        dto.autoMergeTableIds,
+        reservationId,
+        oldMergedTableId
+      );
+
+      if (!requestedAutoMerge) {
+        throw new AppError('Selected table combination is no longer available for this time slot', 409);
+      }
+
+      const sourceIds = requestedAutoMerge.autoMergeTableIds as string[];
+      const { data: sourceTables } = await supabaseAdmin
+        .from('tables')
+        .select('position_x, position_y')
+        .in('id', sourceIds)
+        .eq('restaurant_id', restaurantId);
+      const positionedTables = (sourceTables || []).filter((t) => t.position_x != null && t.position_y != null);
+      const avgX = positionedTables.length
+        ? positionedTables.reduce((sum, t) => sum + Number(t.position_x), 0) / positionedTables.length
+        : null;
+      const avgY = positionedTables.length
+        ? positionedTables.reduce((sum, t) => sum + Number(t.position_y), 0) / positionedTables.length
+        : null;
+      const { data: mergedTable, error: mergeErr } = await supabaseAdmin
+        .from('tables')
+        .insert({
+          restaurant_id: restaurantId,
+          table_number: `AUTO-${Date.now().toString().slice(-6)}-${Math.random().toString(36).slice(2, 5).toUpperCase()}`,
+          name: requestedAutoMerge.name,
+          capacity: requestedAutoMerge.capacity,
+          min_capacity: updatePartySize,
+          area_id: requestedAutoMerge.area?.id || null,
+          position_x: avgX,
+          position_y: avgY,
+          shape: 'rectangle',
+          type: requestedAutoMerge.requiresStaffReview ? 'staff_review_required' : null,
+          is_premium: requestedAutoMerge.isPremium || false,
+          premium_price: requestedAutoMerge.premiumPrice || 0,
+          is_merged: true,
+          merged_table_ids: sourceIds,
+          merge_effective_from: updateDate,
+          is_active: false,
+          start_time: updateStartTime,
+          end_time: updateEndTime,
+        })
+        .select('id')
+        .single();
+
+      if (mergeErr || !mergedTable) {
+        throw new AppError(`Failed to prepare combined table: ${mergeErr?.message || 'unknown error'}`, 500);
+      }
+
+      effectiveTableId = mergedTable.id;
+      createdMergedTableId = mergedTable.id;
     }
 
     // 1. Rely on atomic DB-level locking via an RPC instead of JS memory checks
@@ -821,8 +916,8 @@ export class ReservationService {
       p_special_requests: dto.specialRequests ?? null,
       p_internal_notes: dto.internalNotes ?? null,
     };
-    if (dto.tableId !== undefined && dto.tableId !== null) {
-      rpcParams.p_table_id = dto.tableId;
+    if (effectiveTableId !== undefined && effectiveTableId !== null) {
+      rpcParams.p_table_id = effectiveTableId;
     }
 
     try {
@@ -830,6 +925,9 @@ export class ReservationService {
 
       if (error) {
         if (error.message.includes('overlap') || error.message.includes('booked')) {
+          if (createdMergedTableId) {
+            await supabaseAdmin.from('tables').delete().eq('id', createdMergedTableId).eq('restaurant_id', restaurantId);
+          }
           throw new AppError('Table is already booked for the selected time slot.', 409);
         }
         console.warn('[ReservationService] RPC update failed, using fallback:', error.message);
@@ -843,7 +941,7 @@ export class ReservationService {
 
     if (!rpcSuccess) {
       const updatePayload: Record<string, any> = {};
-      if (dto.tableId !== undefined) updatePayload.table_id = dto.tableId;
+      if (effectiveTableId !== undefined) updatePayload.table_id = effectiveTableId;
       if (dto.reservationDate !== undefined) updatePayload.reservation_date = dto.reservationDate;
       if (dto.startTime !== undefined) updatePayload.start_time = dto.startTime;
       if (dto.endTime !== undefined) updatePayload.end_time = dto.endTime;
@@ -864,6 +962,9 @@ export class ReservationService {
           .eq('restaurant_id', restaurantId);
 
         if (updateErr) {
+          if (createdMergedTableId) {
+            await supabaseAdmin.from('tables').delete().eq('id', createdMergedTableId).eq('restaurant_id', restaurantId);
+          }
           throw new AppError('Failed to update reservation: ' + updateErr.message, 500);
         }
       }
@@ -872,13 +973,53 @@ export class ReservationService {
     // 2. Fetch the newly structured reservation payload for the response
     const { data: updatedRes, error: fetchErr } = await supabaseAdmin
       .from('reservations')
-      .select('*, tables(id, table_number, name, type, floor_areas(name))')
+      .select(RESERVATION_SELECT_WITH_TABLE)
       .eq('id', reservationId)
       .eq('restaurant_id', restaurantId)
       .single();
 
     if (fetchErr || !updatedRes) throw new NotFoundError('Reservation');
+
+    if (oldMergedTableId && oldMergedTableId !== updatedRes.table_id) {
+      try {
+        await tableService.unmergeTable(oldMergedTableId, restaurantId);
+      } catch (err: any) {
+        console.warn('[ReservationService] Failed to unmerge previous reservation table:', err?.message || err);
+      }
+    }
+
+    if (createdMergedTableId && updatedRes.table_id !== createdMergedTableId) {
+      await supabaseAdmin.from('tables').delete().eq('id', createdMergedTableId).eq('restaurant_id', restaurantId);
+    }
+
     return this.formatReservation(updatedRes);
+  }
+
+  private async autoUnmergeCompletedReservationTable(row: any, restaurantId: string) {
+    const tableId = row.table_id;
+    if (!tableId || !row.tables?.is_merged) return;
+
+    const { data: activeReservations, error } = await supabaseAdmin
+      .from('reservations')
+      .select('id')
+      .eq('restaurant_id', restaurantId)
+      .eq('table_id', tableId)
+      .neq('id', row.id)
+      .not('status', 'in', `(${ReservationStatus.CANCELLED},${ReservationStatus.NO_SHOW},${ReservationStatus.COMPLETED})`)
+      .limit(1);
+
+    if (error) {
+      console.warn('[ReservationService] Failed to check merged table reservation references:', error.message);
+      return;
+    }
+
+    if (activeReservations?.length) return;
+
+    try {
+      await tableService.unmergeTable(tableId, restaurantId);
+    } catch (err: any) {
+      console.warn('[ReservationService] Failed to auto-unmerge completed reservation table:', err?.message || err);
+    }
   }
 
   /**
@@ -971,18 +1112,21 @@ export class ReservationService {
     // Fetch the detailed payload for frontend format and email side-effects
     const { data, error: fetchError } = await supabaseAdmin
       .from('reservations')
-      .select('*, tables(id, table_number, name, type, floor_areas(name))')
+      .select(RESERVATION_SELECT_WITH_TABLE)
       .eq('id', reservationId)
       .eq('restaurant_id', restaurantId)
       .single();
 
     if (fetchError || !data) throw new NotFoundError('Reservation');
 
-    if (newStatus === ReservationStatus.COMPLETED && data.customer_id) {
-      await supabaseAdmin.rpc('increment_customer_visits', {
-        p_customer_id: data.customer_id,
-        p_restaurant_id: restaurantId,
-      });
+    if (newStatus === ReservationStatus.COMPLETED) {
+      if (data.customer_id) {
+        await supabaseAdmin.rpc('increment_customer_visits', {
+          p_customer_id: data.customer_id,
+          p_restaurant_id: restaurantId,
+        });
+      }
+      await this.autoUnmergeCompletedReservationTable(data, restaurantId);
     }
 
     // Send cancellation email when status changes to cancelled
@@ -1093,7 +1237,7 @@ export class ReservationService {
     date: string,
     startTime: string,
     partySize: number,
-    options?: { includeAllAvailable?: boolean }
+    options?: { includeAllAvailable?: boolean; excludeReservationId?: string }
   ) {
     await tableService.dematerializeScheduledMerges(restaurantId);
 
@@ -1108,11 +1252,11 @@ export class ReservationService {
 
     const { data: dayReservations } = await supabaseAdmin
       .from('reservations')
-      .select('table_id, start_time, end_time, status')
+      .select('id, table_id, start_time, end_time, status')
       .eq('restaurant_id', restaurantId)
       .eq('reservation_date', date)
       .not('status', 'in', `(${ReservationStatus.CANCELLED},${ReservationStatus.NO_SHOW},${ReservationStatus.COMPLETED})`);
-    const reservations = dayReservations || [];
+    const reservations = (dayReservations || []).filter((r: any) => r.id !== options?.excludeReservationId);
 
     const { data: tableRows } = await supabaseAdmin
       .from('tables')
@@ -1373,6 +1517,9 @@ export class ReservationService {
             tableNumber: row.tables.table_number,
             name: row.tables.name,
             type: row.tables.type,
+            capacity: row.tables.capacity,
+            isMerged: row.tables.is_merged || false,
+            mergedTableIds: row.tables.merged_table_ids || [],
             area: row.tables.floor_areas?.name || null,
           }
         : null,
@@ -1394,7 +1541,7 @@ export class ReservationService {
       })
       .eq('id', reservationId)
       .eq('restaurant_id', restaurantId)
-      .select('*, tables(id, table_number, name, type, floor_areas(name))')
+      .select(RESERVATION_SELECT_WITH_TABLE)
       .single();
 
     if (error || !data) throw new NotFoundError('Reservation');
