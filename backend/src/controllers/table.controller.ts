@@ -130,6 +130,7 @@ export class TableController {
       const time = req.query.time as string;
       const partySize = req.query.partySize as string;
       const includeAllAvailable = req.query.includeAllAvailable === 'true';
+      const excludeReservationId = req.query.excludeReservationId as string | undefined;
 
       if (!date || !time || !partySize) {
         res.status(400).json({
@@ -145,7 +146,7 @@ export class TableController {
         date,
         time,
         parseInt(partySize, 10),
-        { includeAllAvailable }
+        { includeAllAvailable, excludeReservationId }
       );
 
       res.json({ success: true, data: result });
