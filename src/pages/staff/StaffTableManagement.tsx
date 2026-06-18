@@ -9,6 +9,7 @@ import { useRealtimeReservations } from '../../hooks/useRealtimeReservations'
 import PoweredByFooter from '../../components/PoweredByFooter'
 import StaffReservationWizard from './StaffReservationWizard'
 import WalkInModal from './WalkInModal'
+import ReservationTableAssignmentMap from './ReservationTableAssignmentMap'
 import AnalyticsReportModal from '../../components/AnalyticsReportModal'
 import { staffForgotPasswordPath, staffLoginPath, staffTablesPath } from '../../utils/restaurantRoutes'
 import { openNativePicker } from '../../utils/nativePicker'
@@ -191,6 +192,15 @@ export default function StaffTableManagement() {
     internalNotes: string
   } | null>(null)
   const [savingEdit, setSavingEdit] = useState(false)
+  const [assignmentTables, setAssignmentTables] = useState<any[]>([])
+  const [assignmentLoading, setAssignmentLoading] = useState(false)
+  const [assignmentError, setAssignmentError] = useState<string | null>(null)
+  const [assignmentSelection, setAssignmentSelection] = useState<{
+    mode: 'single' | 'merge'
+    tableId: string | null
+    mergeTableIds: string[]
+  }>({ mode: 'single', tableId: null, mergeTableIds: [] })
+  const [savingAssignment, setSavingAssignment] = useState(false)
   
   // ── Drag and Drop State ──────────────────────────────────────────────
   const [draggedTable, setDraggedTable] = useState<any>(null)
@@ -334,11 +344,11 @@ export default function StaffTableManagement() {
   // Auto-poll every 15 seconds to keep the system updated
   useEffect(() => {
     if (!restaurantId) return
-    const interval = setInterval(() => {
+
       fetchData(selectedDate, restaurantId)
       fetchMonthlyCounts()
-    }, 15_000)
-    return () => clearInterval(interval)
+   
+
   }, [selectedDate, restaurantId, fetchData, fetchMonthlyCounts])
 
   // Real-time sync: instant refresh on any reservation event
@@ -614,10 +624,114 @@ export default function StaffTableManagement() {
     }
   }
 
+  const currentAssignedTableIds = useCallback((booking: any): string[] => {
+    if (!booking) return []
+    if (Array.isArray(booking.table?.mergedTableIds) && booking.table.mergedTableIds.length > 0) {
+      return booking.table.mergedTableIds
+    }
+    const tableId = booking.table?.id || booking.tableId
+    return tableId ? [tableId] : []
+  }, [])
+
+  const normalizeAssignableTable = useCallback((table: any) => ({
+    ...table,
+    tableNumber: table.tableNumber || table.table_number,
+    minCapacity: table.minCapacity || table.min_capacity,
+    positionX: table.positionX ?? table.position_x,
+    positionY: table.positionY ?? table.position_y,
+    isPremium: table.isPremium ?? table.is_premium ?? false,
+    isMergeable: table.isMergeable ?? table.is_mergeable ?? false,
+    isMerged: table.isMerged ?? table.is_merged ?? false,
+    mergedTableIds: table.mergedTableIds || table.merged_table_ids || [],
+  }), [])
+
+  const fetchAssignmentTables = useCallback(async (booking: any) => {
+    if (!restaurantId || !booking) return
+    setAssignmentLoading(true)
+    setAssignmentError(null)
+    try {
+      const date = booking.reservationDate || booking.date || selectedDate
+      const time = booking.startTime?.slice(0, 5) || viewTime.slice(0, 5)
+      const [{ data: res }, inventoryRes] = await Promise.all([
+        api.get(`/organizations/${restaurantId}/tables/availability`, {
+          params: {
+            date,
+            time,
+            partySize: booking.partySize || 1,
+            includeAllAvailable: true,
+            excludeReservationId: booking.id,
+          },
+        }),
+        api.get(`/organizations/${restaurantId}/tables`, { params: { inventory: true } }).catch(() => null),
+      ])
+
+      const currentIds = currentAssignedTableIds(booking)
+      const tableMap = new Map<string, any>()
+      ;((res.data || []) as any[]).forEach((table) => tableMap.set(table.id, normalizeAssignableTable(table)))
+      ;([...(inventoryRes?.data?.data || []), ...dbTables]).forEach((table) => {
+        if (currentIds.includes(table.id) && !tableMap.has(table.id)) {
+          tableMap.set(table.id, normalizeAssignableTable(table))
+        }
+      })
+      setAssignmentTables(Array.from(tableMap.values()))
+    } catch (err: any) {
+      setAssignmentError(err?.response?.data?.message || 'Failed to load available tables')
+    } finally {
+      setAssignmentLoading(false)
+    }
+  }, [restaurantId, selectedDate, viewTime, dbTables, currentAssignedTableIds, normalizeAssignableTable])
+
+  const handleAssignReservationTable = async () => {
+    if (!restaurantId || !selectedBooking) return
+    const payload: Record<string, any> = {}
+    if (assignmentSelection.mode === 'merge') {
+      const ids = Array.from(new Set(assignmentSelection.mergeTableIds))
+      if (ids.length < 2) {
+        toast.error('Select at least two mergeable tables.')
+        return
+      }
+      payload.autoMergeTableIds = ids
+    } else {
+      if (!assignmentSelection.tableId) {
+        toast.error('Select a table first.')
+        return
+      }
+      payload.tableId = assignmentSelection.tableId
+    }
+
+    try {
+      setSavingAssignment(true)
+      await api.put(`/organizations/${restaurantId}/reservations/${selectedBooking.id}`, payload)
+      toast.success('Reservation assigned to table')
+      setSelectedBooking(null)
+      setSelectedTable(null)
+      fetchData(selectedDate, restaurantId)
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || err?.response?.data?.error || 'Failed to assign table')
+    } finally {
+      setSavingAssignment(false)
+    }
+  }
+
   const guestDisplayName = (r: { guestFirstName?: string; guestLastName?: string }) => {
     const n = `${r.guestFirstName || ''} ${r.guestLastName || ''}`.trim()
     return n || 'Guest'
   }
+
+  useEffect(() => {
+    if (!selectedBooking || selectedTable || ['completed', 'cancelled', 'no_show'].includes(selectedBooking.status)) {
+      setAssignmentTables([])
+      return
+    }
+
+    const currentIds = currentAssignedTableIds(selectedBooking)
+    setAssignmentSelection({
+      mode: currentIds.length > 1 ? 'merge' : 'single',
+      tableId: currentIds.length === 1 ? currentIds[0] : (selectedBooking.table?.id || selectedBooking.tableId || null),
+      mergeTableIds: currentIds.length > 1 ? currentIds : [],
+    })
+    fetchAssignmentTables(selectedBooking)
+  }, [selectedBooking?.id, selectedBooking?.table?.id, selectedBooking?.startTime, selectedBooking?.reservationDate, selectedBooking?.partySize, selectedTable?.id, currentAssignedTableIds, fetchAssignmentTables])
 
   const timelineScrollRef = useRef<HTMLDivElement | null>(null)
 
@@ -2206,9 +2320,9 @@ export default function StaffTableManagement() {
       {/* Reservation Detail Modal */}
       {(selectedBooking || selectedTable) && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'var(--modal-overlay)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'var(--modal-backdrop)' }}>
-          <div style={{ backgroundColor: 'var(--bg-modal)', borderRadius: '32px', width: '100%', maxWidth: '440px', padding: '40px', position: 'relative', boxShadow: 'var(--shadow-lg)', border: `1px solid var(--border-primary)` }}>
+          <div style={{ backgroundColor: 'var(--bg-modal)', borderRadius: '32px', width: 'calc(100% - 32px)', maxWidth: selectedBooking ? '1180px' : '440px', maxHeight: '88vh', overflowY: 'auto', padding: '40px', position: 'relative', boxShadow: 'var(--shadow-lg)', border: `1px solid var(--border-primary)` }}>
             <button
-              onClick={() => { setSelectedBooking(null); setSelectedTable(null); setEditingBooking(false); setEditFields(null); }}
+              onClick={() => { setSelectedBooking(null); setSelectedTable(null); setEditingBooking(false); setEditFields(null); setAssignmentTables([]); setAssignmentSelection({ mode: 'single', tableId: null, mergeTableIds: [] }); }}
               style={{ position: 'absolute', top: '32px', right: '32px', background: 'var(--bg-tertiary)', border: 'none', cursor: 'pointer', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
               <Plus size={20} style={{ transform: 'rotate(45deg)' }} />
             </button>
@@ -2504,46 +2618,18 @@ export default function StaffTableManagement() {
                       Assign to Table
                     </label>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%', minWidth: 0 }}>
-                      <select
-                        id="reassign-table-select"
-                        defaultValue={selectedBooking.table?.id || selectedBooking.tableId || ""}
-                        style={{
-                          width: '100%',
-                          minWidth: 0,
-                          padding: '10px 14px',
-                          borderRadius: '8px',
-                          backgroundColor: 'var(--bg-tertiary)',
-                          border: '1px solid var(--border-primary)',
-                          color: 'var(--text-primary)',
-                          fontSize: '0.875rem',
-                          fontFamily: 'inherit',
-                          boxSizing: 'border-box' as const,
-                        }}
-                      >
-                        <option value="" disabled>Select a table...</option>
-                        {dbTables
-                          .filter((t: any) => t.capacity >= (selectedBooking.partySize || 1))
-                          .map((t: any) => (
-                            <option key={t.id} value={t.id}>
-                              {t.name || `Table #${t.tableNumber}`} (capacity: {t.capacity})
-                            </option>
-                          ))
-                        }
-                      </select>
+                      <ReservationTableAssignmentMap
+                        tables={assignmentTables}
+                        partySize={selectedBooking.partySize || 1}
+                        initialTableId={(currentAssignedTableIds(selectedBooking).length === 1 ? currentAssignedTableIds(selectedBooking)[0] : selectedBooking.table?.id || selectedBooking.tableId || null)}
+                        initialMergeTableIds={currentAssignedTableIds(selectedBooking).length > 1 ? currentAssignedTableIds(selectedBooking) : []}
+                        loading={assignmentLoading}
+                        error={assignmentError}
+                        onSelectionChange={setAssignmentSelection}
+                      />
                       <button
-                        onClick={async () => {
-                          const selectEl = document.getElementById('reassign-table-select') as HTMLSelectElement
-                          const tableId = selectEl?.value
-                          if (!tableId || !restaurantId) return
-                          try {
-                            await api.put(`/organizations/${restaurantId}/reservations/${selectedBooking.id}`, { tableId })
-                            toast.success('Reservation assigned to table')
-                            fetchData(selectedDate, restaurantId)
-                            setSelectedBooking(null)
-                          } catch (err: any) {
-                            toast.error(err?.response?.data?.message || 'Failed to assign table')
-                          }
-                        }}
+                        onClick={handleAssignReservationTable}
+                        disabled={savingAssignment || assignmentLoading}
                         style={{
                           width: '100%',
                           padding: '10px 20px',
@@ -2552,12 +2638,13 @@ export default function StaffTableManagement() {
                           color: '#ffffff',
                           border: 'none',
                           fontWeight: 600,
-                          cursor: 'pointer',
+                          cursor: savingAssignment || assignmentLoading ? 'wait' : 'pointer',
                           fontSize: '0.875rem',
+                          opacity: savingAssignment || assignmentLoading ? 0.7 : 1,
                           boxSizing: 'border-box' as const,
                         }}
                       >
-                        Assign
+                        {savingAssignment ? 'Assigning...' : 'Assign'}
                       </button>
                     </div>
                   </div>
